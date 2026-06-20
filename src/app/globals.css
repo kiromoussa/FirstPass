@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+}
+
+html,
+body {
+  background: #0a0e14;
+  color: #e6edf3;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Blueprint grid backdrop for the viewer */
+.blueprint-grid {
+  background-color: #0d2235;
+  background-image:
+    linear-gradient(rgba(120, 180, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 180, 255, 0.12) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(61, 220, 151, 0.45); }
+  70% { box-shadow: 0 0 0 8px rgba(61, 220, 151, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(61, 220, 151, 0); }
+}
+.pulse { animation: pulse-ring 1.4s ease-out; }
+
+.scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #243042; border-radius: 8px; }
