@@ -10,3 +10,8 @@ out
 next-env.d.ts
 .claude
 tsconfig.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+output/
