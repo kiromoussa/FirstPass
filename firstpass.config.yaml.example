@@ -1,0 +1,36 @@
+# Copy this file to firstpass.config.yaml and fill in your credentials.
+# firstpass.config.yaml is gitignored — never commit real API keys.
+
+anthropic:
+  api_key: ""
+  model: "claude-sonnet-4-5-20250929"
+
+browserbase:
+  api_key: ""
+  project_id: ""
+
+# Register 3 External Agents at app.band.ai with these exact names for @mention routing:
+#   - Municipal Code Researcher
+#   - State Code Researcher
+#   - Code Synthesizer
+band:
+  municipal_researcher:
+    agent_id: "28e83f6c-4362-4539-8e53-0f31477d99c1"
+    api_key: ""
+
+  state_researcher:
+    agent_id: "0d05ac9f-7998-4030-86d2-72381854ebd3"
+    api_key: ""
+
+  code_synthesizer:
+    agent_id: "94d50391-87a6-4285-a8b7-03faf165722e"
+    api_key: ""
+
+  # Used by firstpass-kickoff to create rooms and send messages
+  orchestrator:
+    agent_id: "28e83f6c-4362-4539-8e53-0f31477d99c1"
+    api_key: ""
+
+# Optional: override Band endpoints for self-hosted deployments
+# band_rest_url: "https://app.band.ai/api/v1/agent"
+# band_ws_url: "wss://app.band.ai/api/v1/socket/websocket"
