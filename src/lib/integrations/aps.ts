@@ -105,7 +105,7 @@ export async function uploadDwg(
     if (!signRes.ok) throw new Error(`signeds3upload GET ${signRes.status}`);
     const sign = (await signRes.json()) as { uploadKey: string; urls: string[] };
     // 2. PUT the bytes to the signed URL
-    const put = await fetch(sign.urls[0], { method: "PUT", body: bytes });
+    const put = await fetch(sign.urls[0], { method: "PUT", body: new Uint8Array(bytes) });
     if (!put.ok) throw new Error(`s3 PUT ${put.status}`);
     // 3. Finalize the upload
     const fin = await fetch(

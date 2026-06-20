@@ -8,15 +8,32 @@ export default function Home() {
   const router = useRouter();
   const [name, setName] = useState("Maple St. Detached ADU");
   const [address, setAddress] = useState("1421 Maple St, Alameda, CA 94501");
-  const [pdfName, setPdfName] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  const [statusText, setStatusText] = useState("");
 
   async function start() {
     setBusy(true);
+    let apsUrn: string | undefined;
+    // 1. If a DWG was provided, upload it to Autodesk APS and start translation.
+    if (file) {
+      try {
+        setStatusText("Uploading DWG to Autodesk APS…");
+        const fd = new FormData();
+        fd.append("file", file);
+        const up = await fetch("/api/aps/upload", { method: "POST", body: fd });
+        const upj = await up.json();
+        if (upj.ok && upj.urn) apsUrn = upj.urn;
+      } catch {
+        /* fall back to the reference set */
+      }
+    }
+    // 2. Create the project (with the URN if we have one).
+    setStatusText("Starting FirstPass…");
     const res = await fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, address, pdfName }),
+      body: JSON.stringify({ name, address, dwgName: file?.name, apsUrn }),
     });
     const { id } = await res.json();
     router.push(`/project/${id}`);
@@ -77,21 +94,22 @@ export default function Home() {
               <span className="text-xs text-ink-600">Alameda, CA</span>
             </div>
 
-            <label className="block text-sm text-slate-300 mb-1">Plan set (PDF)</label>
+            <label className="block text-sm text-slate-300 mb-1">Plan set (DWG)</label>
             <label className="w-full border border-dashed border-ink-600 rounded-lg px-3 py-6 mb-6 text-center text-sm text-slate-400 cursor-pointer hover:border-accent block">
               <input
                 type="file"
-                accept="application/pdf"
+                accept=".dwg,application/acad,image/vnd.dwg,application/dxf,.dxf"
                 className="hidden"
-                onChange={(e) => setPdfName(e.target.files?.[0]?.name ?? null)}
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
-              {pdfName ? (
-                <span className="text-accent">{pdfName}</span>
+              {file ? (
+                <span className="text-accent">{file.name}</span>
               ) : (
-                <span>Drag &amp; drop or click to upload your ADU plan set</span>
+                <span>Drag &amp; drop or click to upload your AutoCAD DWG</span>
               )}
               <div className="text-[11px] text-ink-600 mt-1">
-                Optional for the demo — a sample Alameda ADU set is used if none is provided.
+                Translated by Autodesk APS. Optional for the demo — a validated Alameda ADU
+                reference is used if none is provided.
               </div>
             </label>
 
@@ -100,7 +118,7 @@ export default function Home() {
               disabled={busy}
               className="w-full bg-accent hover:bg-accent-600 text-ink-950 font-semibold rounded-lg px-4 py-3 text-sm disabled:opacity-60"
             >
-              {busy ? "Starting…" : "Run FirstPass →"}
+              {busy ? statusText || "Starting…" : "Run FirstPass →"}
             </button>
           </div>
         </section>

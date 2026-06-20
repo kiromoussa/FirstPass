@@ -9,6 +9,7 @@ import { PhaseRail } from "@/components/PhaseRail";
 import { SponsorRail } from "@/components/SponsorRail";
 import { AgentFeed } from "@/components/AgentFeed";
 import { BlueprintViewer } from "@/components/BlueprintViewer";
+import { ApsViewer } from "@/components/ApsViewer";
 import { FindingsList } from "@/components/FindingsList";
 import { FactsList } from "@/components/FactsList";
 import { FindingInspector } from "@/components/FindingInspector";
@@ -102,14 +103,18 @@ export default function ProjectDashboard() {
 
         {/* Center: blueprint + findings/facts tabs */}
         <section className="overflow-y-auto scrollbar-thin p-6 space-y-5">
-          <BlueprintViewer
-            findings={state?.findings ?? []}
-            selectedId={selectedId}
-            onSelect={(fid) => {
-              setSelectedId(fid);
-              setTab("findings");
-            }}
-          />
+          {state?.project.apsUrn ? (
+            <ApsViewer urn={state.project.apsUrn} />
+          ) : (
+            <BlueprintViewer
+              findings={state?.findings ?? []}
+              selectedId={selectedId}
+              onSelect={(fid) => {
+                setSelectedId(fid);
+                setTab("findings");
+              }}
+            />
+          )}
 
           <div className="flex items-center gap-2">
             {(["findings", "facts"] as const).map((t) => (

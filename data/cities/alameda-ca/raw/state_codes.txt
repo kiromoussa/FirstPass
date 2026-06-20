@@ -1,0 +1,15 @@
+STATE CODE RESEARCH — California
+Accessory Dwelling Units — height standards that override local limits
+Compiled by the State Code Researcher agent from official sources.
+
+### CA Gov. Code §65852.2 / HCD — Height (Detached) [S2]
+A detached accessory dwelling unit may be up to 18 feet in height. An additional
+two feet of height is permitted to accommodate a roof pitch that aligns with the
+roof pitch of the primary dwelling unit. A local agency may not impose a height
+limit below this state floor on a detached ADU.
+
+### CA HCD — Height (Attached) [S2]
+An attached accessory dwelling unit is limited to 16 feet in height where it
+must match the height of the primary dwelling. This attached-unit limit is
+distinct from the detached-unit standard and applies only when the ADU shares a
+wall with the primary dwelling.

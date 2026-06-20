@@ -17,6 +17,12 @@ Built for the UC Berkeley AI Hackathon. Full product/engineering brief: [`PLAN.m
 - **Band** — multi-agent message bus powering the live activity feed.
 - **Redis** — shared agent memory + rule/finding/source stores.
 - **Arize** — tracing + evals (citation, authority, applicability, hallucination).
+- **Autodesk APS** — DWG upload → Model Derivative (SVF2) translation + in-browser Viewer.
+
+**Input is DWG** (AutoCAD): the file is uploaded to APS, translated, and rendered in the
+dashboard via the Autodesk Viewer. Compliance runs against a **chunked code database** in
+Redis — each check retrieves only its relevant code section (token-efficient RAG), shown in
+the finding inspector as "Retrieved code · RAG from Redis".
 
 Every integration is an **adapter that runs live when its key is present and falls back to
 deterministic cached data when it isn't** — so the app runs and demos with zero keys, and

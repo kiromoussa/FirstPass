@@ -1,0 +1,76 @@
+[
+  {
+    "id": "alameda-ca-amc-30-5-21-b-unit-size",
+    "section": "AMC §30-5.21(b) — Unit Size",
+    "topics": [
+      "maxSize",
+      "unitSize"
+    ],
+    "text": "The maximum floor area of a detached accessory dwelling unit shall not exceed\n1,200 square feet of conditioned space. This maximum applies regardless of lot\nsize; smaller maximums established elsewhere in this chapter do not apply where\nthey would conflict with state law permitting an 800 square foot unit.",
+    "sourceId": "S1",
+    "citation": "AMC §30-5.21(b) — Unit Size",
+    "context": "Alameda, CA · Municipal code · AMC §30-5.21(b) — Unit Size",
+    "tokensEst": 76
+  },
+  {
+    "id": "alameda-ca-amc-30-5-21-c-side-setback",
+    "section": "AMC §30-5.21(c) — Side Setback",
+    "topics": [
+      "setbackSide"
+    ],
+    "text": "A minimum side setback of 4 feet shall be provided for an accessory dwelling\nunit. No side setback is required for an existing structure converted to an ADU,\nor for a new ADU constructed in the same location and to the same dimensions as\nthe structure it replaces.",
+    "sourceId": "S3",
+    "citation": "AMC §30-5.21(c) — Side Setback",
+    "context": "Alameda, CA · Municipal code · AMC §30-5.21(c) — Side Setback",
+    "tokensEst": 66
+  },
+  {
+    "id": "alameda-ca-amc-30-5-21-c-rear-setback",
+    "section": "AMC §30-5.21(c) — Rear Setback",
+    "topics": [
+      "setbackRear"
+    ],
+    "text": "A minimum rear setback of 4 feet shall be provided for an accessory dwelling\nunit. Like the corresponding side requirement, no rear setback is required for a\npermitted conversion of existing permitted floor area.",
+    "sourceId": "S3",
+    "citation": "AMC §30-5.21(c) — Rear Setback",
+    "context": "Alameda, CA · Municipal code · AMC §30-5.21(c) — Rear Setback",
+    "tokensEst": 53
+  },
+  {
+    "id": "alameda-ca-alameda-p-b-submittal-checklist",
+    "section": "Alameda P&B — Submittal Checklist",
+    "topics": [
+      "requiredDocs"
+    ],
+    "text": "A complete ADU submittal must include a site plan, a floor plan, building\nelevations, and a Title-24 energy compliance report. Incomplete submittals are\nreturned without review. Electronic plan sets must be submitted as a single\ncombined PDF in addition to any DWG sheets.",
+    "sourceId": "S4",
+    "citation": "Alameda P&B — Submittal Checklist",
+    "context": "Alameda, CA · Municipal code · Alameda P&B — Submittal Checklist",
+    "tokensEst": 68
+  },
+  {
+    "id": "alameda-ca-ca-gov-code-65852-2-hcd-height-detached",
+    "section": "CA Gov. Code §65852.2 / HCD — Height (Detached)",
+    "topics": [
+      "height"
+    ],
+    "text": "A detached accessory dwelling unit may be up to 18 feet in height. An additional\ntwo feet of height is permitted to accommodate a roof pitch that aligns with the\nroof pitch of the primary dwelling unit. A local agency may not impose a height\nlimit below this state floor on a detached ADU.",
+    "sourceId": "S2",
+    "citation": "CA Gov. Code §65852.2 / HCD — Height (Detached)",
+    "context": "Alameda, CA · State code · CA Gov. Code §65852.2 / HCD — Height (Detached)",
+    "tokensEst": 72
+  },
+  {
+    "id": "alameda-ca-ca-hcd-height-attached",
+    "section": "CA HCD — Height (Attached)",
+    "topics": [
+      "height",
+      "attached"
+    ],
+    "text": "An attached accessory dwelling unit is limited to 16 feet in height where it\nmust match the height of the primary dwelling. This attached-unit limit is\ndistinct from the detached-unit standard and applies only when the ADU shares a\nwall with the primary dwelling.",
+    "sourceId": "S2",
+    "citation": "CA HCD — Height (Attached)",
+    "context": "Alameda, CA · State code · CA HCD — Height (Attached)",
+    "tokensEst": 65
+  }
+]

@@ -49,6 +49,20 @@ export function FindingInspector({
             </div>
           )}
 
+          {finding.codeText && (
+            <div className="rounded-lg border border-ink-700 bg-ink-800/50 p-3">
+              <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">
+                Retrieved code · RAG from Redis
+              </div>
+              {finding.codeSection && (
+                <div className="text-xs font-medium text-slate-300 mb-1">{finding.codeSection}</div>
+              )}
+              <p className="text-xs text-slate-400 italic border-l-2 border-accent/40 pl-2">
+                “{finding.codeText}”
+              </p>
+            </div>
+          )}
+
           {source && (
             <div className="rounded-lg border border-ink-700 bg-ink-800/50 p-3">
               <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Evidence · official source</div>

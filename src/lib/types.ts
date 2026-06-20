@@ -58,6 +58,7 @@ export interface Project {
   address: string;
   projectType: "detached_adu";
   jurisdictionId: string;
+  citySlug?: string; // data/cities/<slug> corpus to run against (default alameda-ca)
   status: Phase;
   createdAt: number;
   score?: number;
@@ -121,6 +122,8 @@ export interface Finding {
   evals?: EvalResult[];
   corrected?: boolean; // flipped after reviewer correction
   previousStatus?: FindingStatus;
+  codeSection?: string; // retrieved code chunk section (RAG)
+  codeText?: string; // retrieved code chunk text (RAG)
 }
 
 export interface ChecklistItem {

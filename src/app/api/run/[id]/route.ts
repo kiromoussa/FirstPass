@@ -29,7 +29,13 @@ export async function GET(
         controller.close();
         return;
       }
-      const channel = new BandChannel(id);
+      // Open a Band channel; when Band is configured this also bootstraps a
+      // real collaboration room (validate → create chat → add owner + agents →
+      // kickoff @mentions). Best-effort: falls back to the local feed.
+      const channel = await BandChannel.open(id, project);
+      if (channel.roomId) {
+        send("band", { roomId: channel.roomId });
+      }
       try {
         for await (const state of runPipeline(project, channel)) {
           send("state", state);

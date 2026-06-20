@@ -29,6 +29,7 @@ import {
   languageLint,
 } from "./compliance";
 import { saveState } from "./store";
+import { seedCodeChunks, retrieveCode } from "./code-db";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -62,6 +63,8 @@ export async function* runPipeline(
   channel: BandChannel,
   pageImages: string[] = []
 ): AsyncGenerator<ProjectState> {
+  // The city corpus this run retrieves code from (data/cities/<slug>).
+  const citySlug = project.citySlug ?? JURISDICTION_ID;
   const state: ProjectState = {
     project: { ...project, status: "jurisdiction" },
     sources: [],
@@ -104,10 +107,15 @@ export async function* runPipeline(
   emit(
     msg(
       "research",
-      "done",
-      `Captured ${sources.length} official sources ${live ? "(live)" : "(cached)"}. Stored to Redis with retrieval dates.`,
+      "info",
+      `Captured ${sources.length} official sources ${live ? "(live)" : "(cached)"} with retrieval dates.`,
       { sponsor: live ? "browserbase" : "redis", refs: sources.map((s) => s.id) }
     )
+  );
+  yield snapshot();
+  const chunkCount = await seedCodeChunks(citySlug);
+  emit(
+    msg("research", "done", `Indexed ${chunkCount} chunked code sections to Redis — checks retrieve only the relevant chunk (token-efficient).`, { sponsor: "redis" })
   );
   yield snapshot();
   await sleep(400);
@@ -166,6 +174,7 @@ export async function* runPipeline(
     const fact = factByKey(key);
     if (!rule || !fact) continue;
     const res = compareNumeric(fact, rule);
+    const chunk = await retrieveCode(key, rule.appliesTo, citySlug); // RAG: only the relevant chunk
     const f: Finding = {
       id: `f_${key}`,
       ruleKey: key,
@@ -177,6 +186,8 @@ export async function* runPipeline(
       sourceRef: rule.sourceId,
       bbox: fact.bbox,
       sheet: fact.sheet,
+      codeSection: chunk?.section,
+      codeText: chunk?.text,
     };
     state.findings.push(f);
     emit(
@@ -190,6 +201,7 @@ export async function* runPipeline(
   const checklist = deriveChecklist(facts);
   state.checklist = checklist;
   const missing = checklist.filter((c) => c.required && c.present === false);
+  const docsChunk = await retrieveCode("requiredDocs", undefined, citySlug);
   const docsFinding: Finding = {
     id: "f_requiredDocs",
     ruleKey: "requiredDocs",
@@ -199,6 +211,8 @@ export async function* runPipeline(
       ? `Missing: ${missing.map((m) => m.item).join(", ")}.`
       : "All required documents present.",
     sourceRef: "S4",
+    codeSection: docsChunk?.section,
+    codeText: docsChunk?.text,
   };
   state.findings.push(docsFinding);
   emit(msg("checklist", "info", `${docsFinding.title}: ${docsFinding.status} — ${docsFinding.message}`, { refs: [docsFinding.id] }));
@@ -237,6 +251,9 @@ export async function* runPipeline(
         f.message = res.detail;
         f.ruleRef = correctRule.key;
         f.sourceRef = correctRule.sourceId;
+        const correctChunk = await retrieveCode(f.ruleKey, correctRule.appliesTo, citySlug);
+        f.codeSection = correctChunk?.section ?? f.codeSection;
+        f.codeText = correctChunk?.text ?? f.codeText;
         f.corrected = true;
         f.evals = evaluateFinding({
           finding: f,
