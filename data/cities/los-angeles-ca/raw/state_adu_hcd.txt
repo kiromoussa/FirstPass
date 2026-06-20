@@ -1,0 +1,27 @@
+STATE CODE — California (applies in Los Angeles)
+ADU standards that override local limits — Gov. Code §66310 et seq. / HCD
+Representative excerpts compiled by the State Code Researcher agent.
+
+### CA Gov. Code §66321 / HCD — Height (Detached) [S2]
+A detached accessory dwelling unit may be up to 16 feet in height. The limit
+increases to 18 feet where the parcel is within one-half mile walking distance of
+a major transit stop or high-quality transit corridor, or supports an existing or
+proposed multistory multifamily dwelling, with an additional two feet permitted to
+align the roof pitch with the primary dwelling. A local agency may not impose a
+height limit below this state floor.
+
+### CA Gov. Code §66321 / HCD — Height (Attached) [S2]
+An attached accessory dwelling unit may rise to 25 feet or the height limit that
+applies to the primary dwelling under the local zoning code, whichever is lower.
+An ADU is not required to be shorter than 16 feet.
+
+### CA Gov. Code §66323 / HCD — Setbacks [S2]
+No setback greater than 4 feet from the side and rear lot lines may be required
+for an accessory dwelling unit that is not a conversion of existing space. No
+setback may be required for an existing permitted structure or one constructed in
+the same footprint.
+
+### CA Gov. Code §66317 / HCD — Ministerial Approval [S2]
+A permit application for an accessory dwelling unit shall be considered and
+approved ministerially without discretionary review within 60 days of a complete
+application. Failure to act within 60 days deems the application approved.

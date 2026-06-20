@@ -1,6 +1,7 @@
 [
   {
-    "id": "alameda-ca-amc-30-5-21-b-unit-size",
+    "id": "alameda-ca-city-amc-30-5-21-b-unit-size",
+    "category": "city",
     "section": "AMC §30-5.21(b) — Unit Size",
     "topics": [
       "maxSize",
@@ -9,11 +10,12 @@
     "text": "The maximum floor area of a detached accessory dwelling unit shall not exceed\n1,200 square feet of conditioned space. This maximum applies regardless of lot\nsize; smaller maximums established elsewhere in this chapter do not apply where\nthey would conflict with state law permitting an 800 square foot unit.",
     "sourceId": "S1",
     "citation": "AMC §30-5.21(b) — Unit Size",
-    "context": "Alameda, CA · Municipal code · AMC §30-5.21(b) — Unit Size",
+    "context": "Alameda, CA · City / municipal code · AMC §30-5.21(b) — Unit Size",
     "tokensEst": 76
   },
   {
-    "id": "alameda-ca-amc-30-5-21-c-side-setback",
+    "id": "alameda-ca-city-amc-30-5-21-c-side-setback",
+    "category": "city",
     "section": "AMC §30-5.21(c) — Side Setback",
     "topics": [
       "setbackSide"
@@ -21,11 +23,12 @@
     "text": "A minimum side setback of 4 feet shall be provided for an accessory dwelling\nunit. No side setback is required for an existing structure converted to an ADU,\nor for a new ADU constructed in the same location and to the same dimensions as\nthe structure it replaces.",
     "sourceId": "S3",
     "citation": "AMC §30-5.21(c) — Side Setback",
-    "context": "Alameda, CA · Municipal code · AMC §30-5.21(c) — Side Setback",
+    "context": "Alameda, CA · City / municipal code · AMC §30-5.21(c) — Side Setback",
     "tokensEst": 66
   },
   {
-    "id": "alameda-ca-amc-30-5-21-c-rear-setback",
+    "id": "alameda-ca-city-amc-30-5-21-c-rear-setback",
+    "category": "city",
     "section": "AMC §30-5.21(c) — Rear Setback",
     "topics": [
       "setbackRear"
@@ -33,11 +36,12 @@
     "text": "A minimum rear setback of 4 feet shall be provided for an accessory dwelling\nunit. Like the corresponding side requirement, no rear setback is required for a\npermitted conversion of existing permitted floor area.",
     "sourceId": "S3",
     "citation": "AMC §30-5.21(c) — Rear Setback",
-    "context": "Alameda, CA · Municipal code · AMC §30-5.21(c) — Rear Setback",
+    "context": "Alameda, CA · City / municipal code · AMC §30-5.21(c) — Rear Setback",
     "tokensEst": 53
   },
   {
-    "id": "alameda-ca-alameda-p-b-submittal-checklist",
+    "id": "alameda-ca-city-alameda-p-b-submittal-checklist",
+    "category": "city",
     "section": "Alameda P&B — Submittal Checklist",
     "topics": [
       "requiredDocs"
@@ -45,11 +49,12 @@
     "text": "A complete ADU submittal must include a site plan, a floor plan, building\nelevations, and a Title-24 energy compliance report. Incomplete submittals are\nreturned without review. Electronic plan sets must be submitted as a single\ncombined PDF in addition to any DWG sheets.",
     "sourceId": "S4",
     "citation": "Alameda P&B — Submittal Checklist",
-    "context": "Alameda, CA · Municipal code · Alameda P&B — Submittal Checklist",
+    "context": "Alameda, CA · City / municipal code · Alameda P&B — Submittal Checklist",
     "tokensEst": 68
   },
   {
-    "id": "alameda-ca-ca-gov-code-65852-2-hcd-height-detached",
+    "id": "alameda-ca-state-ca-gov-code-65852-2-hcd-height-detached",
+    "category": "state",
     "section": "CA Gov. Code §65852.2 / HCD — Height (Detached)",
     "topics": [
       "height"
@@ -61,7 +66,8 @@
     "tokensEst": 72
   },
   {
-    "id": "alameda-ca-ca-hcd-height-attached",
+    "id": "alameda-ca-state-ca-hcd-height-attached",
+    "category": "state",
     "section": "CA HCD — Height (Attached)",
     "topics": [
       "height",

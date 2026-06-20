@@ -1,0 +1,60 @@
+{
+  "slug": "los-angeles-ca",
+  "city": "Los Angeles",
+  "state": "CA",
+  "jurisdictionId": "los-angeles-ca",
+  "projectTypes": ["detached_adu"],
+  "generatedAt": "2026-06-20",
+  "note": "Representative excerpts across code layers, cited to the governing code. Replace raw/*.txt with full official scrapes via POST /api/cities/ingest; chunks.json regenerates from whatever raw text is present.",
+  "rawSources": {
+    "city_zoning_lamc.txt": "S1",
+    "state_adu_hcd.txt": "S2",
+    "county_code.txt": "S3",
+    "building_code_cbc.txt": "S5",
+    "residential_code_crc.txt": "S6",
+    "plumbing_code_cpc.txt": "S7",
+    "green_code_calgreen.txt": "S8"
+  },
+  "sources": [
+    {
+      "id": "S1",
+      "url": "https://codelibrary.amlegal.com/codes/los_angeles/latest/lamc/0-0-0-1",
+      "title": "Los Angeles Municipal Code §12.22 A.33 — Accessory Dwelling Units"
+    },
+    {
+      "id": "S2",
+      "url": "https://www.hcd.ca.gov/policy-and-research/accessory-dwelling-units",
+      "title": "California HCD / Gov. Code §66310 et seq. — ADU State Standards"
+    },
+    {
+      "id": "S3",
+      "url": "https://library.municode.com/ca/los_angeles_county/codes/code_of_ordinances",
+      "title": "Los Angeles County Code Title 22 (Planning & Zoning) — ADUs (unincorporated)"
+    },
+    {
+      "id": "S4",
+      "url": "https://planning.lacity.gov/development-services/accessory-dwelling-units",
+      "title": "LA City Planning — ADU Submittal Requirements"
+    },
+    {
+      "id": "S5",
+      "url": "https://up.codes/viewer/california/ca-building-code-2022",
+      "title": "California Building Code, Title 24 Part 2 (CBC)"
+    },
+    {
+      "id": "S6",
+      "url": "https://up.codes/viewer/california/ca-residential-code-2022",
+      "title": "California Residential Code, Title 24 Part 2.5 (CRC)"
+    },
+    {
+      "id": "S7",
+      "url": "https://up.codes/viewer/california/ca-plumbing-code-2022",
+      "title": "California Plumbing Code, Title 24 Part 5 (CPC)"
+    },
+    {
+      "id": "S8",
+      "url": "https://up.codes/viewer/california/ca-green-building-standards-code-2022",
+      "title": "California Green Building Standards Code (CALGreen), Title 24 Part 11"
+    }
+  ]
+}

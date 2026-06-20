@@ -2,33 +2,64 @@
 // otherwise serves the cached official-source set (clearly timestamped) so the
 // citation story never hard-fails in a demo.
 import { CACHED_SOURCES } from "../fixtures";
+import { DEFAULT_CITY, loadCityMeta, loadCityChunks } from "../code-db";
 import type { Source } from "../types";
 
 export const BROWSERBASE_LIVE =
   !!process.env.BROWSERBASE_API_KEY && !!process.env.BROWSERBASE_PROJECT_ID;
 
-// Returns the official sources for the jurisdiction. When live, this would
-// drive a headless Browserbase session to navigate Alameda's planning site,
-// locate the ADU/zoning and submittal-checklist pages, and extract the exact
-// excerpts + canonical URLs with a fresh retrieval timestamp.
-export async function researchSources(): Promise<{
-  sources: Source[];
-  live: boolean;
-}> {
-  if (!BROWSERBASE_LIVE) {
+// Official-domain authority heuristic for a source URL (0..1).
+function authorityScore(url: string): number {
+  const u = url.toLowerCase();
+  if (u.includes(".gov") || u.includes("hcd.ca.gov")) return 0.95;
+  if (u.includes("amlegal") || u.includes("municode")) return 0.9;
+  if (u.includes("codes")) return 0.8;
+  return 0.6;
+}
+
+// Build cached Source[] for a researched city from its meta.json + chunks
+// (excerpt = the first chunk citing that source). Empty if the city has none.
+function cityCachedSources(slug: string): Source[] {
+  const meta = loadCityMeta(slug);
+  if (!meta?.sources?.length) return [];
+  const chunks = loadCityChunks(slug) ?? [];
+  const now = Date.now();
+  return meta.sources.map((s) => {
+    const ex = chunks.find((c) => c.sourceId === s.id);
     return {
-      sources: CACHED_SOURCES.map((s) => ({ ...s, live: false })),
+      id: s.id,
+      url: s.url,
+      title: s.title,
+      excerpt: ex ? ex.text.replace(/\s+/g, " ").slice(0, 240) : "",
+      retrievedAt: now,
+      authorityScore: authorityScore(s.url),
+      jurId: meta.jurisdictionId || slug,
       live: false,
     };
+  });
+}
+
+// Returns the official sources for a city. The default demo city keeps its
+// curated fixtures (rich excerpts); any other researched city derives sources
+// from its committed meta.json. When live, drives a Browserbase session.
+export async function researchSources(
+  slug: string = DEFAULT_CITY
+): Promise<{ sources: Source[]; live: boolean }> {
+  const cached =
+    slug === DEFAULT_CITY
+      ? CACHED_SOURCES.map((s) => ({ ...s, live: false }))
+      : cityCachedSources(slug);
+  const fallback = cached.length
+    ? cached
+    : CACHED_SOURCES.map((s) => ({ ...s, live: false }));
+
+  if (!BROWSERBASE_LIVE || slug !== DEFAULT_CITY) {
+    return { sources: fallback, live: false };
   }
   try {
-    const sources = await browseAlameda();
-    return { sources, live: true };
+    return { sources: await browseAlameda(), live: true };
   } catch {
-    return {
-      sources: CACHED_SOURCES.map((s) => ({ ...s, live: false })),
-      live: false,
-    };
+    return { sources: fallback, live: false };
   }
 }
 

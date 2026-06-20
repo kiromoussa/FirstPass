@@ -1,0 +1,25 @@
+GREEN BUILDING CODE — California Green Building Standards Code (CALGreen), Title 24 Part 11
+Representative excerpts compiled by the Green Code Researcher agent.
+Division 4.3 (Water Efficiency) and 4.1 (Site) mandatory measures for residential.
+
+### CALGreen §4.303.1 — Water Conserving Plumbing Fixtures [S8]
+Plumbing fixtures and fittings shall meet the maximum flow rates: water closets
+1.28 gallons per flush, showerheads 1.8 gallons per minute at 80 psi, residential
+lavatory faucets 1.2 gallons per minute, and kitchen faucets 1.8 gallons per
+minute. These limits achieve the required reduction in indoor water use.
+
+### CALGreen §4.304.1 — Outdoor Water Use / Irrigation [S8]
+Automatic irrigation system controllers installed at the time of final inspection
+shall be weather-based or soil-moisture-based and comply with the Model Water
+Efficient Landscape Ordinance.
+
+### CALGreen §4.106.4 — Electric Vehicle (EV) Charging [S8]
+New one- and two-family dwellings and townhouses with attached private garages
+shall provide EV-ready circuits. The service panel shall be sized and a raceway
+installed to accommodate a dedicated 208/240-volt branch circuit for future
+electric vehicle supply equipment.
+
+### CALGreen §4.408.1 — Construction Waste Reduction [S8]
+A minimum of 65 percent of the nonhazardous construction and demolition waste
+generated at the site shall be diverted from landfill by recycling or reuse, with
+documentation provided to the enforcing agency.

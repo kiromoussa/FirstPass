@@ -40,31 +40,74 @@ Two consequences:
 
 ```jsonc
 {
-  "id": "alameda-ca-amc-30-5-21-b-unit-size",
-  "section": "AMC §30-5.21(b) — Unit Size",
+  "id": "los-angeles-ca-city-lamc-12-22-a-33-c-unit-size",
+  "category": "city",                          // code layer (see below)
+  "section": "LAMC §12.22 A.33(c) — Unit Size",
   "topics": ["maxSize", "unitSize"],          // rule keys this chunk governs
-  "text": "The maximum floor area … 1,200 square feet …",  // verbatim, for citing
+  "text": "A detached ADU shall not exceed 1,200 square feet …",  // verbatim, for citing
   "sourceId": "S1",                            // → meta.json source URL
-  "citation": "AMC §30-5.21(b) — Unit Size",
-  "context": "Alameda, CA · Municipal code · AMC §30-5.21(b) — Unit Size",
-  "tokensEst": 76
+  "citation": "LAMC §12.22 A.33(c) — Unit Size",
+  "context": "Los Angeles, CA · City / municipal code · LAMC §12.22 A.33(c) — Unit Size",
+  "tokensEst": 61
 }
 ```
+
+## Code layers (categories)
+
+A real jurisdiction is a stack of codes, not one document. Each raw file is
+tagged with a `category` derived from its filename, so retrieval can scope to a
+layer:
+
+`green` (CALGreen) · `energy` (Title 24) · `plumbing` (CPC) · `mechanical` (CMC) ·
+`electrical` (CEC) · `fire` (CFC) · `residential` (CRC) · `building` (CBC) ·
+`county` · `state` · `city`/municipal.
+
+`retrieveCode(rule, appliesTo, slug, category?)` — pass a category to restrict
+the search to one layer (e.g. only CALGreen for a water-efficiency check).
+
+## Two input modes
+
+- **Curated** — sections marked with `### Heading [Sx]`. Used for hand-authored
+  corpora; the `[Sx]` tag ties each chunk to a source URL in `meta.json`.
+- **Scraped** — raw OCR dumps with no `###` (what the Band agents actually
+  produce). The chunker auto-detects legal headings — `SEC. 12.22`, `§ 65852.2`,
+  `4.303.1`, `R314.1`, `ARTICLE 2`, ALL-CAPS titles — and splits on them. The
+  source id comes from `meta.json` `rawSources` (`{filename: sourceId}`).
+
+A bare number in prose (`18 feet in height`) is **not** treated as a heading —
+only structured section numbers (containing `.`, `-`, or `(`) qualify.
 
 ## Pipeline
 
 ```
-research (Band agents / scraper)
-  → data/cities/<slug>/raw/*.txt   + meta.json     (stored in the repo)
-  → python3 scripts/chunk_codes.py <slug>          (deterministic chunker)
-  → data/cities/<slug>/chunks.json                 (committed)
-  → code-db.ts loads chunks.json on request         (instant, token-cheap)
+Band research agents  ──►  output/*.txt  (per-layer OCR reports)
+        │                        │
+        │   scripts/ingest_band_output.py  (strip header, classify, build meta)
+        ▼                        ▼
+data/cities/<slug>/raw/*.txt   +  meta.json          (stored in the repo)
+        │
+        │   python3 scripts/chunk_codes.py <slug>     (deterministic chunker)
+        ▼
+data/cities/<slug>/chunks.json                        (committed)
+        │
+        ▼
+code-db.ts loads chunks.json on request               (instant, token-cheap)
 ```
 
-Once a city's `data/cities/<slug>/` is committed, that city works **straight
-from the codebase** — no re-research, no model, no network. New cities are
-ingested via `POST /api/cities/ingest`, which writes the raw docs, runs the
-chunker, and seeds the result.
+Once a city's `data/cities/<slug>/` is committed, it works **straight from the
+codebase** — no re-research, no model, no network. Two ways to ingest a new city:
+
+- **From Band output** — `python3 scripts/ingest_band_output.py --slug <slug>
+  --output-dir <band output/ dir>` turns the agents' reports into the corpus.
+- **Over HTTP** — `POST /api/cities/ingest` with `{slug, documents[]}` writes the
+  raw docs, runs the chunker, and seeds the result.
+
+## Scale
+
+This is the whole point. A 300-page code chunks into a few hundred small units in
+well under a second; retrieval scores them lexically and returns the one
+provision a rule needs. In testing, one real ADU-size provision was pinpointed
+out of 700 chunks — the other 699 never reach the model.
 
 ## Raw format contract
 

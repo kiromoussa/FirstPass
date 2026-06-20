@@ -1,0 +1,18 @@
+PLUMBING CODE — California Plumbing Code (CPC), Title 24 Part 5
+Representative excerpts compiled by the Plumbing Code Researcher agent.
+
+### CPC §401 — Minimum Plumbing Fixtures per Dwelling Unit [S7]
+Each dwelling unit, including an accessory dwelling unit, shall be provided with a
+kitchen sink, a water closet, a lavatory, and a bathtub or shower. Each required
+fixture shall be connected to an approved water supply and drainage system.
+
+### CPC §501 — Water Heater Requirements [S7]
+Each dwelling unit shall be served by a water heater of adequate capacity.
+Storage water heaters shall be anchored or strapped at the upper and lower
+one-third of the appliance to resist seismic displacement, and shall discharge
+through an approved temperature-and-pressure relief valve to an approved location.
+
+### CPC §422 — Fixture Count and Accessibility [S7]
+The number and type of plumbing fixtures shall be based on the occupancy and
+number of occupants. Fixtures shall be spaced to provide the clearances required
+for use and cleaning.

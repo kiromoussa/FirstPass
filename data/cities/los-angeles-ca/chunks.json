@@ -1,0 +1,331 @@
+[
+  {
+    "id": "los-angeles-ca-building-cbc-310-residential-occupancy-classification",
+    "category": "building",
+    "section": "CBC §310 — Residential Occupancy Classification",
+    "topics": [
+      "occupancy"
+    ],
+    "text": "Dwelling units are classified in Group R. A detached accessory dwelling unit\nserving a one- or two-family dwelling is regulated under the California\nResidential Code; where an ADU is within or attached to a larger Group R building,\nthe applicable Group R occupancy and fire-separation provisions of this code apply.",
+    "sourceId": "S5",
+    "citation": "CBC §310 — Residential Occupancy Classification",
+    "context": "Los Angeles, CA · Building code (CBC) · CBC §310 — Residential Occupancy Classification",
+    "tokensEst": 78
+  },
+  {
+    "id": "los-angeles-ca-building-cbc-705-exterior-walls-and-fire-separation-distance",
+    "category": "building",
+    "section": "CBC §705 — Exterior Walls and Fire Separation Distance",
+    "topics": [
+      "fireProtection"
+    ],
+    "text": "The fire-resistance rating of exterior walls and the allowable area of openings\nare determined by the fire separation distance to the property line or to an\nassumed imaginary line between buildings on the same lot. Walls with a fire\nseparation distance of less than 5 feet require a one-hour fire-resistance rating\nand limited openings.",
+    "sourceId": "S5",
+    "citation": "CBC §705 — Exterior Walls and Fire Separation Distance",
+    "context": "Los Angeles, CA · Building code (CBC) · CBC §705 — Exterior Walls and Fire Separation Distance",
+    "tokensEst": 84
+  },
+  {
+    "id": "los-angeles-ca-building-cbc-1011-stairways",
+    "category": "building",
+    "section": "CBC §1011 — Stairways",
+    "topics": [
+      "height"
+    ],
+    "text": "Stairways serving an occupied space shall have a minimum width, maximum riser\nheight of 7 3/4 inches, minimum tread depth of 10 inches, and handrails as\nrequired. Refer to the Residential Code for stairways within dwelling units.",
+    "sourceId": "S5",
+    "citation": "CBC §1011 — Stairways",
+    "context": "Los Angeles, CA · Building code (CBC) · CBC §1011 — Stairways",
+    "tokensEst": 57
+  },
+  {
+    "id": "los-angeles-ca-city-lamc-12-22-a-33-c-unit-size",
+    "category": "city",
+    "section": "LAMC §12.22 A.33(c) — Unit Size",
+    "topics": [
+      "maxSize",
+      "unitSize"
+    ],
+    "text": "A detached accessory dwelling unit shall not exceed 1,200 square feet of floor\narea. An ADU of up to 800 square feet is permitted by right on any lot regardless\nof floor-area-ratio, lot coverage, or open-space standards. Floor area is measured\nto the interior face of the exterior walls.",
+    "sourceId": "S1",
+    "citation": "LAMC §12.22 A.33(c) — Unit Size",
+    "context": "Los Angeles, CA · City / municipal code · LAMC §12.22 A.33(c) — Unit Size",
+    "tokensEst": 71
+  },
+  {
+    "id": "los-angeles-ca-city-lamc-12-22-a-33-d-side-setback",
+    "category": "city",
+    "section": "LAMC §12.22 A.33(d) — Side Setback",
+    "topics": [
+      "setbackSide"
+    ],
+    "text": "A detached accessory dwelling unit shall provide a side yard setback of not less\nthan 4 feet. No setback is required for a legally existing permitted structure\nthat is converted to an ADU, or for a new ADU built in the same footprint.",
+    "sourceId": "S1",
+    "citation": "LAMC §12.22 A.33(d) — Side Setback",
+    "context": "Los Angeles, CA · City / municipal code · LAMC §12.22 A.33(d) — Side Setback",
+    "tokensEst": 58
+  },
+  {
+    "id": "los-angeles-ca-city-lamc-12-22-a-33-d-rear-setback",
+    "category": "city",
+    "section": "LAMC §12.22 A.33(d) — Rear Setback",
+    "topics": [
+      "setbackRear"
+    ],
+    "text": "A detached accessory dwelling unit shall provide a rear yard setback of not less\nthan 4 feet measured from the property line to the nearest wall of the unit.",
+    "sourceId": "S1",
+    "citation": "LAMC §12.22 A.33(d) — Rear Setback",
+    "context": "Los Angeles, CA · City / municipal code · LAMC §12.22 A.33(d) — Rear Setback",
+    "tokensEst": 39
+  },
+  {
+    "id": "los-angeles-ca-city-lamc-12-22-a-33-e-parking",
+    "category": "city",
+    "section": "LAMC §12.22 A.33(e) — Parking",
+    "topics": [],
+    "text": "One off-street parking space is required per accessory dwelling unit. This\nrequirement is waived where the ADU is within one-half mile walking distance of\npublic transit, within an architecturally and historically significant district,\nor where on-street permit parking is required but not offered to the ADU.",
+    "sourceId": "S1",
+    "citation": "LAMC §12.22 A.33(e) — Parking",
+    "context": "Los Angeles, CA · City / municipal code · LAMC §12.22 A.33(e) — Parking",
+    "tokensEst": 77
+  },
+  {
+    "id": "los-angeles-ca-city-la-city-planning-adu-submittal-requirements",
+    "category": "city",
+    "section": "LA City Planning — ADU Submittal Requirements",
+    "topics": [
+      "requiredDocs"
+    ],
+    "text": "A complete ADU application must include a plot plan drawn to scale, floor plans,\nbuilding elevations for all sides, and a Title-24 energy compliance report.\nApplications missing any required sheet are deemed incomplete and are not routed\nfor plan check.",
+    "sourceId": "S4",
+    "citation": "LA City Planning — ADU Submittal Requirements",
+    "context": "Los Angeles, CA · City / municipal code · LA City Planning — ADU Submittal Requirements",
+    "tokensEst": 63
+  },
+  {
+    "id": "los-angeles-ca-county-la-county-code-22-140-640-adu-development-standards",
+    "category": "county",
+    "section": "LA County Code §22.140.640 — ADU Development Standards",
+    "topics": [
+      "maxSize",
+      "setbackRear"
+    ],
+    "text": "In unincorporated Los Angeles County, a detached accessory dwelling unit shall\nnot exceed 1,200 square feet and shall maintain side and rear setbacks of not less\nthan 4 feet. ADUs are permitted in any zone that allows a single-family or\nmultifamily dwelling.",
+    "sourceId": "S3",
+    "citation": "LA County Code §22.140.640 — ADU Development Standards",
+    "context": "Los Angeles, CA · County code · LA County Code §22.140.640 — ADU Development Standards",
+    "tokensEst": 64
+  },
+  {
+    "id": "los-angeles-ca-county-la-county-code-22-140-640-height",
+    "category": "county",
+    "section": "LA County Code §22.140.640 — Height",
+    "topics": [
+      "height"
+    ],
+    "text": "A detached accessory dwelling unit in unincorporated County territory is limited\nto 16 feet, increased to 18 feet within one-half mile of a major transit stop,\nconsistent with state law.",
+    "sourceId": "S3",
+    "citation": "LA County Code §22.140.640 — Height",
+    "context": "Los Angeles, CA · County code · LA County Code §22.140.640 — Height",
+    "tokensEst": 46
+  },
+  {
+    "id": "los-angeles-ca-county-la-county-code-title-26-building-code-adoption",
+    "category": "county",
+    "section": "LA County Code Title 26 — Building Code Adoption",
+    "topics": [],
+    "text": "The County adopts the California Building Standards Code (Title 24) with local\namendments. Construction of an accessory dwelling unit must comply with the\nadopted building, residential, plumbing, mechanical, electrical, and green\nbuilding standards as amended by the County.",
+    "sourceId": "S3",
+    "citation": "LA County Code Title 26 — Building Code Adoption",
+    "context": "Los Angeles, CA · County code · LA County Code Title 26 — Building Code Adoption",
+    "tokensEst": 68
+  },
+  {
+    "id": "los-angeles-ca-green-calgreen-4-303-1-water-conserving-plumbing-fixtures",
+    "category": "green",
+    "section": "CALGreen §4.303.1 — Water Conserving Plumbing Fixtures",
+    "topics": [
+      "waterEfficiency"
+    ],
+    "text": "Plumbing fixtures and fittings shall meet the maximum flow rates: water closets\n1.28 gallons per flush, showerheads 1.8 gallons per minute at 80 psi, residential\nlavatory faucets 1.2 gallons per minute, and kitchen faucets 1.8 gallons per\nminute. These limits achieve the required reduction in indoor water use.",
+    "sourceId": "S8",
+    "citation": "CALGreen §4.303.1 — Water Conserving Plumbing Fixtures",
+    "context": "Los Angeles, CA · Green building standards (CALGreen) · CALGreen §4.303.1 — Water Conserving Plumbing Fixtures",
+    "tokensEst": 77
+  },
+  {
+    "id": "los-angeles-ca-green-calgreen-4-304-1-outdoor-water-use-irrigation",
+    "category": "green",
+    "section": "CALGreen §4.304.1 — Outdoor Water Use / Irrigation",
+    "topics": [],
+    "text": "Automatic irrigation system controllers installed at the time of final inspection\nshall be weather-based or soil-moisture-based and comply with the Model Water\nEfficient Landscape Ordinance.",
+    "sourceId": "S8",
+    "citation": "CALGreen §4.304.1 — Outdoor Water Use / Irrigation",
+    "context": "Los Angeles, CA · Green building standards (CALGreen) · CALGreen §4.304.1 — Outdoor Water Use / Irrigation",
+    "tokensEst": 47
+  },
+  {
+    "id": "los-angeles-ca-green-calgreen-4-106-4-electric-vehicle-ev-charging",
+    "category": "green",
+    "section": "CALGreen §4.106.4 — Electric Vehicle (EV) Charging",
+    "topics": [
+      "evCharging"
+    ],
+    "text": "New one- and two-family dwellings and townhouses with attached private garages\nshall provide EV-ready circuits. The service panel shall be sized and a raceway\ninstalled to accommodate a dedicated 208/240-volt branch circuit for future\nelectric vehicle supply equipment.",
+    "sourceId": "S8",
+    "citation": "CALGreen §4.106.4 — Electric Vehicle (EV) Charging",
+    "context": "Los Angeles, CA · Green building standards (CALGreen) · CALGreen §4.106.4 — Electric Vehicle (EV) Charging",
+    "tokensEst": 67
+  },
+  {
+    "id": "los-angeles-ca-green-calgreen-4-408-1-construction-waste-reduction",
+    "category": "green",
+    "section": "CALGreen §4.408.1 — Construction Waste Reduction",
+    "topics": [],
+    "text": "A minimum of 65 percent of the nonhazardous construction and demolition waste\ngenerated at the site shall be diverted from landfill by recycling or reuse, with\ndocumentation provided to the enforcing agency.",
+    "sourceId": "S8",
+    "citation": "CALGreen §4.408.1 — Construction Waste Reduction",
+    "context": "Los Angeles, CA · Green building standards (CALGreen) · CALGreen §4.408.1 — Construction Waste Reduction",
+    "tokensEst": 51
+  },
+  {
+    "id": "los-angeles-ca-plumbing-cpc-401-minimum-plumbing-fixtures-per-dwelling-unit",
+    "category": "plumbing",
+    "section": "CPC §401 — Minimum Plumbing Fixtures per Dwelling Unit",
+    "topics": [
+      "waterEfficiency"
+    ],
+    "text": "Each dwelling unit, including an accessory dwelling unit, shall be provided with a\nkitchen sink, a water closet, a lavatory, and a bathtub or shower. Each required\nfixture shall be connected to an approved water supply and drainage system.",
+    "sourceId": "S7",
+    "citation": "CPC §401 — Minimum Plumbing Fixtures per Dwelling Unit",
+    "context": "Los Angeles, CA · Plumbing code (CPC) · CPC §401 — Minimum Plumbing Fixtures per Dwelling Unit",
+    "tokensEst": 59
+  },
+  {
+    "id": "los-angeles-ca-plumbing-cpc-501-water-heater-requirements",
+    "category": "plumbing",
+    "section": "CPC §501 — Water Heater Requirements",
+    "topics": [],
+    "text": "Each dwelling unit shall be served by a water heater of adequate capacity.\nStorage water heaters shall be anchored or strapped at the upper and lower\none-third of the appliance to resist seismic displacement, and shall discharge\nthrough an approved temperature-and-pressure relief valve to an approved location.",
+    "sourceId": "S7",
+    "citation": "CPC §501 — Water Heater Requirements",
+    "context": "Los Angeles, CA · Plumbing code (CPC) · CPC §501 — Water Heater Requirements",
+    "tokensEst": 77
+  },
+  {
+    "id": "los-angeles-ca-plumbing-cpc-422-fixture-count-and-accessibility",
+    "category": "plumbing",
+    "section": "CPC §422 — Fixture Count and Accessibility",
+    "topics": [
+      "occupancy"
+    ],
+    "text": "The number and type of plumbing fixtures shall be based on the occupancy and\nnumber of occupants. Fixtures shall be spaced to provide the clearances required\nfor use and cleaning.",
+    "sourceId": "S7",
+    "citation": "CPC §422 — Fixture Count and Accessibility",
+    "context": "Los Angeles, CA · Plumbing code (CPC) · CPC §422 — Fixture Count and Accessibility",
+    "tokensEst": 44
+  },
+  {
+    "id": "los-angeles-ca-residential-crc-r305-minimum-ceiling-height",
+    "category": "residential",
+    "section": "CRC R305 — Minimum Ceiling Height",
+    "topics": [
+      "height"
+    ],
+    "text": "Habitable space, hallways, and portions of basements containing these spaces shall\nhave a ceiling height of not less than 7 feet. Bathrooms, toilet rooms, and\nlaundry rooms shall have a ceiling height of not less than 6 feet 8 inches.",
+    "sourceId": "S6",
+    "citation": "CRC R305 — Minimum Ceiling Height",
+    "context": "Los Angeles, CA · Residential code (CRC) · CRC R305 — Minimum Ceiling Height",
+    "tokensEst": 58
+  },
+  {
+    "id": "los-angeles-ca-residential-crc-r310-emergency-escape-and-rescue-openings",
+    "category": "residential",
+    "section": "CRC R310 — Emergency Escape and Rescue Openings",
+    "topics": [
+      "egress"
+    ],
+    "text": "Basements and every sleeping room shall have at least one operable emergency\nescape and rescue opening with a minimum net clear opening of 5.7 square feet, a\nminimum net clear height of 24 inches, and a minimum net clear width of 20 inches.",
+    "sourceId": "S6",
+    "citation": "CRC R310 — Emergency Escape and Rescue Openings",
+    "context": "Los Angeles, CA · Residential code (CRC) · CRC R310 — Emergency Escape and Rescue Openings",
+    "tokensEst": 60
+  },
+  {
+    "id": "los-angeles-ca-residential-crc-r314-smoke-alarms",
+    "category": "residential",
+    "section": "CRC R314 — Smoke Alarms",
+    "topics": [
+      "smokeAlarm"
+    ],
+    "text": "Smoke alarms shall be installed in each sleeping room, outside each separate\nsleeping area in the immediate vicinity of the bedrooms, and on each story. Alarms\nshall be interconnected and hardwired with battery backup in new construction.",
+    "sourceId": "S6",
+    "citation": "CRC R314 — Smoke Alarms",
+    "context": "Los Angeles, CA · Residential code (CRC) · CRC R314 — Smoke Alarms",
+    "tokensEst": 59
+  },
+  {
+    "id": "los-angeles-ca-residential-crc-r315-carbon-monoxide-alarms",
+    "category": "residential",
+    "section": "CRC R315 — Carbon Monoxide Alarms",
+    "topics": [
+      "smokeAlarm"
+    ],
+    "text": "Carbon monoxide alarms shall be provided outside each separate sleeping area in\nthe immediate vicinity of the bedrooms in dwelling units that have a fuel-burning\nappliance or an attached garage.",
+    "sourceId": "S6",
+    "citation": "CRC R315 — Carbon Monoxide Alarms",
+    "context": "Los Angeles, CA · Residential code (CRC) · CRC R315 — Carbon Monoxide Alarms",
+    "tokensEst": 48
+  },
+  {
+    "id": "los-angeles-ca-state-ca-gov-code-66321-hcd-height-detached",
+    "category": "state",
+    "section": "CA Gov. Code §66321 / HCD — Height (Detached)",
+    "topics": [
+      "height"
+    ],
+    "text": "A detached accessory dwelling unit may be up to 16 feet in height. The limit\nincreases to 18 feet where the parcel is within one-half mile walking distance of\na major transit stop or high-quality transit corridor, or supports an existing or\nproposed multistory multifamily dwelling, with an additional two feet permitted to\nalign the roof pitch with the primary dwelling. A local agency may not impose a\nheight limit below this state floor.",
+    "sourceId": "S2",
+    "citation": "CA Gov. Code §66321 / HCD — Height (Detached)",
+    "context": "Los Angeles, CA · State code · CA Gov. Code §66321 / HCD — Height (Detached)",
+    "tokensEst": 110
+  },
+  {
+    "id": "los-angeles-ca-state-ca-gov-code-66321-hcd-height-attached",
+    "category": "state",
+    "section": "CA Gov. Code §66321 / HCD — Height (Attached)",
+    "topics": [
+      "height",
+      "attached"
+    ],
+    "text": "An attached accessory dwelling unit may rise to 25 feet or the height limit that\napplies to the primary dwelling under the local zoning code, whichever is lower.\nAn ADU is not required to be shorter than 16 feet.",
+    "sourceId": "S2",
+    "citation": "CA Gov. Code §66321 / HCD — Height (Attached)",
+    "context": "Los Angeles, CA · State code · CA Gov. Code §66321 / HCD — Height (Attached)",
+    "tokensEst": 53
+  },
+  {
+    "id": "los-angeles-ca-state-ca-gov-code-66323-hcd-setbacks",
+    "category": "state",
+    "section": "CA Gov. Code §66323 / HCD — Setbacks",
+    "topics": [],
+    "text": "No setback greater than 4 feet from the side and rear lot lines may be required\nfor an accessory dwelling unit that is not a conversion of existing space. No\nsetback may be required for an existing permitted structure or one constructed in\nthe same footprint.",
+    "sourceId": "S2",
+    "citation": "CA Gov. Code §66323 / HCD — Setbacks",
+    "context": "Los Angeles, CA · State code · CA Gov. Code §66323 / HCD — Setbacks",
+    "tokensEst": 64
+  },
+  {
+    "id": "los-angeles-ca-state-ca-gov-code-66317-hcd-ministerial-approval",
+    "category": "state",
+    "section": "CA Gov. Code §66317 / HCD — Ministerial Approval",
+    "topics": [
+      "requiredDocs"
+    ],
+    "text": "A permit application for an accessory dwelling unit shall be considered and\napproved ministerially without discretionary review within 60 days of a complete\napplication. Failure to act within 60 days deems the application approved.",
+    "sourceId": "S2",
+    "citation": "CA Gov. Code §66317 / HCD — Ministerial Approval",
+    "context": "Los Angeles, CA · State code · CA Gov. Code §66317 / HCD — Ministerial Approval",
+    "tokensEst": 57
+  }
+]

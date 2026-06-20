@@ -29,7 +29,7 @@ import {
   languageLint,
 } from "./compliance";
 import { saveState } from "./store";
-import { seedCodeChunks, retrieveCode } from "./code-db";
+import { seedCodeChunks, retrieveCode, cityLabel } from "./code-db";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -92,9 +92,9 @@ export async function* runPipeline(
   yield snapshot();
   await sleep(500);
   emit(
-    msg("jurisdiction", "done", `Resolved jurisdiction: Alameda, CA · agencies: Planning, Building.`, { sponsor: "claude" })
+    msg("jurisdiction", "done", `Resolved jurisdiction: ${cityLabel(citySlug)} · agencies: Planning, Building.`, { sponsor: "claude" })
   );
-  state.project.jurisdictionId = JURISDICTION_ID;
+  state.project.jurisdictionId = citySlug;
   yield snapshot();
   await sleep(400);
 
@@ -102,7 +102,7 @@ export async function* runPipeline(
   state.project.status = "research";
   emit(msg("research", "info", "Navigating Alameda planning & building sources…", { sponsor: "browserbase" }));
   yield snapshot();
-  const { sources, live } = await researchSources();
+  const { sources, live } = await researchSources(citySlug);
   state.sources = sources;
   emit(
     msg(

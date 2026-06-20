@@ -22,6 +22,8 @@ export interface CodeChunk {
   topics: string[]; // rule keys this chunk governs
   text: string; // the verbatim code text (what we cite/display)
   sourceId: string;
+  category?: string; // code layer: green | plumbing | building | residential | county | state | city | ...
+
   // --- contextual-retrieval metadata (see docs/CHUNKING.md) ---
   // A short situating header ("Alameda, CA · Municipal code · §30-5.21(b) Unit
   // Size") prepended to the text when indexing/embedding so a chunk retrieves
@@ -124,21 +126,113 @@ export async function seedCodeChunks(
 export async function retrieveCode(
   ruleKey: string,
   appliesTo?: string,
-  slug: string = DEFAULT_CITY
+  slug: string = DEFAULT_CITY,
+  category?: string // optionally scope to one code layer (green/plumbing/…)
 ): Promise<CodeChunk | null> {
   const corpus = corpusFor(slug);
   const ids = (await kvGet<string[]>(indexKey(slug))) ?? corpus.map((c) => c.id);
-  const chunks: CodeChunk[] = [];
+  let chunks: CodeChunk[] = [];
   for (const id of ids) {
     const c =
       (await kvGet<CodeChunk>(chunkKey(slug, id))) ??
       corpus.find((x) => x.id === id);
     if (c) chunks.push(c);
   }
-  const candidates = chunks.filter((c) => c.topics.includes(ruleKey));
-  if (candidates.length === 0) return null;
-  if (candidates.length === 1) return candidates[0];
-  // Disambiguate by applicability (e.g. detached vs attached height chunk).
-  if (appliesTo === "attached_adu") return candidates.find((c) => c.topics.includes("attached")) ?? candidates[0];
-  return candidates.find((c) => !c.topics.includes("attached")) ?? candidates[0];
+  if (category) chunks = chunks.filter((c) => c.category === category);
+  // Topic-tagged chunks are the primary pool; if a real (untagged) scrape
+  // tagged nothing, fall back to scoring the whole corpus so recall survives.
+  const tagged = chunks.filter((c) => c.topics.includes(ruleKey));
+  const pool = tagged.length ? tagged : chunks;
+  const ranked = pool
+    .map((c) => ({ c, s: scoreChunk(c, ruleKey, appliesTo) }))
+    .filter((r) => r.s > 0)
+    .sort(
+      (a, b) =>
+        b.s - a.s ||
+        (a.c.tokensEst ?? a.c.text.length) - (b.c.tokensEst ?? b.c.text.length) ||
+        a.c.id.localeCompare(b.c.id) // deterministic tie-break
+    );
+  return ranked.length ? ranked[0].c : tagged[0] ?? null;
+}
+
+// Lexical query terms per rule, used to rank candidate chunks (BM25-style term
+// scoring — see docs/CHUNKING.md). Codes hinge on exact terms, so this matters
+// far more than embedding similarity for picking the right provision.
+const RULE_TERMS: Record<string, string[]> = {
+  maxSize: ["floor area", "square feet", "square foot", "maximum", "exceed", "size"],
+  unitSize: ["floor area", "conditioned space", "size"],
+  height: ["height", "feet in height", "roof pitch", "stories", "story"],
+  setbackSide: ["side setback", "side yard"],
+  setbackRear: ["rear setback", "rear yard"],
+  requiredDocs: ["site plan", "plot plan", "floor plan", "elevation", "title-24", "submittal", "checklist", "application"],
+};
+
+function countOccurrences(hay: string, needle: string): number {
+  let n = 0;
+  for (let i = hay.indexOf(needle); i >= 0; i = hay.indexOf(needle, i + needle.length)) n++;
+  return n;
+}
+
+// Relevance of a chunk to a (ruleKey, applicability) query. Combines topic
+// membership, lexical term hits, and a detached/attached preference.
+function scoreChunk(c: CodeChunk, ruleKey: string, appliesTo?: string): number {
+  const hay = indexText(c).toLowerCase();
+  const terms = RULE_TERMS[ruleKey] ?? [ruleKey.toLowerCase()];
+  let score = terms.reduce((s, t) => s + countOccurrences(hay, t), 0);
+  if (c.topics.includes(ruleKey)) score += 5; // strong signal: tagged for this rule
+  // Applicability: reward the matching chunk and penalize the wrong one
+  // symmetrically, so an attached query can't be won by a detached chunk that
+  // merely mentions "height" more often (and vice-versa).
+  if (appliesTo === "attached_adu") score += c.topics.includes("attached") ? 4 : -4;
+  else if (appliesTo === "detached_adu") score += c.topics.includes("attached") ? -4 : 1;
+  return score;
+}
+
+export interface CityMeta {
+  slug: string;
+  city: string;
+  state: string;
+  jurisdictionId?: string;
+  sources?: { id: string; url: string; title: string }[];
+  rawSources?: Record<string, string>; // raw filename -> sourceId (untagged scrapes)
+}
+
+// Read a city's meta.json (identity + source citations). Null if not present.
+export function loadCityMeta(slug: string): CityMeta | null {
+  try {
+    const file = path.join(process.cwd(), "data", "cities", slug, "meta.json");
+    return JSON.parse(fs.readFileSync(file, "utf-8")) as CityMeta;
+  } catch {
+    return null;
+  }
+}
+
+// "City, ST" display label for a city slug.
+export function cityLabel(slug: string): string {
+  const m = loadCityMeta(slug);
+  return m ? [m.city, m.state].filter(Boolean).join(", ") : slug;
+}
+
+// Slugs of every researched city committed under data/cities.
+export function listCities(): string[] {
+  try {
+    return fs
+      .readdirSync(path.join(process.cwd(), "data", "cities"), { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
+  } catch {
+    return [];
+  }
+}
+
+// Best-effort map an address string to an available city slug (matches the
+// city name in meta.json), falling back to the default demo city.
+export function resolveCitySlug(address?: string): string {
+  if (!address) return DEFAULT_CITY;
+  const a = address.toLowerCase();
+  for (const slug of listCities()) {
+    const m = loadCityMeta(slug);
+    if (m?.city && a.includes(m.city.toLowerCase())) return slug;
+  }
+  return DEFAULT_CITY;
 }

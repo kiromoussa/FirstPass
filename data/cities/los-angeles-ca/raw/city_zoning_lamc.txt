@@ -1,0 +1,30 @@
+CITY / MUNICIPAL CODE — Los Angeles, CA
+Los Angeles Municipal Code §12.22 A.33 — Accessory Dwelling Units (zoning layer)
+Representative excerpts compiled by the Municipal Code Researcher agent.
+
+### LAMC §12.22 A.33(c) — Unit Size [S1]
+A detached accessory dwelling unit shall not exceed 1,200 square feet of floor
+area. An ADU of up to 800 square feet is permitted by right on any lot regardless
+of floor-area-ratio, lot coverage, or open-space standards. Floor area is measured
+to the interior face of the exterior walls.
+
+### LAMC §12.22 A.33(d) — Side Setback [S1]
+A detached accessory dwelling unit shall provide a side yard setback of not less
+than 4 feet. No setback is required for a legally existing permitted structure
+that is converted to an ADU, or for a new ADU built in the same footprint.
+
+### LAMC §12.22 A.33(d) — Rear Setback [S1]
+A detached accessory dwelling unit shall provide a rear yard setback of not less
+than 4 feet measured from the property line to the nearest wall of the unit.
+
+### LAMC §12.22 A.33(e) — Parking [S1]
+One off-street parking space is required per accessory dwelling unit. This
+requirement is waived where the ADU is within one-half mile walking distance of
+public transit, within an architecturally and historically significant district,
+or where on-street permit parking is required but not offered to the ADU.
+
+### LA City Planning — ADU Submittal Requirements [S4]
+A complete ADU application must include a plot plan drawn to scale, floor plans,
+building elevations for all sides, and a Title-24 energy compliance report.
+Applications missing any required sheet are deemed incomplete and are not routed
+for plan check.
