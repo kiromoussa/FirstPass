@@ -4,6 +4,7 @@ import { runPipeline } from "@/lib/pipeline";
 import { runBandPipeline } from "@/lib/band-pipeline";
 import { runDemoPipeline } from "@/lib/demo-run";
 import { BandChannel, BAND_LIVE } from "@/lib/integrations/band";
+import { loadState } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -85,22 +86,35 @@ export async function GET(
       const roomTimer = setInterval(() => void pollRoom(), 3000);
 
       try {
-        // Demo mode: env flag, or any run of the demo DWG (no restart needed).
-        const demoDwg = /los\s*angeles\s*\(?1\)?/i.test(project.dwgName ?? "");
-        const pipeline =
-          process.env.FIRSTPASS_DEMO === "1" || demoDwg
-            ? runDemoPipeline
-            : BAND_LIVE
-            ? runBandPipeline
-            : runPipeline;
-        for await (const state of pipeline(project, channel)) {
-          if (closed) return; // client gone — stop the orphaned run
-          send("state", state);
+        // Already finished once? Replay the persisted result instead of re-running
+        // the entire pipeline. Revisiting a project (or React re-mounting the
+        // EventSource) should never re-do minutes of plotting + vision + checks.
+        // Keyed off the saved STATE's status (set by saveState at completion) —
+        // project.json isn't rewritten to "done", so checking it would never fire.
+        const saved = await loadState(id);
+        const replay = saved?.project.status === "done" ? saved : null;
+        if (replay) {
+          send("state", replay);
+          send("complete", { ok: true, replay: true });
+        } else {
+          // Demo mode: env flag, or any run of the demo DWG (no restart needed).
+          const demoDwg = /los\s*angeles\s*\(?1\)?/i.test(project.dwgName ?? "");
+          const pipeline =
+            process.env.FIRSTPASS_DEMO === "1" || demoDwg
+              ? runDemoPipeline
+              : BAND_LIVE
+              ? runBandPipeline
+              : runPipeline;
+          for await (const state of pipeline(project, channel)) {
+            if (closed) return; // client gone — stop the orphaned run
+            send("state", state);
+          }
         }
         // The deterministic pipeline is done, but the Band agents may still be
         // posting. Give the room a grace window so the final replies land in the
-        // transcript before we close the stream.
-        for (let i = 0; i < 5 && channel.roomId; i++) {
+        // transcript before we close the stream. Skipped on replay — there's no
+        // live run to wait on.
+        for (let i = 0; i < 5 && !replay && channel.roomId; i++) {
           await new Promise((r) => setTimeout(r, 5000));
           await pollRoom();
         }

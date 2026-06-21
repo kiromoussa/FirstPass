@@ -14,6 +14,11 @@ import { plotDwgSheets } from "./integrations/autocad-da";
 import { APS_LIVE } from "./integrations/aps";
 import { kvGet } from "./store";
 import { projectDir } from "./project-files";
+import {
+  hydratePlotViewerFromDisk,
+  setPlotViewerFailed,
+  setPlotViewerPending,
+} from "./plot-viewer-cache";
 import type { Project } from "./types";
 
 export const PLANS_DIR = path.join(process.cwd(), "plans");
@@ -72,12 +77,19 @@ async function mirrorToGlobal(projectId: string): Promise<string[]> {
   return listPlanFiles();
 }
 
+// Publish durable plan sheets to the in-app viewer cache (plot:{id} KV keys).
+export async function publishViewerSheets(projectId: string): Promise<void> {
+  await hydratePlotViewerFromDisk(projectId);
+}
+
 function safePlanName(name: string, fallbackExt: string): string {
   const cleaned = name.replace(/[^a-zA-Z0-9._-]/g, "_").trim();
   if (!cleaned) return `plan${fallbackExt}`;
   if (PLAN_EXT.has(path.extname(cleaned).toLowerCase())) return cleaned;
   return `${cleaned}${fallbackExt}`;
 }
+
+const prepLocks = new Map<string, Promise<PlansPrepResult>>();
 
 /**
  * Ensure the global plans/ dir holds EXACTLY this project's sheets, ready for the
@@ -88,6 +100,37 @@ function safePlanName(name: string, fallbackExt: string): string {
  * Always resets the global dir first so a prior project's plans can't leak in.
  */
 export async function ensurePlansReady(
+  project: Project,
+  onProgress?: (status: string) => void
+): Promise<PlansPrepResult> {
+  const existing = prepLocks.get(project.id);
+  if (existing) return existing;
+
+  const work = prepPlansAndPublish(project, onProgress).finally(() => {
+    prepLocks.delete(project.id);
+  });
+  prepLocks.set(project.id, work);
+  return work;
+}
+
+async function prepPlansAndPublish(
+  project: Project,
+  onProgress?: (status: string) => void
+): Promise<PlansPrepResult> {
+  const result = await prepPlans(project, onProgress);
+  if (result.ok && result.files.length > 0) {
+    try {
+      await publishViewerSheets(project.id);
+    } catch {
+      /* viewer falls back to the schematic */
+    }
+  } else if (!result.ok && project.apsUrn) {
+    await setPlotViewerFailed(project.id, result.message);
+  }
+  return result;
+}
+
+async function prepPlans(
   project: Project,
   onProgress?: (status: string) => void
 ): Promise<PlansPrepResult> {
@@ -139,8 +182,10 @@ export async function ensurePlansReady(
       };
     }
     onProgress?.("submitting workitem to Autodesk Design Automation…");
+    await setPlotViewerPending(project.id);
     const { sheets, failure } = await plotDwgSheets(project.apsUrn, onProgress);
     if (sheets.length === 0) {
+      await setPlotViewerFailed(project.id, failure);
       return {
         ok: false,
         files: [],
@@ -151,8 +196,8 @@ export async function ensurePlansReady(
     for (const sheet of sheets) {
       const diskName = safePlanName(sheet.name, ".pdf");
       const buf = Buffer.from(sheet.data, "base64");
-      await fs.writeFile(path.join(durableDir, diskName), buf); // durable
-      await fs.writeFile(path.join(PLANS_DIR, diskName), buf); // global scratch
+      await fs.writeFile(path.join(durableDir, diskName), buf);
+      await fs.writeFile(path.join(PLANS_DIR, diskName), buf);
     }
     const files = await listPlanFiles();
     return {

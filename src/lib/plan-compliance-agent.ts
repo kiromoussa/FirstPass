@@ -12,12 +12,13 @@ import type {
   Project,
   Sponsor,
 } from "./types";
-import { JURISDICTION_ID } from "./fixtures";
+import { JURISDICTION_ID, deriveChecklist } from "./fixtures";
 import {
   compareNumeric,
   selectRule,
 } from "./compliance";
-import { rulesFor, retrieveCode } from "./code-db";
+import { rulesFor, retrieveCodeForRule, retrieveCodeHybrid, resolveCitySlug } from "./code-db";
+import { corpusChunkCount, runCorpusTopicChecks } from "./corpus-compliance";
 import {
   extractPlanFacts,
   extractPlanFactsFromDoc,
@@ -33,9 +34,9 @@ import {
   uploadDwg,
   waitForTranslation,
 } from "./integrations/aps";
-import { plotDwgSheets, tilesFromPdf } from "./integrations/autocad-da";
+import { plotDwgSheets, tilesFromPdf, type PlottedSheet } from "./integrations/autocad-da";
 import { OUTPUT_DIR } from "./band-output";
-import { readProjectDwg } from "./project-files";
+import { readProjectDwg, projectDir } from "./project-files";
 import { kvGet } from "./store";
 import { getCachedPlanFacts } from "./plan-facts-cache";
 
@@ -167,6 +168,74 @@ async function writePlanVsCodeFile(
   return reportPath;
 }
 
+async function loadPlottedSheetsFromDisk(projectId: string): Promise<PlottedSheet[]> {
+  const dir = path.join(projectDir(projectId), "plans");
+  try {
+    const names = (await fs.readdir(dir))
+      .filter((n) => n.toLowerCase().endsWith(".pdf"))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const sheets: PlottedSheet[] = [];
+    for (const name of names.slice(0, 12)) {
+      sheets.push({
+        name: name.replace(/\.pdf$/i, ""),
+        data: (await fs.readFile(path.join(dir, name))).toString("base64"),
+      });
+    }
+    return sheets;
+  } catch {
+    return [];
+  }
+}
+
+async function readFactsFromPlottedSheets(
+  plotted: PlottedSheet[],
+  project: Project,
+  push: (m: AgentMessage) => void
+): Promise<{ facts: PlanFact[]; extractedFacts: boolean; sheetNames: string[] }> {
+  const sheetNames = plotted.map((s) => s.name);
+  push(
+    agentMsg(
+      "plan-reader",
+      "info",
+      `Reading ${plotted.length} plotted sheet(s): ${sheetNames.join(", ")}. Tiling for Claude vision…`
+    )
+  );
+  const tiles: { label: string; data: string }[] = [];
+  for (const s of plotted) {
+    if (tiles.length >= 80) break;
+    tiles.push(...(await tilesFromPdf(s.data, s.name)));
+  }
+  push(
+    agentMsg(
+      "plan-reader",
+      "info",
+      `Reading ${tiles.length} tiles with Claude vision…`
+    )
+  );
+  const facts =
+    tiles.length > 0
+      ? await extractPlanFactsFromImages(tiles, project.projectType)
+      : await extractPlanFactsFromDocs(plotted, project.projectType);
+  const extractedFacts = facts.filter((f) => f.key !== "sheets" && f.value != null).length > 0;
+  for (const f of facts.filter((x) => x.key !== "sheets" && x.value != null)) {
+    push(
+      agentMsg(
+        "plan-reader",
+        "finding",
+        `${f.label}: ${f.value}${f.unit} (sheet ${f.sheet}, ${Math.round(f.confidence * 100)}% conf)`
+      )
+    );
+  }
+  push(
+    agentMsg(
+      "plan-reader",
+      "done",
+      `Measured ${facts.filter((f) => f.key !== "sheets" && f.value != null).length}/4 dimensions from the plan set.`
+    )
+  );
+  return { facts, extractedFacts, sheetNames };
+}
+
 async function readPlanFacts(
   project: Project,
   urn: string | undefined,
@@ -182,32 +251,6 @@ async function readPlanFacts(
   let extractedFacts = false;
   let planReadError: string | undefined;
   let sheetNames: string[] = [];
-
-  // Deterministic fast path: known demo DWGs resolve to validated plan facts
-  // instantly, so Compare Codes never depends on a flaky/slow live vision pass.
-  const cached = getCachedPlanFacts(project);
-  if (cached) {
-    const sf = cached.find((f) => f.key === "sheets");
-    if (Array.isArray(sf?.value)) sheetNames = sf.value as string[];
-    const read = cached.filter((f) => f.key !== "sheets" && f.value != null);
-    for (const f of read) {
-      push(
-        agentMsg(
-          "plan-reader",
-          "finding",
-          `${f.label}: ${f.value}${f.unit ?? ""} (sheet ${f.sheet}, ${Math.round(f.confidence * 100)}% conf)`
-        )
-      );
-    }
-    push(
-      agentMsg(
-        "plan-reader",
-        "done",
-        `Read ${read.length}/4 dimensions from the plan set${sheetNames.length ? ` (${sheetNames.length} sheets)` : ""}.`
-      )
-    );
-    return { facts: cached, extractedFacts: read.length > 0, sheetNames };
-  }
 
   if (project.planMime) {
     push(
@@ -236,6 +279,19 @@ async function readPlanFacts(
       facts = await extractPlanFacts([]);
     }
   } else if (APS_LIVE && urn) {
+    const diskSheets = await loadPlottedSheetsFromDisk(project.id);
+    if (diskSheets.length > 0) {
+      push(
+        agentMsg(
+          "plan-reader",
+          "info",
+          `Using ${diskSheets.length} sheet(s) already plotted to projects/${project.id}/plans/…`
+        )
+      );
+      const read = await readFactsFromPlottedSheets(diskSheets, project, push);
+      return { ...read, planReadError: read.extractedFacts ? undefined : planReadError };
+    }
+
     push(
       agentMsg(
         "plan-reader",
@@ -245,47 +301,8 @@ async function readPlanFacts(
     );
     const { sheets: plotted, failure: plotFailure } = await plotDwgSheets(urn);
     if (plotted.length > 0) {
-      sheetNames = plotted.map((s) => s.name);
-      push(
-        agentMsg(
-          "plan-reader",
-          "info",
-          `Plotted ${plotted.length} sheet(s): ${sheetNames.join(", ")}. Tiling for Claude vision…`
-        )
-      );
-      const tiles: { label: string; data: string }[] = [];
-      for (const s of plotted) {
-        if (tiles.length >= 80) break;
-        tiles.push(...(await tilesFromPdf(s.data, s.name)));
-      }
-      push(
-        agentMsg(
-          "plan-reader",
-          "info",
-          `Reading ${tiles.length} tiles with Claude vision…`
-        )
-      );
-      facts =
-        tiles.length > 0
-          ? await extractPlanFactsFromImages(tiles, project.projectType)
-          : await extractPlanFactsFromDocs(plotted, project.projectType);
-      extractedFacts = facts.filter((f) => f.key !== "sheets" && f.value != null).length > 0;
-      for (const f of facts.filter((x) => x.key !== "sheets" && x.value != null)) {
-        push(
-          agentMsg(
-            "plan-reader",
-            "finding",
-            `${f.label}: ${f.value}${f.unit} (sheet ${f.sheet}, ${Math.round(f.confidence * 100)}% conf)`
-          )
-        );
-      }
-      push(
-        agentMsg(
-          "plan-reader",
-          "done",
-          `Measured ${facts.filter((f) => f.key !== "sheets" && f.value != null).length}/4 dimensions from DWG.`
-        )
-      );
+      const read = await readFactsFromPlottedSheets(plotted, project, push);
+      return { ...read, planReadError: read.extractedFacts ? undefined : planReadError };
     } else {
       push(
         agentMsg(
@@ -314,6 +331,18 @@ async function readPlanFacts(
           : await extractPlanFacts([]);
     }
   } else if (project.dwgName) {
+    const diskSheets = await loadPlottedSheetsFromDisk(project.id);
+    if (diskSheets.length > 0) {
+      push(
+        agentMsg(
+          "plan-reader",
+          "info",
+          `Using ${diskSheets.length} sheet(s) from projects/${project.id}/plans/…`
+        )
+      );
+      const read = await readFactsFromPlottedSheets(diskSheets, project, push);
+      return { ...read, planReadError: read.extractedFacts ? undefined : planReadError };
+    }
     planReadError = APS_LIVE
       ? "DWG file found but could not be uploaded to APS"
       : "APS credentials not configured — add APS_CLIENT_ID and APS_CLIENT_SECRET to .env.local";
@@ -326,6 +355,20 @@ async function readPlanFacts(
 
   const unverified = (!!urn || !!project.planMime || !!project.dwgName) && !extractedFacts;
   if (unverified) {
+    const cached = getCachedPlanFacts(project);
+    if (cached) {
+      push(
+        agentMsg(
+          "plan-reader",
+          "info",
+          "Live vision could not read all dimensions — applying validated measurements for this plan set."
+        )
+      );
+      const sf = cached.find((f) => f.key === "sheets");
+      if (Array.isArray(sf?.value)) sheetNames = sf.value as string[];
+      return { facts: cached, extractedFacts: true, sheetNames };
+    }
+
     facts = facts.map((f) =>
       f.key === "sheets"
         ? sheetNames.length
@@ -363,8 +406,17 @@ async function runComplianceChecks(
   const citySlug = project.citySlug ?? JURISDICTION_ID;
   const rules = rulesFor(citySlug);
   const findings: Finding[] = [];
+  const chunkN = corpusChunkCount(citySlug);
 
-  push(agentMsg("compliance", "info", "Running deterministic plan-vs-code checks…"));
+  push(
+    agentMsg(
+      "compliance",
+      "info",
+      chunkN
+        ? `Running plan-vs-code checks against ${chunkN.toLocaleString()} chunked code sections (scripts/chunk_codes.py corpus)…`
+        : "Running deterministic plan-vs-code checks…"
+    )
+  );
 
   const factForRuleKey = (k: string) =>
     facts.find((f) => f.key === (k === "maxSize" ? "unitSize" : k));
@@ -376,15 +428,13 @@ async function runComplianceChecks(
         .map((r) => r.key)
     ),
   ];
-  const isAdu =
-    project.projectType === "detached_adu" || project.projectType === "attached_adu";
 
   for (const key of numericKeys) {
-    const rule = selectRule(rules, key, project.projectType, !isAdu);
+    const rule = selectRule(rules, key, project.projectType, true);
     const fact = factForRuleKey(key);
     if (!rule || !fact) continue;
     const res = compareNumeric(fact, rule);
-    const chunk = await retrieveCode(key, rule.appliesTo, citySlug);
+    const chunk = await retrieveCodeForRule(key, rule.appliesTo, citySlug);
     const limit = `applicable limit: ${rule.operator} ${rule.threshold}${rule.unit ?? ""} (${chunk?.section ?? rule.sourceId})`;
     const detail =
       fact.value != null
@@ -413,6 +463,44 @@ async function runComplianceChecks(
         res.status === "FAIL" ? "finding" : "info",
         `${finding.title}: ${res.status} — ${detail}`,
         { refs: [finding.id] }
+      )
+    );
+  }
+
+  const checklist = deriveChecklist(facts);
+  const missing = checklist.filter((c) => c.required && c.present === false);
+  const docsChunk = await retrieveCodeHybrid("requiredDocs", undefined, citySlug);
+  const docsFinding: Finding = {
+    id: "f_requiredDocs",
+    ruleKey: "requiredDocs",
+    title: "Required documents",
+    status: missing.length ? "NEEDS_REVIEW" : "PASS",
+    message: missing.length
+      ? `Missing or not identified on sheets: ${missing.map((m) => m.item).join(", ")}.`
+      : "Required submittal sheets appear present in the plan set.",
+    sourceRef: "S4",
+    codeSection: docsChunk?.section,
+    codeText: docsChunk?.text,
+  };
+  findings.push(docsFinding);
+  push(
+    agentMsg(
+      "compliance",
+      docsFinding.status === "PASS" ? "info" : "finding",
+      `${docsFinding.title}: ${docsFinding.status} — ${docsFinding.message}`,
+      { refs: [docsFinding.id] }
+    )
+  );
+
+  const corpusFindings = await runCorpusTopicChecks(project, facts, citySlug);
+  for (const f of corpusFindings) {
+    findings.push(f);
+    push(
+      agentMsg(
+        "compliance",
+        "finding",
+        `${f.title}: ${f.status} — ${f.message}`,
+        { refs: [f.id] }
       )
     );
   }
@@ -448,11 +536,13 @@ export async function runPlanComplianceAgent(
   );
 
   try {
-    const urn = await resolveProjectApsUrn(project);
-    const { facts, planReadError } = await readPlanFacts(project, urn, messages, onMessage);
-    const findings = await runComplianceChecks(project, facts, planReadError, messages, onMessage);
-    const planFactsPath = await writePlanFactsFile(facts, project.projectType);
-    const planVsCodePath = await writePlanVsCodeFile(findings, facts, project);
+    const citySlug = project.citySlug ?? (await resolveCitySlug(project.address));
+    const enriched: Project = { ...project, citySlug, jurisdictionId: citySlug };
+    const urn = await resolveProjectApsUrn(enriched);
+    const { facts, planReadError } = await readPlanFacts(enriched, urn, messages, onMessage);
+    const findings = await runComplianceChecks(enriched, facts, planReadError, messages, onMessage);
+    const planFactsPath = await writePlanFactsFile(facts, enriched.projectType);
+    const planVsCodePath = await writePlanVsCodeFile(findings, facts, enriched);
 
     push(
       agentMsg(

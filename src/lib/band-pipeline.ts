@@ -5,6 +5,9 @@ import { outputFresh, clearStaleDeliverables } from "./band-output";
 import { ANTHROPIC_AGENT_MODEL } from "./anthropic-model";
 import { rulesFor } from "./code-db";
 import { JURISDICTION_ID } from "./fixtures";
+import { runPlanComplianceAgent, projectHasPlanInput } from "./plan-compliance-agent";
+import { scoreFrom } from "./compliance";
+import { saveState } from "./store";
 
 const POLL_MS = 4_000;
 const MAX_RUN_MS = 45 * 60_000;
@@ -137,6 +140,31 @@ export async function* runBandPipeline(
     bandTranscript: state.bandTranscript ? [...state.bandTranscript] : [],
   });
 
+  let compareCodesStarted = false;
+
+  // The Band agents collaborate in free text; the dashboard's findings list and
+  // permit-readiness score need STRUCTURED findings from the real Compare Codes
+  // pipeline (plot → vision → compareNumeric + code RAG).
+  const runCompareCodes = async (): Promise<void> => {
+    if (compareCodesStarted || state.findings.length > 0) return;
+    compareCodesStarted = true;
+    try {
+      const result = await runPlanComplianceAgent(project, (m) => {
+        state.messages.push(m);
+      });
+      if (result.facts.length) state.facts = result.facts;
+      if (result.findings.length) state.findings = result.findings;
+      state.project.score = scoreFrom(state.findings.map((f) => f.status));
+    } catch {
+      /* UI shows whatever we have */
+    }
+  };
+
+  const finalizeFindings = async (): Promise<void> => {
+    await runCompareCodes();
+    state.project.score = scoreFrom(state.findings.map((f) => f.status));
+  };
+
   if (!channel.roomId) {
     state.messages.push({
       id: `band_err_${Date.now()}`,
@@ -256,6 +284,9 @@ export async function* runBandPipeline(
       ]);
     const prep = channel.peekPlansPrep();
     const plansOk = !!prep && prep.ok;
+    if (plansOk && projectHasPlanInput(project) && state.findings.length === 0) {
+      await runCompareCodes().catch(() => undefined);
+    }
     const hasSolutions = !!process.env.BAND_AGENT_SOLUTIONS_ID;
     const hasPermit = !!process.env.BAND_AGENT_PERMIT_ID;
 
@@ -430,6 +461,7 @@ export async function* runBandPipeline(
       const haveComparison = await outputFresh("plan_vs_code.txt", runStartedMs);
       if (graceElapsed && !haveComparison) {
         state.project.status = "review";
+        await finalizeFindings();
         state.messages.push({
           id: `plans_unreadable_${project.id}`,
           ts: Date.now(),
@@ -438,6 +470,7 @@ export async function* runBandPipeline(
           text: `Could not turn this plan set into readable sheets — ${prep.message ?? "no sheets produced"}. Code research is complete (output/final_summary.txt). To finish the plan-vs-code comparison, re-upload a flattened PDF, or a DWG that contains paper-space layouts (the plotter reads paper space, not model space).`,
           sponsor: "claude",
         });
+        await saveState(snapshot()).catch(() => undefined);
         yield snapshot();
         return;
       }
@@ -445,14 +478,18 @@ export async function* runBandPipeline(
 
     if (await isWorkflowDone(runStartedMs)) {
       state.project.status = "done";
+      await finalizeFindings();
       state.messages.push({
         id: `band_complete_${Date.now()}`,
         ts: Date.now(),
         from: "orchestrator",
         type: "done",
-        text: "Workflow complete — see output/ reports and the Band conversation across all chats.",
+        text: `Workflow complete — readiness score ${state.project.score}/100. See output/ reports and the Band conversation across all chats.`,
         sponsor: "band",
       });
+      // Persist the finished run so revisiting the project replays this result
+      // instead of re-running the whole pipeline from scratch.
+      await saveState(snapshot()).catch(() => undefined);
       yield snapshot();
       return;
     }

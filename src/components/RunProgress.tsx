@@ -5,6 +5,7 @@ import Image from "next/image";
 import { PHASES, type ProjectState, type Phase, type Sponsor, type Finding, type BandRoomMessage } from "@/lib/types";
 import { AGENT_META, MSG_META, SPONSOR_META, STATUS_META } from "@/lib/ui";
 import { BandConversation } from "@/components/BandConversation";
+import { AgentFeed } from "@/components/AgentFeed";
 
 const ORDER: Phase[] = ["jurisdiction", "research", "read", "comply", "review", "report", "done"];
 
@@ -255,9 +256,15 @@ export function RunProgress({
               })}
             </ol>
 
-            {/* Center: live agent conversation (the focal point) */}
-            <Panel title="Live agent conversation">
-              <BandConversation messages={transcript} roomId={roomId} />
+            {/* Center: live agent conversation — Band room when present, else pipeline feed */}
+            <Panel title={transcript.length > 0 ? "Live agent conversation" : "Agent activity"}>
+              {transcript.length > 0 ? (
+                <BandConversation messages={transcript} roomId={roomId} />
+              ) : (
+                <div className="max-h-[420px] overflow-hidden rounded-lg border border-ink-700">
+                  <AgentFeed messages={messages} />
+                </div>
+              )}
             </Panel>
 
             {/* Right rail: tools · violations · code · run status + log */}

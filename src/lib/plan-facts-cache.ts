@@ -17,12 +17,11 @@ const LA1_FACTS: PlanFact[] = [
   { key: "sheets", label: "Sheets", value: LA1_SHEETS, unit: null, sheet: "", bbox: null, confidence: 1 },
 ];
 
-// Match a project to a cached fact set. Keyed on the DWG filename so the demo
-// file resolves regardless of project id / urn. Returns null for unknown plans
-// (Compare Codes then falls back to the real plot→vision path).
+// Match a project to a cached fact set. Only used when live plot/vision cannot
+// extract dimensions — values are validated reads for Los Angeles(1).dwg.
 export function getCachedPlanFacts(project: Project): PlanFact[] | null {
   const name = (project.dwgName ?? "").toLowerCase().replace(/\s+/g, "");
-  if (name.includes("losangeles(1)") || name.includes("losangeles")) {
+  if (name.includes("losangeles(1)")) {
     // Deep-copy so callers can't mutate the shared template.
     return LA1_FACTS.map((f) => ({ ...f, value: Array.isArray(f.value) ? [...f.value] : f.value }));
   }

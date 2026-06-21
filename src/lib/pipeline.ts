@@ -19,7 +19,11 @@ import { JURISDICTION_ID, deriveChecklist } from "./fixtures";
 import { researchSources } from "./integrations/browserbase";
 import { extractPlanFacts, explain, interpretDwgText, extractPlanFactsFromDoc, extractPlanFactsFromDocs, extractPlanFactsFromImages } from "./integrations/claude";
 import { APS_LIVE, listViewables, extractSheetText, waitForTranslation } from "./integrations/aps";
-import { plotDwgSheets, tilesFromPdf, renderSheetPng } from "./integrations/autocad-da";
+import { plotDwgSheets, tilesFromPdf } from "./integrations/autocad-da";
+import {
+  persistPlotViewerFromSheets,
+  setPlotViewerFailed,
+} from "./plot-viewer-cache";
 import { evaluateFinding } from "./integrations/arize";
 import { BandChannel } from "./integrations/band";
 import { flushTraces } from "./integrations/otel";
@@ -167,25 +171,11 @@ export async function* runPipeline(
       sheetNames = plotted.map((s) => s.name);
       emit(msg("plan-reader", "info", `Plotted ${plotted.length} sheet${plotted.length === 1 ? "" : "s"} (${sheetNames.join(", ")}). Tiling at high resolution so dimensions are legible…`, { sponsor: "claude" }));
       yield snapshot();
-      // Persist a display render of each plotted sheet so the in-app viewer can
-      // show the real drawing — the SVF2 viewer can't reliably display DWG plan
-      // sets (it throws "we can't display this item"). Best-effort: if rendering
-      // fails the viewer just falls back to the schematic.
+      // Persist display renders for the in-app viewer (PlanSheetViewer).
       try {
-        const names: { name: string }[] = [];
-        for (let si = 0; si < plotted.length && si < 12; si++) {
-          const png = await renderSheetPng(plotted[si].data);
-          if (png) {
-            await kvSet(`plot:${project.id}:${names.length}`, png);
-            names.push({ name: plotted[si].name });
-          }
-        }
-        await kvSet(`plot:${project.id}`, {
-          status: names.length ? "ready" : "failed",
-          sheets: names,
-        });
+        await persistPlotViewerFromSheets(project.id, plotted);
       } catch {
-        /* viewer falls back to the schematic */
+        /* viewer falls back to schematic */
       }
       // Tile each sheet into high-DPI crops — a full ARCH-D sheet downsampled to
       // vision's ~1568px makes dimension text unreadable; tiles keep it legible.
@@ -213,7 +203,7 @@ export async function* runPipeline(
       yield snapshot();
       // Tell the in-app viewer there are no sheets to show so it stops waiting and
       // surfaces a clean message instead of spinning forever.
-      await kvSet(`plot:${project.id}`, { status: "failed", sheets: [], reason: plotFailure });
+      await setPlotViewerFailed(project.id, plotFailure);
       // The text-extraction path reads Model Derivative metadata, which only
       // exists once translation completes. translate() was kicked off at upload
       // and never awaited, so wait for it here before listing/reading viewables —

@@ -29,10 +29,20 @@ export function NewProjectForm({ onCreated }: Props) {
           label: c.label,
         }));
         setCities(list);
-        setCitySlug((prev) => prev || list[0]?.slug || "");
       })
       .catch(() => {});
   }, []);
+
+  // Keep jurisdiction aligned with the address (LA address → los-angeles-ca).
+  useEffect(() => {
+    if (!cities.length || !address.trim()) return;
+    const a = address.toLowerCase();
+    const match = cities.find((c) => {
+      const cityName = c.label.split(",")[0]?.trim().toLowerCase();
+      return cityName && cityName.length > 2 && a.includes(cityName);
+    });
+    if (match) setCitySlug(match.slug);
+  }, [address, cities]);
 
   async function start() {
     setBusy(true);
@@ -61,21 +71,21 @@ export function NewProjectForm({ onCreated }: Props) {
       const id = data.id;
 
       if (file && isDwg) {
-        try {
-          setStatusText("Uploading DWG to Autodesk APS…");
-          const fd = new FormData();
-          fd.append("file", file);
-          const up = await fetch("/api/aps/upload", { method: "POST", body: fd });
-          const upj = await up.json();
-          if (upj.ok && upj.urn) {
-            await fetch(`/api/projects/${id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ apsUrn: upj.urn, dwgName: file.name }),
-            });
-          }
-        } catch {
-          /* fall back to reference set */
+        setStatusText("Uploading DWG to Autodesk APS…");
+        const fd = new FormData();
+        fd.append("file", file);
+        const up = await fetch("/api/aps/upload", { method: "POST", body: fd });
+        const upj = (await up.json()) as { ok?: boolean; urn?: string; error?: string };
+        if (!up.ok || !upj.ok || !upj.urn) {
+          throw new Error(upj.error ?? "DWG upload to Autodesk failed — check APS credentials in .env.local");
+        }
+        const patch = await fetch(`/api/projects/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apsUrn: upj.urn, dwgName: file.name }),
+        });
+        if (!patch.ok) {
+          throw new Error("Could not save DWG metadata to the project");
         }
       }
 

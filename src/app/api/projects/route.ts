@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvSet, kvGet, addToProjectIndex, listProjectIds, loadState } from "@/lib/store";
-import { resolveCitySlug, loadCityMeta, cityLabel } from "@/lib/code-db";
+import { resolveCitySlug, loadCityMeta, cityLabel, DEFAULT_CITY } from "@/lib/code-db";
 import type { Project, ProjectType } from "@/lib/types";
 import { PROJECT_TYPES } from "@/lib/types";
 
@@ -37,9 +37,13 @@ export async function POST(req: NextRequest) {
   const projectType: ProjectType = PROJECT_TYPES.some((t) => t.value === body.projectType)
     ? (body.projectType as ProjectType)
     : "detached_adu";
-  // Resolve the jurisdiction: explicit citySlug wins, else infer from address.
-  // Falls back to the default demo city when nothing matches a researched city.
-  const citySlug = body.citySlug || (await resolveCitySlug(body.address));
+  // Resolve the jurisdiction: infer from address when it names a researched city;
+  // explicit citySlug only applies when the address doesn't resolve (empty/generic).
+  const inferred = await resolveCitySlug(body.address);
+  const citySlug =
+    inferred !== DEFAULT_CITY
+      ? inferred
+      : body.citySlug?.trim() || inferred;
   const meta = loadCityMeta(citySlug);
   const project: Project = {
     id,
@@ -55,5 +59,7 @@ export async function POST(req: NextRequest) {
   };
   await kvSet(`proj:${id}`, project);
   await addToProjectIndex(id, project.createdAt);
+  const { persistProject } = await import("@/lib/project-persistence");
+  await persistProject(project);
   return NextResponse.json({ id, citySlug });
 }

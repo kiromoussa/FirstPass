@@ -1,133 +1,74 @@
-// Demo-paced pipeline — a deterministic, reliable walk through the FirstPass
-// phases for the Los Angeles(1).dwg garage-conversion ADU. Used for live demos
-// (gated by FIRSTPASS_DEMO=1) so the run visibly iterates through every step,
-// shows real findings + a cited report, and never depends on flaky live agent
-// handoffs. The DWG sheet viewer is served from the seeded plot cache.
+// Demo-paced pipeline for Los Angeles(1).dwg — runs REAL plan read + code comparison,
+// streaming updates to the UI so the run feels live (not a long freeze then replay).
 import type {
   AgentMessage,
   Finding,
   Project,
   ProjectState,
   Report,
-  ChecklistItem,
-  PlanFact,
 } from "./types";
+import { DISCLAIMER } from "./types";
 import type { BandChannel } from "./integrations/band";
-import { rulesFor } from "./code-db";
-import { JURISDICTION_ID } from "./fixtures";
+import { seedCodeChunks, rulesFor, cityLabel, resolveCitySlug, loadCityChunks } from "./code-db";
+import { deriveChecklist } from "./fixtures";
+import { researchSources } from "./integrations/browserbase";
+import { runPlanComplianceAgent, type PlanComplianceResult } from "./plan-compliance-agent";
+import { scoreFrom, languageLint } from "./compliance";
 import { saveState } from "./store";
+import { persistProject } from "./project-persistence";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const TICK_MS = 350;
 
-const FACTS: PlanFact[] = [
-  { key: "unitSize", label: "ADU size", value: 361, unit: "sqft", sheet: "A1.0", bbox: null, confidence: 0.95, raw: "EXISTING (361 SQ.FT.) GARAGE TO BE CONVERTED TO ADU" },
-  { key: "height", label: "Building height", value: 19, unit: "ft", sheet: "A5.0", bbox: null, confidence: 0.93, raw: "TOP OF ROOF ±19'-0\"" },
-  { key: "setbackSide", label: "Side setback", value: 8, unit: "ft", sheet: "A1.0", bbox: null, confidence: 0.9, raw: "8'-0\" side yard" },
-  { key: "setbackRear", label: "Rear setback", value: 9.83, unit: "ft", sheet: "A1.0", bbox: null, confidence: 0.9, raw: "9'-10\" rear yard" },
-];
-
-const FINDINGS: Finding[] = [
-  {
-    id: "f_size", ruleKey: "maxSize", title: "ADU size within limit", status: "PASS",
-    message: "361 sq ft is well under the 1,200 sq ft maximum for a converted/detached ADU.",
-    factRef: "unitSize", sheet: "A1.0",
-    codeSection: "LAMC §12.22-A.33", codeText: "An ADU shall not exceed 1,200 square feet of floor area.",
-  },
-  {
-    id: "f_height", ruleKey: "height", title: "Building height needs review", status: "NEEDS_REVIEW",
-    message: "Roof at ±19'-0\" exceeds the 16 ft base limit. Permitted up to 18 ft (or 25 ft / 2 stories under SB 1211) only if the parcel is within 1/2 mile of a major transit stop.",
-    suggestedCorrection: "Add a transit-distance exhibit on A0.0, or drop the ridge ~3 ft on A5.0 to ≤16 ft.",
-    factRef: "height", sheet: "A5.0",
-    codeSection: "CA Gov. Code §65852.2(a)(1)(D)", codeText: "Local agencies shall not impose a height limit below 16 feet; higher limits apply near transit and for detached ADUs.",
-  },
-  {
-    id: "f_side", ruleKey: "setbackSide", title: "Side setback compliant", status: "PASS",
-    message: "8 ft side setback exceeds the 4 ft state minimum.",
-    factRef: "setbackSide", sheet: "A1.0",
-    codeSection: "CA Gov. Code §65852.2(a)(1)(D)(vii)", codeText: "Setbacks of no more than 4 feet from the side and rear lot lines shall be required.",
-  },
-  {
-    id: "f_rear", ruleKey: "setbackRear", title: "Rear setback compliant", status: "PASS",
-    message: "9'-10\" rear setback exceeds the 4 ft state minimum.",
-    factRef: "setbackRear", sheet: "A1.0",
-    codeSection: "CA Gov. Code §65852.2(a)(1)(D)(vii)", codeText: "Setbacks of no more than 4 feet from the side and rear lot lines shall be required.",
-  },
-  {
-    id: "f_parking", ruleKey: "parking", title: "No replacement parking required", status: "PASS",
-    message: "Parking is not required for an ADU within 1/2 mile of transit or created by converting existing space.",
-    codeSection: "CA Gov. Code §65852.2(d)", codeText: "A local agency shall not impose parking standards for an ADU in specified cases.",
-  },
-];
-
-const CHECKLIST: ChecklistItem[] = [
-  { item: "Site plan with setbacks (A1.0)", required: true, present: true },
-  { item: "Floor plans — existing + proposed (A2.0, A3.0)", required: true, present: true },
-  { item: "Elevations (A4.0) + height section (A5.0)", required: true, present: true },
-  { item: "Structural sheets (S0.0, S1.0)", required: true, present: true },
-  { item: "Title sheet / project data (TS)", required: true, present: true },
-  { item: "Transit-proximity exhibit (to justify >16 ft height)", required: true, present: false, note: "Add before submission — see height finding." },
-];
-
-const REPORT: Report = {
-  projectId: "",
-  score: 83,
-  summary:
-    "1216 E 92nd St — garage-conversion ADU (361 sq ft). Five of six checks pass. The only open item is building height: the plotted roof reads ±19'-0\", above the 16 ft base limit, which is allowable only with documented transit proximity. Setbacks (8 ft side, 9'-10\" rear) and the size both clear state minimums, and no replacement parking is required.",
-  sections: [
-    { heading: "ADU size — 361 sq ft", status: "PASS", body: "Well under the 1,200 sq ft maximum for a converted/detached ADU.", citationSourceId: "LAMC §12.22-A.33" },
-    { heading: "Building height — ±19'-0\"", status: "NEEDS_REVIEW", body: "Exceeds the 16 ft base limit. Add a transit-distance exhibit to justify up to 18 ft (or 25 ft under SB 1211), or lower the ridge ~3 ft to ≤16 ft.", citationSourceId: "CA Gov. Code §65852.2(a)(1)(D)" },
-    { heading: "Setbacks — 8 ft side / 9'-10\" rear", status: "PASS", body: "Both exceed the 4 ft state minimum.", citationSourceId: "CA Gov. Code §65852.2(a)(1)(D)(vii)" },
-    { heading: "Parking", status: "PASS", body: "No replacement parking required (transit proximity / conversion exemption).", citationSourceId: "CA Gov. Code §65852.2(d)" },
-  ],
-  generatedAt: 0,
-  disclaimer:
-    "Pre-submission research assistant output. Verify against current official codes and confirm parcel zoning with LA City Planning before submission.",
-};
-
-interface Step {
-  status: ProjectState["project"]["status"];
-  ms: number;
-  messages: { from: AgentMessage["from"]; text: string }[];
-  findingIds?: string[];
+function buildReport(project: Project, findings: Finding[], score: number): Report {
+  const counts = findings.reduce(
+    (a, f) => ((a[f.status] = (a[f.status] || 0) + 1), a),
+    {} as Record<string, number>
+  );
+  const city = cityLabel(project.citySlug ?? "los-angeles-ca");
+  return {
+    projectId: project.id,
+    score,
+    summary: languageLint(
+      `Permit-readiness score ${score}/100 for ${project.address || project.name} (${city}). ` +
+        `${counts.FAIL || 0} likely violation(s), ${counts.WARNING || 0} warning(s), ${counts.NEEDS_REVIEW || 0} item(s) needing review. ` +
+        `All findings are pre-submission and require professional confirmation.`
+    ),
+    sections: findings.map((f) => ({
+      heading: f.title,
+      status: f.status,
+      body: languageLint(f.message),
+      citationSourceId: f.sourceRef,
+    })),
+    generatedAt: Date.now(),
+    disclaimer: DISCLAIMER,
+  };
 }
 
-const STEPS: Step[] = [
-  { status: "jurisdiction", ms: 3000, messages: [
-    { from: "orchestrator", text: "CEO Boss: New pre-submission review for 1216 E 92nd St, Los Angeles — single-family ADU. Delegating to the Project & Property Manager." },
-    { from: "orchestrator", text: "Project & Property Manager: Intake complete. Brief saved to output/planner_brief.txt. Handing off to the Code Synthesizer." },
-  ] },
-  { status: "research", ms: 6000, messages: [
-    { from: "research", text: "Code Synthesizer: Scoping municipal + state ADU questions — size, height, setbacks, parking, submittal." },
-    { from: "research", text: "Municipal Code Researcher: Pulled LAMC §12.22-A.33 (Los Angeles ADU standards) → output/municipal_codes.txt." },
-    { from: "research", text: "State Code Researcher: Pulled CA Gov. Code §65852.2 + Title 24 ADU standards → output/state_codes.txt." },
-    { from: "research", text: "Code Synthesizer: Merged the governing code set → output/final_summary.txt." },
-  ] },
-  { status: "read", ms: 4500, messages: [
-    { from: "plan-reader", text: "Visual Analysis: Plotted 10 sheets from Los Angeles(1).dwg (A0.0–A5.0, S0.0, S1.0, TS) and reading them with Claude vision." },
-    { from: "plan-reader", text: "Visual Analysis: Extracted 361 sq ft (A1.0), roof ±19'-0\" (A5.0), 8 ft side, 9'-10\" rear." },
-  ] },
-  { status: "comply", ms: 4000, findingIds: ["f_size", "f_height", "f_side", "f_rear", "f_parking"], messages: [
-    { from: "compliance", text: "Compare Codes: Comparing plan facts against the governing code set…" },
-    { from: "compliance", text: "Compare Codes: 5 PASS · 1 NEEDS REVIEW · 0 FAIL. Wrote output/plan_vs_code.txt." },
-  ] },
-  { status: "review", ms: 2500, messages: [
-    { from: "reviewer", text: "Improve Agent: Researched a fix for the height item — document transit proximity (SB 1211) or drop the ridge. output/solutions_report.txt." },
-  ] },
-  { status: "report", ms: 2500, messages: [
-    { from: "report", text: "Permit Agent: Compiled the LADBS pre-submission package → output/permit_report.txt. READY TO SUBMIT (1 item to confirm)." },
-  ] },
-];
+function phaseFromMessage(m: AgentMessage): ProjectState["project"]["status"] | null {
+  if (m.from === "plan-reader") return "read";
+  if (m.from === "compliance") return "comply";
+  if (m.from === "reviewer") return "review";
+  if (m.from === "report") return "report";
+  if (m.from === "research") return "research";
+  if (m.from === "jurisdiction") return "jurisdiction";
+  return null;
+}
 
 export async function* runDemoPipeline(
   project: Project,
   channel: BandChannel
 ): AsyncGenerator<ProjectState> {
   await channel.ready;
-  const citySlug = project.citySlug ?? JURISDICTION_ID;
+  const citySlug =
+    /los\s*angeles\s*\(?1\)?/i.test(project.dwgName ?? "")
+      ? "los-angeles-ca"
+      : project.citySlug ?? (await resolveCitySlug(project.address));
+  const enriched: Project = { ...project, citySlug, jurisdictionId: citySlug };
   const now = () => Date.now();
 
   const state: ProjectState = {
-    project: { ...project, status: "jurisdiction" },
+    project: { ...enriched, status: "jurisdiction" },
     sources: [],
     rules: rulesFor(citySlug),
     facts: [],
@@ -148,58 +89,147 @@ export async function* runDemoPipeline(
     bandTranscript: state.bandTranscript ? [...state.bandTranscript] : [],
   });
 
-  state.messages.push({ id: `demo_open_${now()}`, ts: now(), from: "orchestrator", type: "info", text: "Firm workflow started — agents collaborating in Band.", sponsor: "band" });
+  const push = (from: AgentMessage["from"], text: string, type: AgentMessage["type"] = "info", sponsor: AgentMessage["sponsor"] = "band") => {
+    state.messages.push({
+      id: `demo_${from}_${state.messages.length}_${now()}`,
+      ts: now(),
+      from,
+      type,
+      text,
+      sponsor,
+    });
+    const phase = phaseFromMessage({ from } as AgentMessage);
+    if (phase) state.project.status = phase;
+  };
+
+  // ---- Warm-up: immediate motion on the phase rail ----
+  push("orchestrator", "Firm workflow started — agents collaborating on your pre-submission review.", "info", "band");
+  yield snapshot();
+  await sleep(500);
+
+  push("orchestrator", "CEO Boss: New review — delegating to Project & Property Manager.", "info", "band");
+  yield snapshot();
+  await sleep(450);
+
+  push("orchestrator", "Project & Property Manager: Intake complete → output/planner_brief.txt.", "info", "band");
+  yield snapshot();
+  await sleep(400);
+
+  state.project.status = "research";
+  push("research", "Code Synthesizer: Scoping municipal + state ADU requirements…", "info", "band");
   yield snapshot();
 
-  for (const step of STEPS) {
-    state.project.status = step.status;
-    state.project.bandRoomId = channel.roomId ?? undefined;
-    if (step.status === "read") state.facts = FACTS;
-    // Pull any live Band transcript so the conversation panel stays populated.
+  const { sources } = await researchSources(citySlug);
+  state.sources = sources;
+  const chunkCount = (await seedCodeChunks(citySlug)) || loadCityChunks(citySlug)?.length || 0;
+  push(
+    "research",
+    `Indexed ${chunkCount.toLocaleString()} code chunks from data/cities/${citySlug}/ (Python corpus) for token-efficient retrieval.`,
+    "done",
+    "redis"
+  );
+  yield snapshot();
+  await sleep(400);
+
+  state.project.status = "read";
+  push(
+    "orchestrator",
+    `Analyzing ${project.dwgName ?? "plan set"} against ${cityLabel(citySlug)} ADU code — APS plot → vision → compare…`,
+    "info",
+    "claude"
+  );
+  yield snapshot();
+
+  // ---- Live analysis: tick the UI while Compare Codes runs ----
+  let compliance: PlanComplianceResult | null = null;
+  const complianceTask = runPlanComplianceAgent(enriched, (m) => {
+    state.messages.push(m);
+    const phase = phaseFromMessage(m);
+    if (phase) state.project.status = phase;
+  }).catch((e) => ({
+    ok: false as const,
+    facts: [] as PlanComplianceResult["facts"],
+    findings: [] as Finding[],
+    messages: [] as AgentMessage[],
+    error: (e as Error).message ?? "Compare Codes failed",
+  }));
+
+  while (!compliance) {
+    const winner = await Promise.race([
+      complianceTask.then((r) => ({ kind: "done" as const, r })),
+      sleep(TICK_MS).then(() => ({ kind: "tick" as const })),
+    ]);
     try {
       state.bandTranscript = await channel.roomTranscript();
     } catch {
       /* best-effort */
     }
-    for (const m of step.messages) {
-      state.messages.push({
-        id: `demo_${step.status}_${state.messages.length}_${now()}`,
-        ts: now(),
-        from: m.from,
-        type: "info",
-        text: m.text,
-        sponsor: "band",
-      });
-      yield snapshot();
-      await sleep(Math.max(700, step.ms / step.messages.length));
-    }
-    if (step.findingIds) {
-      for (const id of step.findingIds) {
-        const f = FINDINGS.find((x) => x.id === id);
-        if (f) {
-          state.findings.push(f);
-          state.messages.push({
-            id: `demo_finding_${id}_${now()}`,
-            ts: now(),
-            from: "compliance",
-            type: f.status === "PASS" ? "info" : "finding",
-            text: `${f.title} — ${f.status}`,
-            sponsor: "arize",
-          });
-          yield snapshot();
-          await sleep(650);
-        }
-      }
-    }
+    yield snapshot();
+    if (winner.kind === "done") compliance = winner.r;
   }
 
-  // Finalize: build the report + checklist and persist so the report page works.
-  state.checklist = CHECKLIST;
-  state.report = { ...REPORT, projectId: project.id, generatedAt: now() };
+  state.facts = compliance.facts;
+  state.checklist = deriveChecklist(compliance.facts);
+  state.project.score = scoreFrom(compliance.findings.map((f) => f.status));
+
+  if (!compliance.ok && compliance.error) {
+    push("orchestrator", `Compare Codes: ${compliance.error}`, "finding", "claude");
+    if (state.findings.length === 0) {
+      state.findings.push({
+        id: "f_compare_error",
+        ruleKey: "requiredDocs",
+        title: "Plan vs code comparison",
+        status: "NEEDS_REVIEW",
+        message: compliance.error,
+      });
+    }
+    yield snapshot();
+  }
+
+  const failN = compliance.findings.filter((f) => f.status === "FAIL").length;
+  const reviewN = compliance.findings.filter((f) => f.status === "NEEDS_REVIEW").length;
+  const passN = compliance.findings.filter((f) => f.status === "PASS").length;
+
+  // ---- Stream findings one-by-one so violations appear live ----
+  state.project.status = "comply";
+  state.findings = [];
+  for (const f of compliance.findings) {
+    state.findings.push(f);
+    yield snapshot();
+    await sleep(f.status === "PASS" ? 160 : f.status === "FAIL" ? 420 : 300);
+  }
+
+  push(
+    "compliance",
+    `Compare Codes finished — ${passN} pass · ${reviewN} need review · ${failN} fail.`,
+    failN ? "finding" : "done",
+    "arize"
+  );
+  yield snapshot();
+  await sleep(500);
+
+  state.project.status = "review";
+  push("reviewer", "Improve Agent: Researching design fixes for FAIL / NEEDS REVIEW items.", "info", "band");
+  yield snapshot();
+  await sleep(700);
+
+  state.project.status = "report";
+  push("report", "Permit Agent: Compiling the pre-submission package from live findings.", "info", "band");
+  yield snapshot();
+  await sleep(600);
+
+  state.report = buildReport(enriched, state.findings, state.project.score ?? 0);
   state.project.status = "done";
-  state.messages.push({ id: `demo_done_${now()}`, ts: now(), from: "orchestrator", type: "done", text: "Workflow complete — readiness report ready. 5 pass, 1 to confirm, 0 fail.", sponsor: "band" });
+  push(
+    "orchestrator",
+    `Workflow complete — readiness score ${state.project.score}/100. Open the dashboard for the full plan viewer and findings.`,
+    "done",
+    "band"
+  );
+
   try {
     await saveState(state);
+    await persistProject({ ...enriched, status: "done", score: state.project.score });
   } catch {
     /* best-effort */
   }

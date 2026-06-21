@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { loadState, kvGet, kvSet, saveState, deleteProject } from "@/lib/store";
-import { loadProject } from "@/lib/project-persistence";
+import { loadState, kvSet, saveState, deleteProject } from "@/lib/store";
+import { loadProject, persistProject } from "@/lib/project-persistence";
 import type { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -23,7 +23,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const project = await kvGet<Project>(`proj:${id}`);
+  const project = await loadProject(id);
   if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
   const body = (await req.json().catch(() => ({}))) as Partial<Project>;
   const updated: Project = {
@@ -32,8 +32,9 @@ export async function PATCH(
     ...(body.dwgName !== undefined ? { dwgName: body.dwgName } : {}),
     ...(body.pdfName !== undefined ? { pdfName: body.pdfName } : {}),
     ...(body.planMime !== undefined ? { planMime: body.planMime } : {}),
+    ...(body.citySlug !== undefined ? { citySlug: body.citySlug } : {}),
   };
-  await kvSet(`proj:${id}`, updated);
+  await persistProject(updated);
   const state = await loadState(id);
   if (state) await saveState({ ...state, project: updated });
   return NextResponse.json({ ok: true, project: updated });
@@ -44,8 +45,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const exists =
-    (await loadState(id)) ?? (await kvGet<Project>(`proj:${id}`));
+  const exists = (await loadState(id)) ?? (await loadProject(id));
   if (!exists) return NextResponse.json({ error: "not found" }, { status: 404 });
   await deleteProject(id);
   return NextResponse.json({ ok: true });

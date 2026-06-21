@@ -126,7 +126,23 @@ export async function seedCodeChunks(
   // ingested at runtime — e.g. on serverless, where the filesystem is ephemeral),
   // trust Redis and never clobber it with the built-in fallback corpus.
   if (!disk && existing && existing.length) return existing.length;
+
   const corpus = disk ?? CODE_CHUNKS;
+
+  // Large committed corpora (e.g. los-angeles-ca ~10k chunks) are read directly
+  // from disk in retrieveCode() — mirroring every chunk into Redis on each run
+  // is slow and brittle. Store only the index stub when over the threshold.
+  const LARGE_CORPUS = 500;
+  if (disk && disk.length > LARGE_CORPUS) {
+    if (!existing || existing.length !== disk.length) {
+      await kvSet(
+        indexKey(slug),
+        disk.map((c) => c.id)
+      );
+    }
+    return disk.length;
+  }
+
   if (existing && existing.length === corpus.length) return existing.length;
   for (const c of corpus) await kvSet(chunkKey(slug, c.id), c);
   await kvSet(indexKey(slug), corpus.map((c) => c.id));
@@ -186,14 +202,19 @@ export async function retrieveCode(
   slug: string = DEFAULT_CITY,
   category?: string // optionally scope to one code layer (green/plumbing/…)
 ): Promise<CodeChunk | null> {
-  const corpus = corpusFor(slug);
-  const ids = (await kvGet<string[]>(indexKey(slug))) ?? corpus.map((c) => c.id);
-  let chunks: CodeChunk[] = [];
-  for (const id of ids) {
-    const c =
-      (await kvGet<CodeChunk>(chunkKey(slug, id))) ??
-      corpus.find((x) => x.id === id);
-    if (c) chunks.push(c);
+  // Prefer the committed on-disk corpus (scripts/chunk_codes.py output) in memory —
+  // avoids 10k+ Redis round-trips for cities like los-angeles-ca (~10k chunks).
+  const disk = loadCityChunks(slug);
+  let chunks: CodeChunk[] = disk ?? CODE_CHUNKS;
+  if (!disk) {
+    const ids = await kvGet<string[]>(indexKey(slug));
+    if (ids?.length) {
+      chunks = [];
+      for (const id of ids) {
+        const c = await kvGet<CodeChunk>(chunkKey(slug, id));
+        if (c) chunks.push(c);
+      }
+    }
   }
   if (category) chunks = chunks.filter((c) => c.category === category);
   // Topic-tagged chunks are the primary pool; if a real (untagged) scrape
@@ -226,6 +247,16 @@ const RULE_TERMS: Record<string, string[]> = {
   far: ["floor area ratio", "residential floor area", "floor area"],
   parking: ["parking", "off-street", "covered parking", "spaces per unit"],
   requiredDocs: ["site plan", "plot plan", "floor plan", "elevation", "title-24", "submittal", "checklist", "application"],
+  // Topics tagged by scripts/chunk_codes.py (broader code layers)
+  waterEfficiency: ["water closet", "gallons per", "gpf", "gpm", "water conserving", "flow rate", "lavatory"],
+  smokeAlarm: ["smoke alarm", "carbon monoxide"],
+  egress: ["egress", "emergency escape", "exit discharge", "means of egress"],
+  fireProtection: ["sprinkler", "fire-resistance", "fire resistance", "fire separation"],
+  ventilation: ["ventilation", "mechanical ventilation", "exhaust"],
+  evCharging: ["electric vehicle", "ev charging", "ev capable", "ev ready"],
+  solar: ["photovoltaic", "solar"],
+  occupancy: ["occupancy", "occupant load", "occupant-load"],
+  foundation: ["foundation", "footing", "slab"],
 };
 
 function countOccurrences(hay: string, needle: string): number {
@@ -322,6 +353,36 @@ export async function retrieveCodeHybrid(
   const viaIndex = await searchCodeIndex(ruleKey, appliesTo, slug, category);
   if (viaIndex) return viaIndex;
   return retrieveCode(ruleKey, appliesTo, slug, category);
+}
+
+const RULE_CATEGORY_ORDER: Record<string, string[]> = {
+  maxSize: ["city", "state"],
+  height: ["city", "state"],
+  setbackSide: ["city", "state"],
+  setbackRear: ["city", "state"],
+  requiredDocs: ["city", "state"],
+};
+
+function chunkMatchesRule(chunk: CodeChunk, ruleKey: string): boolean {
+  const terms = RULE_TERMS[ruleKey] ?? [ruleKey.toLowerCase()];
+  const hay = indexText(chunk).toLowerCase();
+  return terms.some((t) => hay.includes(t.toLowerCase()));
+}
+
+/** Retrieve the best-matching chunk for a compliance rule, trying code layers in order. */
+export async function retrieveCodeForRule(
+  ruleKey: string,
+  appliesTo: string | undefined,
+  slug: string = DEFAULT_CITY
+): Promise<CodeChunk | null> {
+  const layers = RULE_CATEGORY_ORDER[ruleKey] ?? [];
+  for (const cat of layers) {
+    const chunk = await retrieveCodeHybrid(ruleKey, appliesTo, slug, cat);
+    if (chunk && chunkMatchesRule(chunk, ruleKey)) return chunk;
+  }
+  const fallback = await retrieveCodeHybrid(ruleKey, appliesTo, slug);
+  if (fallback && chunkMatchesRule(fallback, ruleKey)) return fallback;
+  return fallback ?? (await retrieveCode(ruleKey, appliesTo, slug));
 }
 
 export interface CityMeta {

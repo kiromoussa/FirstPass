@@ -147,8 +147,8 @@ export default function ProjectDashboard() {
         </span>
       </div>
 
-      {/* 3-column layout */}
-      <div className="flex-1 grid grid-cols-[240px_1fr_360px] overflow-hidden">
+      {/* 3-column layout: context · plan viewer · findings + conversation */}
+      <div className="flex-1 grid grid-cols-[240px_1fr_400px] overflow-hidden">
         {/* Left: phases + facts */}
         <aside className="border-r border-ink-700 overflow-y-auto scrollbar-thin p-4 space-y-6">
           <div>
@@ -167,8 +167,8 @@ export default function ProjectDashboard() {
           </div>
         </aside>
 
-        {/* Center: blueprint + findings/facts tabs */}
-        <section className="overflow-y-auto scrollbar-thin p-6 space-y-5">
+        {/* Center: the plan sheet viewer gets the full center */}
+        <section className="overflow-y-auto scrollbar-thin p-6">
           {state?.project.apsUrn ? (
             <PlanSheetViewer projectId={id} />
           ) : (
@@ -181,32 +181,36 @@ export default function ProjectDashboard() {
               }}
             />
           )}
-
-          <div className="flex items-center gap-2">
-            {(["findings", "facts"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`text-xs px-3 py-1.5 rounded-lg capitalize ${
-                  tab === t ? "bg-ink-700 text-ink" : "text-muted hover:text-body"
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          {tab === "findings" ? (
-            <FindingsList findings={state?.findings ?? []} selectedId={selectedId} onSelect={setSelectedId} />
-          ) : (
-            <FactsList facts={state?.facts ?? []} />
-          )}
         </section>
 
-        {/* Right: Band agent conversation + pipeline feed */}
+        {/* Right: findings/facts · Band conversation · pipeline feed */}
         <aside className="border-l border-ink-700 overflow-hidden flex flex-col">
+          {/* Findings / facts — moved here from the center so the viewer owns it */}
+          <div className="flex-1 min-h-0 flex flex-col border-b border-ink-700">
+            <div className="flex items-center gap-2 p-3 pb-2 flex-shrink-0">
+              {(["findings", "facts"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={`text-xs px-3 py-1.5 rounded-lg capitalize ${
+                    tab === t ? "bg-ink-700 text-ink" : "text-muted hover:text-body"
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-3 pb-3">
+              {tab === "findings" ? (
+                <FindingsList findings={state?.findings ?? []} selectedId={selectedId} onSelect={setSelectedId} />
+              ) : (
+                <FactsList facts={state?.facts ?? []} />
+              )}
+            </div>
+          </div>
+
           {(roomId || transcript.length > 0) && (
-            <div className="border-b border-ink-700 p-3 flex-shrink-0 max-h-[45%] overflow-hidden">
+            <div className="border-b border-ink-700 p-3 flex-shrink-0 max-h-[32%] overflow-hidden">
               <BandConversation messages={transcript} roomId={roomId} compact />
             </div>
           )}
