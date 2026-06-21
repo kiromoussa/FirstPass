@@ -42,9 +42,9 @@ The live **Run** screen shows the pipeline step-by-step: agent activity, tools i
 
 ## Results
 
-Real output from a Los Angeles single-family review (`Los Angeles(1).dwg`). FirstPass reads the plan set in the Autodesk viewer, extracts setbacks and height from the sheets, runs deterministic compliance against the LA corpus, and surfaces a **40/100 permit-readiness score** with cited findings (1 likely violation, 7 items needing review).
+Sample output from a Los Angeles residential project. FirstPass reads the plan set in the Autodesk viewer, extracts setbacks and height from the sheets, runs deterministic compliance against the local code corpus, and surfaces a **permit-readiness score** with cited findings — violations flagged, items needing review, and passes called out per check.
 
-![FirstPass dashboard — plan viewer, extracted facts, compliance findings, and agent activity for a Los Angeles review](./docs/results-dashboard.png)
+![FirstPass dashboard — plan viewer, extracted facts, compliance findings, and agent activity](./docs/results-dashboard.png)
 
 ---
 
