@@ -3,7 +3,7 @@
   "city": "Los Angeles",
   "state": "CA",
   "jurisdictionId": "los-angeles-ca",
-  "projectTypes": ["detached_adu"],
+  "projectTypes": ["detached_adu", "attached_adu", "single_family", "multi_family"],
   "generatedAt": "2026-06-20",
   "note": "Representative excerpts across code layers, cited to the governing code. Replace raw/*.txt with full official scrapes via POST /api/cities/ingest; chunks.json regenerates from whatever raw text is present.",
   "rawSources": {

@@ -21,24 +21,61 @@ export interface BandMention {
   handle: string;
 }
 
-// A configured agent in the room: a mention plus its research role and the
-// one-line ask used to seed the kickoff message.
+// A configured agent in the room: a mention plus its workflow role and the
+// one-line ask used to seed the kickoff message. Roles map to the FirstPass
+// agentic workflow (BAND_AGENTS.md):
+//   ceo → planner → synthesizer → researcher(s) → synthesizer
+//       → visual + comparator → solutions → permit → ceo
+export type BandRole =
+  | "ceo"
+  | "planner"
+  | "synthesizer"
+  | "researcher"
+  | "visual"
+  | "comparator"
+  | "solutions"
+  | "permit";
+
 export interface BandAgentDef extends BandMention {
-  role: "researcher" | "comparator" | "synthesizer";
-  ask: string; // research/compare goal — what this agent should produce
+  role: BandRole;
+  ask: string; // workflow goal — what this agent should produce
   report: string; // output/<file> the agent must write (drives ingest_band_output)
 }
 
 const DEFAULT_BASE = "https://app.band.ai/api/v1/agent";
 
-// The full researcher roster, mirroring the friend's orchestrator (main branch:
-// src/firstpass/orchestrator.py AGENT_NAMES). The friend's engine now researches
-// every code layer, not just municipal+state. The CORE THREE are pre-registered
-// at app.band.ai (ids below); the four extra code-layer researchers have no
-// fallback id, so they are AUTOMATICALLY SKIPPED until you register them and set
-// their env id — exactly the "skipped if agent_id is empty" rule in their
-// firstpass.config.yaml.example. Override any id via env.
+// The full FirstPass agent team (BAND_AGENTS.md), ordered to match the agentic
+// workflow: CEO → Planner → Code Synthesizer → Municipal + State researchers →
+// Code Synthesizer → Visual Analysis + Compare Codes → Solutions → Permit Report
+// → CEO. Each agent's id resolves from env (override) or the fallback below;
+// agents with no resolved id are AUTOMATICALLY SKIPPED from the room — so the
+// not-yet-registered Solutions / Permit Report agents drop out cleanly until you
+// set their env id. Override any id via the env var named in `envId`.
 const AGENT_DEFS = [
+  {
+    envId: "BAND_AGENT_CEO_ID",
+    name: "CEO Boss",
+    fallbackId: "c684bd1c-36f1-462c-8bd4-f3ea1bc039bf",
+    role: "ceo",
+    ask: "own orchestration end-to-end and deliver the final permit-readiness sign-off",
+    report: "",
+  },
+  {
+    envId: "BAND_AGENT_PLANNER_ID",
+    name: "CEO Planner / VP",
+    fallbackId: "58eb4a6e-e34f-49fe-97ce-eb51c3113266",
+    role: "planner",
+    ask: "intake the property and produce the project brief that scopes the review",
+    report: "project_brief.txt",
+  },
+  {
+    envId: "BAND_AGENT_SYNTHESIZER_ID",
+    name: "Code Synthesizer",
+    fallbackId: "94d50391-87a6-4285-a8b7-03faf165722e",
+    role: "synthesizer",
+    ask: "turn the brief into the code questions to research, then merge the researchers' findings into the governing code set",
+    report: "final_summary.txt",
+  },
   {
     envId: "BAND_AGENT_MUNICIPAL_ID",
     name: "Municipal Code Researcher",
@@ -56,55 +93,38 @@ const AGENT_DEFS = [
     report: "state_codes.txt",
   },
   {
-    envId: "BAND_AGENT_BUILDING_ID",
-    name: "Building Code Researcher",
-    fallbackId: "",
-    role: "researcher",
-    ask: "California Building Code (CBC) occupancy, fire separation, egress for dwellings",
-    report: "building_codes.txt",
+    envId: "BAND_AGENT_VISUAL_ID",
+    name: "Visual Analysis",
+    fallbackId: "4a985a13-5b35-4092-84a4-240a94a5f8b8",
+    role: "visual",
+    ask: "read the plan set and measure the dimensions (unit size, height, setbacks) the code comparison needs",
+    report: "visual_analysis.txt",
   },
   {
-    envId: "BAND_AGENT_RESIDENTIAL_ID",
-    name: "Residential Code Researcher",
-    fallbackId: "",
-    role: "researcher",
-    ask: "California Residential Code (CRC) ceiling height, smoke/CO alarms, escape openings",
-    report: "residential_codes.txt",
-  },
-  {
-    envId: "BAND_AGENT_PLUMBING_ID",
-    name: "Plumbing Code Researcher",
-    fallbackId: "",
-    role: "researcher",
-    ask: "California Plumbing Code (CPC) minimum fixtures and water heater requirements",
-    report: "plumbing_codes.txt",
-  },
-  {
-    envId: "BAND_AGENT_GREEN_ID",
-    name: "Green Code Researcher",
-    fallbackId: "",
-    role: "researcher",
-    ask: "CALGreen water-efficiency, EV-ready, and waste-reduction mandatory measures",
-    report: "green_codes.txt",
-  },
-  {
-    // New agent (friend's account): compares the project's plan set against the
-    // applicable codes the researchers found, flagging where the design
-    // violates them — a compliance comparison, before the synthesizer merges.
+    // Compares the project's plan set against the codes the researchers found,
+    // flagging where the design violates them — a compliance comparison.
     envId: "BAND_AGENT_COMPARE_ID",
     name: "Compare Codes",
     fallbackId: "50d5fafe-b84a-49a7-b902-1558d4deeee3",
     role: "comparator",
-    ask: "compare the project's plan set against the applicable codes the researchers found and flag where the design violates them, with the governing citation",
+    ask: "compare the plan set against the governing codes and flag where the design violates them, with the governing citation",
     report: "plan_vs_code.txt",
   },
   {
-    envId: "BAND_AGENT_SYNTHESIZER_ID",
-    name: "Code Synthesizer",
-    fallbackId: "94d50391-87a6-4285-a8b7-03faf165722e",
-    role: "synthesizer",
-    ask: "",
-    report: "final_summary.txt",
+    envId: "BAND_AGENT_SOLUTIONS_ID",
+    name: "Solutions Agent",
+    fallbackId: "",
+    role: "solutions",
+    ask: "propose a concrete correction for each flagged violation so the design can comply",
+    report: "solutions.txt",
+  },
+  {
+    envId: "BAND_AGENT_PERMIT_ID",
+    name: "Permit Report Agent",
+    fallbackId: "",
+    role: "permit",
+    ask: "compile the cited, pre-submission permit-readiness report from the findings and solutions",
+    report: "permit_report.txt",
   },
 ] as const;
 
@@ -139,14 +159,15 @@ function base(): string {
 // shared orchestrator/agent key isn't queried twice.
 const VIEWER_KEY_ENVS = [
   "BAND_API_KEY",
+  "BAND_AGENT_CEO_KEY",
+  "BAND_AGENT_PLANNER_KEY",
+  "BAND_AGENT_SYNTHESIZER_KEY",
   "BAND_AGENT_MUNICIPAL_KEY",
   "BAND_AGENT_STATE_KEY",
-  "BAND_AGENT_BUILDING_KEY",
-  "BAND_AGENT_RESIDENTIAL_KEY",
-  "BAND_AGENT_PLUMBING_KEY",
-  "BAND_AGENT_GREEN_KEY",
+  "BAND_AGENT_VISUAL_KEY",
   "BAND_AGENT_COMPARE_KEY",
-  "BAND_AGENT_SYNTHESIZER_KEY",
+  "BAND_AGENT_SOLUTIONS_KEY",
+  "BAND_AGENT_PERMIT_KEY",
 ] as const;
 
 export function bandViewerKeys(): string[] {

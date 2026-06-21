@@ -5,13 +5,50 @@ import { CACHED_FACTS } from "../fixtures";
 import type { PlanFact } from "../types";
 
 export const CLAUDE_LIVE = !!process.env.ANTHROPIC_API_KEY;
-const MODEL = "claude-opus-4-8";
+// Default to Haiku for cost/latency; escalate to Sonnet only when a Haiku call
+// refuses, errors, or comes back empty (never beyond Sonnet). Both support the
+// output_config.format structured outputs used below; neither call uses adaptive
+// thinking or effort (Haiku 4.5 rejects both).
+const MODEL = "claude-haiku-4-5";
+const FALLBACK_MODEL = "claude-sonnet-4-6";
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic | null {
   if (!CLAUDE_LIVE) return null;
   if (!client) client = new Anthropic();
   return client;
+}
+
+// Run a non-streaming request on Haiku; on refusal, API error, or no text block,
+// retry the same request once on Sonnet. Returns the first text block, or null if
+// both models fail. Truncation (max_tokens) is the caller's concern, not here.
+async function createTextWithFallback(
+  c: Anthropic,
+  params: Record<string, unknown>,
+  label: string
+): Promise<string | null> {
+  const attempt = async (model: string): Promise<{ text: string | null; retry: boolean }> => {
+    try {
+      const resp = await c.messages.create({ ...params, model } as any);
+      if (resp.stop_reason === "refusal") {
+        console.error(`[claude:${label}:${model}] refused — ${JSON.stringify((resp as any).stop_details ?? {})}`);
+        return { text: null, retry: true };
+      }
+      const text = resp.content.find((b) => b.type === "text");
+      if (!text || text.type !== "text") {
+        console.error(`[claude:${label}:${model}] no text block (stop_reason=${resp.stop_reason}).`);
+        return { text: null, retry: true };
+      }
+      return { text: text.text, retry: false };
+    } catch (e) {
+      console.error(`[claude:${label}:${model}] API call failed:`, (e as Error)?.message ?? e);
+      return { text: null, retry: true };
+    }
+  };
+  const primary = await attempt(MODEL);
+  if (primary.text != null) return primary.text;
+  console.warn(`[claude:${label}] Haiku attempt failed — retrying on ${FALLBACK_MODEL}.`);
+  return (await attempt(FALLBACK_MODEL)).text;
 }
 
 // Run a structured-output extraction and return the model's JSON text, or null
@@ -21,43 +58,64 @@ function getClient(): Anthropic | null {
 // exhaust the budget on a dense plan set, truncating the JSON to nothing. Every
 // failure mode is LOGGED rather than silently swallowed, so "couldn't read" can
 // be told apart from "API rejected the request" / "ran out of tokens" / "refused".
+// Returns `{ text }` on success, or `{ error }` with a short, user-facing reason
+// the caller can surface in the UI (token-budget truncation vs. refusal vs. API
+// error are very different things — the old code collapsed them all into "couldn't read").
+type ExtractResult = { text: string; error: null } | { text: null; error: string };
 async function extractJson(
   c: Anthropic,
   content: Anthropic.ContentBlockParam[],
   schema: object,
   label: string,
   maxTokens = 16000
-): Promise<string | null> {
-  try {
-    const stream = c.messages.stream({
-      model: MODEL,
-      max_tokens: maxTokens,
-      messages: [{ role: "user", content }],
-      // Adaptive thinking + structured outputs; spread-cast because the pinned
-      // SDK's published types predate these fields.
-      ...({
-        thinking: { type: "adaptive" },
-        output_config: { format: { type: "json_schema", schema } },
-      } as any),
-    });
-    const resp = await stream.finalMessage();
-    if (resp.stop_reason === "refusal") {
-      console.error(`[claude:${label}] request refused — ${JSON.stringify((resp as any).stop_details ?? {})}`);
-      return null;
+): Promise<ExtractResult> {
+  // One attempt against a given model. `retryable` flags failures worth escalating
+  // to Sonnet (refusal / no-text / API error). max_tokens truncation is NOT
+  // retryable — a different model at the same budget truncates the same way.
+  const attempt = async (
+    model: string
+  ): Promise<ExtractResult & { retryable: boolean }> => {
+    try {
+      const stream = c.messages.stream({
+        model,
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content }],
+        // Structured outputs; spread-cast because the pinned SDK's published types
+        // predate this field. Neither Haiku nor Sonnet needs adaptive thinking here.
+        ...({
+          output_config: { format: { type: "json_schema", schema } },
+        } as any),
+      });
+      const resp = await stream.finalMessage();
+      if (resp.stop_reason === "refusal") {
+        console.error(`[claude:${label}:${model}] request refused — ${JSON.stringify((resp as any).stop_details ?? {})}`);
+        return { text: null, error: "the plan reader declined to process this document", retryable: true };
+      }
+      if (resp.stop_reason === "max_tokens") {
+        // Truncated mid-JSON — structured output won't parse, so treat as a hard
+        // failure and surface the (most actionable) reason rather than the parse error.
+        console.error(`[claude:${label}:${model}] hit max_tokens (${maxTokens}) before finishing — JSON truncated. Raise the budget or reduce the input.`);
+        return { text: null, error: "the plan reader ran out of token budget before finishing (the plan set may be too large or too dense)", retryable: false };
+      }
+      const text = resp.content.find((b) => b.type === "text");
+      if (!text || text.type !== "text") {
+        console.error(`[claude:${label}:${model}] no text block in response (stop_reason=${resp.stop_reason}).`);
+        return { text: null, error: "the plan reader returned no readable result", retryable: true };
+      }
+      return { text: text.text, error: null, retryable: false };
+    } catch (e) {
+      console.error(`[claude:${label}:${model}] API call failed:`, (e as Error)?.message ?? e);
+      return { text: null, error: "the plan reader service call failed", retryable: true };
     }
-    if (resp.stop_reason === "max_tokens") {
-      console.error(`[claude:${label}] hit max_tokens (${maxTokens}) before finishing — JSON truncated. Raise the budget or reduce the input.`);
-    }
-    const text = resp.content.find((b) => b.type === "text");
-    if (!text || text.type !== "text") {
-      console.error(`[claude:${label}] no text block in response (stop_reason=${resp.stop_reason}).`);
-      return null;
-    }
-    return text.text;
-  } catch (e) {
-    console.error(`[claude:${label}] API call failed:`, (e as Error)?.message ?? e);
-    return null;
+  };
+
+  const primary = await attempt(MODEL);
+  if (primary.text != null || !primary.retryable) {
+    return { text: primary.text, error: primary.error } as ExtractResult;
   }
+  console.warn(`[claude:${label}] Haiku attempt failed (${primary.error}) — retrying on ${FALLBACK_MODEL}.`);
+  const fb = await attempt(FALLBACK_MODEL);
+  return { text: fb.text, error: fb.error } as ExtractResult;
 }
 
 // Structured extraction of plan facts from blueprint page images.
@@ -97,11 +155,9 @@ export async function extractPlanFacts(
       {
         type: "text",
         text:
-          "You are a residential plan reader. Extract these facts from the ADU " +
-          "plan set as numbers where possible: conditioned floor area (sqft), " +
-          "building height (ft), rear setback (ft), side setback (ft), and the " +
-          "list of sheets present. Use keys: unitSize, height, setbackRear, " +
-          "setbackSide, sheets. Report confidence 0..1.",
+          "You are a residential plan reader. " +
+          RESIDENTIAL_METRICS_HINT +
+          " Also return the list of sheets present under key 'sheets'.",
       },
       ...pageImages.map(
         (data): Anthropic.ContentBlockParam => ({
@@ -110,21 +166,18 @@ export async function extractPlanFacts(
         })
       ),
     ];
-    const resp = await c.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      messages: [{ role: "user", content }],
-      // Adaptive thinking + structured outputs required at runtime by
-      // claude-opus-4-8; spread-cast because the pinned SDK's published types
-      // predate these fields. Known fields above stay typed.
-      ...({
-        thinking: { type: "adaptive" },
-        output_config: { format: { type: "json_schema", schema } },
-      } as any),
-    });
-    const text = resp.content.find((b) => b.type === "text");
-    if (!text || text.type !== "text") return CACHED_FACTS;
-    const parsed = JSON.parse(text.text) as { facts: any[] };
+    const text = await createTextWithFallback(
+      c,
+      {
+        max_tokens: 4000,
+        messages: [{ role: "user", content }],
+        // Structured outputs; spread-cast because the pinned SDK's published types predate this field.
+        ...({ output_config: { format: { type: "json_schema", schema } } } as any),
+      },
+      "extractPlanFacts"
+    );
+    if (text == null) return CACHED_FACTS;
+    const parsed = JSON.parse(text) as { facts: any[] };
     // Merge model output over cached facts (keeps bbox/raw for overlay).
     return CACHED_FACTS.map((cf) => {
       const m = parsed.facts.find((f) => f.key === cf.key);
@@ -159,9 +212,9 @@ export async function interpretDwgText(lines: string[]): Promise<PlanFact[]> {
           type: "object",
           additionalProperties: false,
           properties: {
-            key: { type: "string", enum: ["unitSize", "height", "setbackRear", "setbackSide"] },
+            key: { type: "string", enum: EXTRACT_KEYS },
             value: { type: "number" },
-            unit: { type: "string", enum: ["ft", "sqft"] },
+            unit: { type: "string", enum: EXTRACT_UNITS },
             confidence: { type: "number" },
             raw: { type: "string" },
           },
@@ -173,25 +226,26 @@ export async function interpretDwgText(lines: string[]): Promise<PlanFact[]> {
   };
 
   try {
-    const resp = await c.messages.create({
-      model: MODEL,
-      max_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content:
-            "These are text labels and properties extracted from an AutoCAD ADU drawing. " +
-            "Identify, where present, the conditioned floor area (unitSize, sqft), building " +
-            "height (ft), rear setback (ft) and side setback (ft). Only emit a fact if a value " +
-            "is genuinely present; set confidence honestly. Lines:\n" +
-            lines.join("\n").slice(0, 8000),
-        },
-      ],
-      ...({ thinking: { type: "adaptive" }, output_config: { format: { type: "json_schema", schema } } } as any),
-    });
-    const text = resp.content.find((b) => b.type === "text");
-    if (!text || text.type !== "text") return CACHED_FACTS;
-    const parsed = JSON.parse(text.text) as { facts: any[] };
+    const text = await createTextWithFallback(
+      c,
+      {
+        max_tokens: 2000,
+        messages: [
+          {
+            role: "user",
+            content:
+              "These are text labels and properties extracted from an AutoCAD residential drawing. " +
+              RESIDENTIAL_METRICS_HINT +
+              " Lines:\n" +
+              lines.join("\n").slice(0, 8000),
+          },
+        ],
+        ...({ output_config: { format: { type: "json_schema", schema } } } as any),
+      },
+      "interpretDwgText"
+    );
+    if (text == null) return CACHED_FACTS;
+    const parsed = JSON.parse(text) as { facts: any[] };
     if (!parsed.facts?.length) return CACHED_FACTS;
     // Overlay extracted numeric facts onto the cached facts (keeps bbox/sheet
     // for the overlay; cached fact stands in where extraction found nothing).
@@ -214,16 +268,39 @@ export async function interpretDwgText(lines: string[]): Promise<PlanFact[]> {
 const NUMERIC_KEYS = [
   { key: "unitSize", label: "Conditioned floor area", unit: "sqft" as const },
   { key: "height", label: "Building height", unit: "ft" as const },
+  { key: "setbackFront", label: "Front setback", unit: "ft" as const },
   { key: "setbackRear", label: "Rear setback", unit: "ft" as const },
   { key: "setbackSide", label: "Side setback", unit: "ft" as const },
+  { key: "lotCoverage", label: "Lot coverage", unit: "pct" as const },
+  { key: "far", label: "Floor area ratio", unit: "far" as const },
+  { key: "parking", label: "Parking spaces", unit: "spaces" as const },
+  { key: "dwellingUnits", label: "Dwelling units", unit: "units" as const },
 ];
+
+// Single source of truth for the extraction schemas below: every metric key
+// Claude may read off a plan set, and every unit those metrics use. Keys Claude
+// cannot read come back null (the engine marks them NEEDS_REVIEW, never guesses).
+const EXTRACT_KEYS = NUMERIC_KEYS.map((k) => k.key);
+const EXTRACT_UNITS = ["ft", "sqft", "pct", "far", "spaces", "units"];
+
+// Prompt fragment shared by every vision/text extractor — names the residential
+// metrics and their keys so single- and multi-family plans get read too.
+const RESIDENTIAL_METRICS_HINT =
+  "Read every dimension actually shown. Use these exact keys/units: conditioned " +
+  "or gross floor area (unitSize, sqft); building height to ridge (height, ft); " +
+  "front/rear/side setbacks (setbackFront/setbackRear/setbackSide, ft); lot " +
+  "coverage as a percent of the lot (lotCoverage, pct); floor area ratio " +
+  "(far, ratio); number of parking spaces (parking, spaces); number of dwelling " +
+  "units (dwellingUnits, units). Single-family and multi-family sheets show the " +
+  "last five; ADU sheets usually only show the first four. Omit any metric not " +
+  "shown rather than guessing, and set confidence 0..1 honestly.";
 
 export async function extractPlanFactsFromDoc(
   dataBase64: string,
   mediaType: string,
   projectType = "detached_adu"
 ): Promise<PlanFact[]> {
-  const nullFacts = (): PlanFact[] => [
+  const nullFacts = (readError?: string): PlanFact[] => [
     ...NUMERIC_KEYS.map((k) => ({
       key: k.key,
       label: k.label,
@@ -234,11 +311,11 @@ export async function extractPlanFactsFromDoc(
       confidence: 0,
       raw: "Not read from the plan set.",
     })),
-    { key: "sheets", label: "Sheets present", value: [], unit: "docs" as const, sheet: "—", bbox: null, confidence: 0 },
+    { key: "sheets", label: "Sheets present", value: [], unit: "docs" as const, sheet: "—", bbox: null, confidence: 0, readError },
   ];
 
   const c = getClient();
-  if (!c) return nullFacts();
+  if (!c) return nullFacts("the plan reader is not configured (no ANTHROPIC_API_KEY)");
 
   const schema = {
     type: "object",
@@ -250,9 +327,9 @@ export async function extractPlanFactsFromDoc(
           type: "object",
           additionalProperties: false,
           properties: {
-            key: { type: "string", enum: ["unitSize", "height", "setbackRear", "setbackSide"] },
+            key: { type: "string", enum: EXTRACT_KEYS },
             value: { type: "number" },
-            unit: { type: "string", enum: ["ft", "sqft"] },
+            unit: { type: "string", enum: EXTRACT_UNITS },
             sheet: { type: "string" },
             confidence: { type: "number" },
             raw: { type: "string" },
@@ -276,18 +353,17 @@ export async function extractPlanFactsFromDoc(
         type: "text",
         text:
           `You are a licensed residential plan checker reading a ${projectType.replace(/_/g, " ")} ` +
-          "permit plan set. Read the drawings, dimension strings, and schedules and report ONLY what " +
-          "is actually shown: conditioned floor area (unitSize, sqft), building height to ridge (ft), " +
-          "rear setback (ft), and side setback (ft). Cite the sheet each value comes from (e.g. 'A1.0') " +
-          "and quote the raw label you read it from. Set confidence honestly: use a value below 0.4 if " +
-          "a dimension is unclear, ambiguous, or not shown — do NOT guess. Also list every sheet number " +
-          "in the set. Emit at most one fact per key.",
+          "permit plan set. Read the drawings, dimension strings, and schedules. " +
+          RESIDENTIAL_METRICS_HINT +
+          " Cite the sheet each value comes from (e.g. 'A1.0') and quote the raw label you read it from. " +
+          "Use a confidence below 0.4 if a dimension is unclear, ambiguous, or not shown. Also list every " +
+          "sheet number in the set. Emit at most one fact per key.",
       },
       doc,
     ];
-    const raw = await extractJson(c, content, schema, "extractPlanFactsFromDoc");
-    if (raw == null) return nullFacts();
-    const parsed = JSON.parse(raw) as { facts: any[]; sheets: string[] };
+    const { text, error } = await extractJson(c, content, schema, "extractPlanFactsFromDoc");
+    if (text == null) return nullFacts(error);
+    const parsed = JSON.parse(text) as { facts: any[]; sheets: string[] };
     const byKey = new Map(parsed.facts.map((f) => [f.key, f]));
     const facts: PlanFact[] = NUMERIC_KEYS.map((k) => {
       const m = byKey.get(k.key);
@@ -317,7 +393,7 @@ export async function extractPlanFactsFromDoc(
     return facts;
   } catch (e) {
     console.error("[claude:extractPlanFactsFromDoc] could not parse model output:", (e as Error)?.message ?? e);
-    return nullFacts();
+    return nullFacts("the plan reader's output could not be parsed");
   }
 }
 
@@ -329,12 +405,12 @@ export async function extractPlanFactsFromDocs(
   sheets: { name: string; data: string }[],
   projectType = "detached_adu"
 ): Promise<PlanFact[]> {
-  const nullFacts = (): PlanFact[] => [
+  const nullFacts = (readError?: string): PlanFact[] => [
     ...NUMERIC_KEYS.map((k) => ({ key: k.key, label: k.label, value: null, unit: k.unit, sheet: "—", bbox: null, confidence: 0, raw: "Not read from the plan set." })),
-    { key: "sheets", label: "Sheets present", value: sheets.map((s) => s.name), unit: "docs" as const, sheet: "—", bbox: null, confidence: sheets.length ? 0.95 : 0 },
+    { key: "sheets", label: "Sheets present", value: sheets.map((s) => s.name), unit: "docs" as const, sheet: "—", bbox: null, confidence: sheets.length ? 0.95 : 0, readError },
   ];
   const c = getClient();
-  if (!c || sheets.length === 0) return nullFacts();
+  if (!c || sheets.length === 0) return nullFacts(c ? undefined : "the plan reader is not configured (no ANTHROPIC_API_KEY)");
 
   const schema = {
     type: "object",
@@ -346,9 +422,9 @@ export async function extractPlanFactsFromDocs(
           type: "object",
           additionalProperties: false,
           properties: {
-            key: { type: "string", enum: ["unitSize", "height", "setbackRear", "setbackSide"] },
+            key: { type: "string", enum: EXTRACT_KEYS },
             value: { type: "number" },
-            unit: { type: "string", enum: ["ft", "sqft"] },
+            unit: { type: "string", enum: EXTRACT_UNITS },
             sheet: { type: "string" },
             confidence: { type: "number" },
             raw: { type: "string" },
@@ -366,11 +442,11 @@ export async function extractPlanFactsFromDocs(
       text:
         `You are a licensed residential plan checker reading a ${projectType.replace(/_/g, " ")} permit plan ` +
         "set. The following pages are the plotted sheets of the set, each labeled with its sheet number. " +
-        "Read the drawings, dimension strings, schedules, and title blocks and report ONLY what is actually " +
-        "shown: conditioned/ADU floor area (unitSize, sqft), building height to ridge (ft), rear setback (ft), " +
-        "side setback (ft). Cite the sheet each value came from and quote the raw label. Set confidence below " +
-        "0.4 if a value is unclear or not shown — do NOT guess. For a garage/space conversion, unitSize is the " +
-        "converted footprint. Emit at most one fact per key.",
+        "Read the drawings, dimension strings, schedules, and title blocks. " +
+        RESIDENTIAL_METRICS_HINT +
+        " Cite the sheet each value came from and quote the raw label. Use a confidence below 0.4 if a value " +
+        "is unclear or not shown. For a garage/space conversion, unitSize is the converted footprint. Emit at " +
+        "most one fact per key.",
     },
   ];
   for (const s of sheets) {
@@ -379,9 +455,9 @@ export async function extractPlanFactsFromDocs(
   }
 
   try {
-    const raw = await extractJson(c, content, schema, "extractPlanFactsFromDocs", 32000);
-    if (raw == null) return nullFacts();
-    const parsed = JSON.parse(raw) as { facts: any[] };
+    const { text, error } = await extractJson(c, content, schema, "extractPlanFactsFromDocs", 32000);
+    if (text == null) return nullFacts(error);
+    const parsed = JSON.parse(text) as { facts: any[] };
     const byKey = new Map(parsed.facts.map((f) => [f.key, f]));
     const facts: PlanFact[] = NUMERIC_KEYS.map((k) => {
       const m = byKey.get(k.key);
@@ -394,7 +470,7 @@ export async function extractPlanFactsFromDocs(
     return facts;
   } catch (e) {
     console.error("[claude:extractPlanFactsFromDocs] could not parse model output:", (e as Error)?.message ?? e);
-    return nullFacts();
+    return nullFacts("the plan reader's output could not be parsed");
   }
 }
 
@@ -405,12 +481,12 @@ export async function extractPlanFactsFromImages(
   projectType = "detached_adu"
 ): Promise<PlanFact[]> {
   const sheetNames = [...new Set(tiles.map((t) => t.label.replace(/\s*\(.*$/, "")))];
-  const nullFacts = (): PlanFact[] => [
+  const nullFacts = (readError?: string): PlanFact[] => [
     ...NUMERIC_KEYS.map((k) => ({ key: k.key, label: k.label, value: null, unit: k.unit, sheet: "—", bbox: null, confidence: 0, raw: "Not read from the plan set." })),
-    { key: "sheets", label: "Sheets present", value: sheetNames, unit: "docs" as const, sheet: "—", bbox: null, confidence: sheetNames.length ? 0.95 : 0 },
+    { key: "sheets", label: "Sheets present", value: sheetNames, unit: "docs" as const, sheet: "—", bbox: null, confidence: sheetNames.length ? 0.95 : 0, readError },
   ];
   const c = getClient();
-  if (!c || tiles.length === 0) return nullFacts();
+  if (!c || tiles.length === 0) return nullFacts(c ? undefined : "the plan reader is not configured (no ANTHROPIC_API_KEY)");
 
   const schema = {
     type: "object",
@@ -422,9 +498,9 @@ export async function extractPlanFactsFromImages(
           type: "object",
           additionalProperties: false,
           properties: {
-            key: { type: "string", enum: ["unitSize", "height", "setbackRear", "setbackSide"] },
+            key: { type: "string", enum: EXTRACT_KEYS },
             value: { type: "number" },
-            unit: { type: "string", enum: ["ft", "sqft"] },
+            unit: { type: "string", enum: EXTRACT_UNITS },
             sheet: { type: "string" },
             confidence: { type: "number" },
             raw: { type: "string" },
@@ -442,11 +518,11 @@ export async function extractPlanFactsFromImages(
       text:
         `You are a licensed residential plan checker reading a ${projectType.replace(/_/g, " ")} permit plan set. ` +
         "The following images are high-resolution tiles of the plotted sheets, each labeled with its sheet and " +
-        "grid position. Read dimension strings, schedules, and title blocks and report ONLY what is actually " +
-        "shown: ADU/conditioned floor area (unitSize, sqft — for a garage/space conversion this is the converted " +
-        "footprint, which you may compute from the plan's overall dimensions), building height to ridge (ft), " +
-        "rear setback (ft), side setback (ft). Cite the sheet each value came from and quote the raw label/dimension. " +
-        "Set confidence below 0.4 if a value is unclear or not shown — do NOT guess. Emit at most one fact per key.",
+        "grid position. Read dimension strings, schedules, and title blocks. " +
+        RESIDENTIAL_METRICS_HINT +
+        " For a garage/space conversion, unitSize is the converted footprint, which you may compute from the " +
+        "plan's overall dimensions. Cite the sheet each value came from and quote the raw label/dimension. Use a " +
+        "confidence below 0.4 if a value is unclear or not shown. Emit at most one fact per key.",
     },
   ];
   for (const t of tiles) {
@@ -455,9 +531,9 @@ export async function extractPlanFactsFromImages(
   }
 
   try {
-    const raw = await extractJson(c, content, schema, "extractPlanFactsFromImages", 32000);
-    if (raw == null) return nullFacts();
-    const parsed = JSON.parse(raw) as { facts: any[] };
+    const { text, error } = await extractJson(c, content, schema, "extractPlanFactsFromImages", 32000);
+    if (text == null) return nullFacts(error);
+    const parsed = JSON.parse(text) as { facts: any[] };
     const byKey = new Map(parsed.facts.map((f) => [f.key, f]));
     const facts: PlanFact[] = NUMERIC_KEYS.map((k) => {
       const m = byKey.get(k.key);
@@ -470,7 +546,7 @@ export async function extractPlanFactsFromImages(
     return facts;
   } catch (e) {
     console.error("[claude:extractPlanFactsFromImages] could not parse model output:", (e as Error)?.message ?? e);
-    return nullFacts();
+    return nullFacts("the plan reader's output could not be parsed");
   }
 }
 
@@ -478,19 +554,10 @@ export async function extractPlanFactsFromImages(
 export async function explain(prompt: string, fallback: string): Promise<string> {
   const c = getClient();
   if (!c) return fallback;
-  try {
-    const resp = await c.messages.create({
-      model: MODEL,
-      max_tokens: 400,
-      messages: [{ role: "user", content: prompt }],
-      ...({
-        thinking: { type: "adaptive" },
-        output_config: { effort: "low" },
-      } as any),
-    });
-    const text = resp.content.find((b) => b.type === "text");
-    return text && text.type === "text" ? text.text.trim() : fallback;
-  } catch {
-    return fallback;
-  }
+  const text = await createTextWithFallback(
+    c,
+    { max_tokens: 400, messages: [{ role: "user", content: prompt }] },
+    "explain"
+  );
+  return text != null ? text.trim() : fallback;
 }

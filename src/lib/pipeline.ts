@@ -131,6 +131,10 @@ export async function* runPipeline(
   // When a DWG is uploaded but nothing readable comes back, we must NOT pass the
   // reference demo numbers off as measured — the checks become "needs review".
   let extractedFacts = false;
+  // Set when the plan READER itself failed (token-budget truncation, refusal,
+  // API/parse error, or the set couldn't be loaded) — distinct from a dimension
+  // simply not being drawn. Drives a specific, actionable finding message.
+  let planReadError: string | undefined;
   let sheetNames: string[] = [];
   const urn = project.apsUrn;
   if (project.planMime) {
@@ -148,6 +152,7 @@ export async function* runPipeline(
       yield snapshot();
     } else {
       emit(msg("plan-reader", "info", "Plan set could not be loaded — flagging checks for manual review.", { sponsor: "claude" }));
+      planReadError = "the uploaded plan set could not be loaded from storage";
       facts = await extractPlanFacts([]);
     }
   } else if (APS_LIVE && urn) {
@@ -157,7 +162,7 @@ export async function* runPipeline(
     // illegible, so this plot→vision route is what makes DWG facts trustworthy.
     emit(msg("plan-reader", "info", "Plotting the DWG sheets to PDF with Autodesk (AutoCAD cloud)…", { sponsor: "claude" }));
     yield snapshot();
-    const plotted = await plotDwgSheets(urn);
+    const { sheets: plotted, failure: plotFailure } = await plotDwgSheets(urn);
     if (plotted.length > 0) {
       sheetNames = plotted.map((s) => s.name);
       emit(msg("plan-reader", "info", `Plotted ${plotted.length} sheet${plotted.length === 1 ? "" : "s"} (${sheetNames.join(", ")}). Tiling at high resolution so dimensions are legible…`, { sponsor: "claude" }));
@@ -184,7 +189,7 @@ export async function* runPipeline(
     } else {
       // DA unavailable/failed → fall back to the (text) extraction path, which is
       // honest about what it can and can't read.
-      emit(msg("plan-reader", "info", "Could not plot the DWG — falling back to text extraction; unread checks will be flagged for manual review.", { sponsor: "claude" }));
+      emit(msg("plan-reader", "info", `Could not plot the DWG (${plotFailure ?? "unknown reason"}) — falling back to text extraction; unread checks will be flagged for manual review.`, { sponsor: "claude" }));
       yield snapshot();
       // The text-extraction path reads Model Derivative metadata, which only
       // exists once translation completes. translate() was kicked off at upload
@@ -223,6 +228,20 @@ export async function* runPipeline(
     );
   }
 
+  // Surface WHY the read failed, not just that values are missing. Prefer the
+  // reason the reader reported (truncation / refusal / API error); fall back to
+  // the generic "nothing readable" only when the reader gave no specific cause.
+  if (unverified) {
+    planReadError =
+      planReadError ??
+      facts.find((f) => f.key === "sheets")?.readError ??
+      "no readable dimensions were found on the drawing";
+    emit(
+      msg("plan-reader", "info", `Plan reader could not measure the drawing — ${planReadError}. The four dimensional checks are flagged for manual verification.`, { sponsor: "claude" })
+    );
+    yield snapshot();
+  }
+
   state.facts = facts;
   const shown = facts.filter((f) => f.key !== "sheets").slice(0, 3);
   for (const f of shown) {
@@ -239,27 +258,48 @@ export async function* runPipeline(
   emit(msg("compliance", "info", "Running deterministic compliance checks…"));
   yield snapshot();
 
-  const factByKey = (k: string) => facts.find((f) => f.key === (k === "setbackRear" || k === "setbackSide" ? k : k === "maxSize" ? "unitSize" : k));
-  const numericKeys = ["maxSize", "height", "setbackRear", "setbackSide"];
+  // Fact key for a rule key — only maxSize reads off the unitSize fact; every
+  // other rule key shares its fact key directly (height, setback*, lotCoverage,
+  // far, parking …).
+  const factForRuleKey = (k: string) => facts.find((f) => f.key === (k === "maxSize" ? "unitSize" : k));
+  // Every numeric rule that applies to this project type (its own subtype or
+  // "any"), deduped in stable order — this is the set of checks we run. ADU
+  // projects get {maxSize, height, setback*}; single/multi-family additionally
+  // get {setbackFront, lotCoverage, far, parking}.
+  const numericKeys = [
+    ...new Set(
+      rules
+        .filter((r) => r.operator !== "present")
+        .filter((r) => r.appliesTo === project.projectType || r.appliesTo === "any")
+        .map((r) => r.key)
+    ),
+  ];
+  // ADU keeps the scripted "buggy first pass" (applicability OFF) so the wrong
+  // attached-vs-detached rule is picked and Arize can catch it. Single/multi-
+  // family enforce applicability from the start — there's no scripted bug there.
+  const isAdu = project.projectType === "detached_adu" || project.projectType === "attached_adu";
 
   for (const key of numericKeys) {
-    // First pass deliberately does NOT enforce applicability — this is how the
-    // wrong (attached) height rule gets selected, the bug Arize will catch.
-    const rule = selectRule(rules, key, project.projectType, false);
-    const fact = factByKey(key);
+    const rule = selectRule(rules, key, project.projectType, !isAdu);
+    const fact = factForRuleKey(key);
     if (!rule || !fact) continue;
     const res = compareNumeric(fact, rule);
     const chunk = await retrieveCode(key, rule.appliesTo, citySlug); // RAG: only the relevant chunk
-    // When the value couldn't be read, state the applicable limit + citation so
-    // the reviewer knows exactly what to verify by hand — not a bare "no value".
+    // When the value is missing, distinguish a READER failure (truncation /
+    // refusal / API error — re-running may fix it) from a value that's simply
+    // not drawn on the legible sheets. Either way, cite the applicable limit so
+    // the reviewer knows exactly what to verify by hand.
+    const limit = `applicable limit: ${rule.operator} ${rule.threshold}${rule.unit ?? ""} (${chunk?.section ?? rule.sourceId})`;
     const detail =
-      fact.value == null
-        ? `Could not read from the drawing — applicable limit: ${rule.operator} ${rule.threshold}${rule.unit ?? ""} (${chunk?.section ?? rule.sourceId}). Manual verification required.`
-        : res.detail;
+      fact.value != null
+        ? res.detail
+        : planReadError
+        ? `Plan reader couldn't measure this — ${planReadError}. ${limit}. Re-run the read, or verify manually.`
+        : `Not shown on the readable sheets — ${limit}. Verify manually.`;
     const f: Finding = {
       id: `f_${key}`,
       ruleKey: key,
-      title: RULE_LABELS[key],
+      title: RULE_LABELS[key] ?? rule.label,
       status: res.status,
       message: detail,
       factRef: fact.key,
@@ -322,9 +362,9 @@ export async function* runPipeline(
       yield snapshot();
       await sleep(700);
 
-      // Re-select WITH applicability enforced → the correct detached rule.
+      // Re-select WITH applicability enforced → the rule for this project type.
       const correctRule = selectRule(rules, f.ruleKey, project.projectType, true);
-      const correctFact = facts.find((x) => x.key === (f.ruleKey === "maxSize" ? "unitSize" : f.ruleKey));
+      const correctFact = factForRuleKey(f.ruleKey);
       if (correctRule && correctFact) {
         const res = compareNumeric(correctFact, correctRule);
         f.previousStatus = f.status;
@@ -344,7 +384,7 @@ export async function* runPipeline(
           projectSubtype: project.projectType,
         });
         emit(
-          msg("compliance", "retry", `Re-ran ${f.title} with detached-ADU rule (source ${correctRule.sourceId}): ${f.previousStatus} → ${f.status}.`, { sponsor: "arize", refs: [f.id] })
+          msg("compliance", "retry", `Re-ran ${f.title} with the ${correctRule.appliesTo.replace(/_/g, " ")} rule (source ${correctRule.sourceId}): ${f.previousStatus} → ${f.status}.`, { sponsor: "arize", refs: [f.id] })
         );
         yield snapshot();
         await sleep(400);

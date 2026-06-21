@@ -47,7 +47,28 @@ function safeTxtName(name: string): string {
   return `${stem}.txt`;
 }
 
+// This endpoint writes the building-code corpus that real runs retrieve and
+// CITE in permit findings — so an open, unauthenticated writer is a content-
+// integrity hole (anyone could poison the code DB). It isn't called by the
+// frontend; only setup/ingest tooling hits it. Guard it with a shared secret:
+// when INGEST_SECRET is set we require a matching `x-ingest-secret` header. If
+// it's unset we still allow ingest (zero-config local dev) but warn loudly in
+// production so the gap is visible.
+function authorizeIngest(req: NextRequest): boolean {
+  const secret = process.env.INGEST_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("[ingest] INGEST_SECRET is not set — /api/cities/ingest is unauthenticated. Set INGEST_SECRET to lock it down.");
+    }
+    return true;
+  }
+  return req.headers.get("x-ingest-secret") === secret;
+}
+
 export async function POST(req: NextRequest) {
+  if (!authorizeIngest(req)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   let body: IngestBody;
   try {
     body = (await req.json()) as IngestBody;

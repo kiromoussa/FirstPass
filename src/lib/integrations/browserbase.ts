@@ -86,7 +86,9 @@ async function browseAlameda(): Promise<Source[]> {
       // Optional dependency — indirect specifier so it isn't type-resolved or
       // bundled when absent. Install playwright-core to enable live navigation.
       const mod = "playwright-core";
-      const { chromium } = (await import(mod)) as any;
+      const { chromium } = (await import(
+        /* webpackIgnore: true */ /* turbopackIgnore: true */ mod
+      )) as any;
       const browser = await chromium.connectOverCDP(connectUrl);
       const ctx = browser.contexts()[0] ?? (await browser.newContext());
       const page = ctx.pages()[0] ?? (await ctx.newPage());

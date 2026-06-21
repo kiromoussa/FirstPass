@@ -4,10 +4,13 @@
 //
 // On top of that, when an orchestrator agent key is configured, a run now opens
 // a REAL Band collaboration room (ported from the working firstpass research
-// repo): validate the agent (/me), create a chat, add the human owner + the
-// three registered research agents, and post a kickoff message that @mentions
-// them. Meaningful collaboration moments (disagreement / retry / done) are then
-// forwarded into that room. All of it is best-effort and never blocks a run.
+// repo): validate the agent (/me), create a chat, add the human owner + the full
+// FirstPass agent team (CEO, Planner, Code Synthesizer, Municipal + State
+// researchers, Visual Analysis, Compare Codes, Solutions, Permit Report — see
+// BAND_AGENTS.md / band-client.ts), and post a kickoff message that lays out the
+// CEO-orchestrated workflow and @mentions them. Meaningful collaboration moments
+// (disagreement / retry / done) are then forwarded into that room. All of it is
+// best-effort and never blocks a run.
 //
 // Backward compatible: if no room is opened but BAND_CHAT_ID + BAND_MENTION_ID
 // are set, forwarding falls back to that single hand-configured chat.
@@ -44,54 +47,66 @@ interface LiveRoom {
   selfId: string | null; // the orchestrator agent (FirstPass) itself
 }
 
-// Build the kickoff message that seeds the room. Mirrors the friend's Python
-// orchestrator build_kickoff_message (main: src/firstpass/orchestrator.py) so
-// the live agents parse it the same way: @mentions + Address/Project type, an
-// Internet-Archive scrape instruction per researcher, and the synthesizer merge
-// step. `agents` is the configured roster (unconfigured layers already skipped).
+// Build the kickoff message that seeds the room. Encodes the FirstPass agentic
+// workflow (BAND_AGENTS.md) as a numbered chain the CEO orchestrates:
+//   CEO → Planner → Code Synthesizer → Municipal + State → Code Synthesizer
+//       → Visual Analysis + Compare Codes → Solutions → Permit Report → CEO
+// The CEO + Planner are the entry points; the message @mentions every configured
+// agent so each step resolves to a real participant. Steps whose agent isn't
+// configured (no resolved id → skipped from the roster) drop out automatically.
 function kickoffMessage(project: Project | undefined, agents: BandAgentDef[]): string {
   const address = project?.address || "the project address";
   const type = (project?.projectType || "detached_adu").replace(/_/g, " ");
+  const byRole = (r: BandAgentDef["role"]) => agents.find((a) => a.role === r);
+  const ceo = byRole("ceo");
+  const planner = byRole("planner");
+  const synth = byRole("synthesizer");
   const researchers = agents.filter((a) => a.role === "researcher");
-  const comparators = agents.filter((a) => a.role === "comparator");
-  const synth = agents.find((a) => a.role === "synthesizer");
+  const visual = byRole("visual");
+  const compare = byRole("comparator");
+  const solutions = byRole("solutions");
+  const permit = byRole("permit");
 
-  const tasks = researchers.map(
-    (a) =>
-      `@${a.name} — Scrape ${a.ask} from Internet Archive (archive.org). ` +
-      `Write \`output/${a.report}\`. Post a summary when done.`
+  // Build the numbered workflow, skipping any step whose agent is unconfigured.
+  const steps: string[] = [];
+  const add = (who: BandAgentDef | undefined, what: string) => {
+    if (who) steps.push(`${steps.length + 1}. @${who.name} — ${what}`);
+  };
+  const addMany = (who: BandAgentDef[], what: string) => {
+    if (who.length) steps.push(`${steps.length + 1}. ${who.map((a) => `@${a.name}`).join(" + ")} — ${what}`);
+  };
+  add(planner, `${planner?.ask}. Write \`output/${planner?.report}\` and hand it to the synthesizer.`);
+  add(synth, "From the brief, list the code questions to research, then hand off to the researchers.");
+  addMany(
+    researchers,
+    "Research the applicable codes from Internet Archive (archive.org) — not paywalled ICC sites. " +
+      researchers.map((a) => `${a.name.replace(/ Code Researcher$/, "")}: ${a.ask}`).join("; ") +
+      `. Each writes its \`output/*.txt\` report.`
   );
-  for (const c of comparators) {
-    tasks.push(
-      `@${c.name} — After the researchers post their reports, ${c.ask}. ` +
-        `Write \`output/${c.report}\`. Post the comparison in chat.`
-    );
-  }
-  if (synth) {
-    tasks.push(
-      `@${synth.name} — After the researchers finish, merge every report into ` +
-        `\`output/${synth.report}\`. Post the file path and executive summary in chat.`
-    );
-  }
-  const deliverables = [
-    ...researchers.map((a) => a.report),
-    ...comparators.map((a) => a.report),
-    synth?.report,
-  ]
-    .filter(Boolean)
-    .join(", ");
+  if (synth) steps.push(`${steps.length + 1}. @${synth.name} — Merge every researcher report into \`output/${synth.report}\` (the governing code set).`);
+  addMany(
+    [visual, compare].filter(Boolean) as BandAgentDef[],
+    `Read the plan set, then ${compare?.ask ?? "flag where the design violates the governing codes, with citations"}.`
+  );
+  add(solutions, `${solutions?.ask}. Write \`output/${solutions?.report}\`.`);
+  add(permit, `${permit?.ask}. Write \`output/${permit?.report}\` and post it in chat.`);
+  add(ceo, "Review the report, confirm every finding is cited, and deliver the final permit-readiness sign-off.");
 
-  return `Research building codes for this pre-submission permit review.
+  const lead = [ceo, planner].filter(Boolean).map((a) => `@${a!.name}`).join(" ");
+  const deliverables = agents.map((a) => a.report).filter(Boolean).join(", ");
+
+  return `${lead}
+
+New pre-submission permit review — run the standard FirstPass workflow. The CEO owns orchestration and the final sign-off.
 
 **Address:** ${address}
 **Project type:** ${type}
 
-Scrape codes from **Internet Archive** (archive.org) — not paywalled ICC sites.
-Each researcher must save a \`.txt\` report to the \`output/\` folder.
+Workflow:
 
-${tasks.join("\n\n")}
+${steps.join("\n")}
 
-Deliverable: \`.txt\` files in \`output/\` — ${deliverables}.`;
+Post progress in chat as each step completes. Deliverables: ${deliverables}.`;
 }
 
 // A Band "channel" scoped to one project run. The orchestrator publishes; the

@@ -58,5 +58,125 @@
     "unit": "docs",
     "sourceId": "S4",
     "description": "LA City Planning ADU submittal requires a site plan, floor plan, building elevations, and a Title-24 energy compliance report."
+  },
+  {
+    "key": "height",
+    "label": "Height limit (single-family)",
+    "appliesTo": "single_family",
+    "operator": "<=",
+    "threshold": 33,
+    "unit": "ft",
+    "sourceId": "S1",
+    "description": "One-family dwellings in the R1 zone are limited to 33 ft / 2.5 stories on most lots (LAMC §12.21.1 A.1); lower limits apply in some Height Districts and hillside areas."
+  },
+  {
+    "key": "setbackFront",
+    "label": "Front setback (single-family)",
+    "appliesTo": "single_family",
+    "operator": ">=",
+    "threshold": 20,
+    "unit": "ft",
+    "sourceId": "S1",
+    "description": "R1 front yard is generally the prevailing setback, commonly 20 ft (LAMC §12.08 C); confirm the block's prevailing-setback average."
+  },
+  {
+    "key": "setbackRear",
+    "label": "Rear setback (single-family)",
+    "appliesTo": "single_family",
+    "operator": ">=",
+    "threshold": 15,
+    "unit": "ft",
+    "sourceId": "S1",
+    "description": "R1 rear yard minimum is 15 ft (LAMC §12.08 C)."
+  },
+  {
+    "key": "setbackSide",
+    "label": "Side setback (single-family)",
+    "appliesTo": "single_family",
+    "operator": ">=",
+    "threshold": 5,
+    "unit": "ft",
+    "sourceId": "S1",
+    "description": "R1 side yard minimum is 5 ft (or 10% of lot width up to a cap) per LAMC §12.08 C."
+  },
+  {
+    "key": "lotCoverage",
+    "label": "Lot coverage (single-family)",
+    "appliesTo": "single_family",
+    "operator": "<=",
+    "threshold": 45,
+    "unit": "pct",
+    "sourceId": "S1",
+    "description": "Residential lot coverage in R1 is generally capped around 45% of lot area (LAMC §12.21.1); verify the specific zone."
+  },
+  {
+    "key": "far",
+    "label": "Floor area ratio (single-family)",
+    "appliesTo": "single_family",
+    "operator": "<=",
+    "threshold": 0.5,
+    "unit": "far",
+    "sourceId": "S1",
+    "description": "R1 Residential Floor Area is limited to 0.5:1 of lot area (LAMC §12.21.1 A.5), before applicable bonuses."
+  },
+  {
+    "key": "parking",
+    "label": "Off-street parking (single-family)",
+    "appliesTo": "single_family",
+    "operator": ">=",
+    "threshold": 2,
+    "unit": "spaces",
+    "sourceId": "S1",
+    "description": "A single-family dwelling requires 2 off-street covered parking spaces (LAMC §12.21 A.4); transit-proximate reductions may apply."
+  },
+  {
+    "key": "height",
+    "label": "Height limit (multi-family)",
+    "appliesTo": "multi_family",
+    "operator": "<=",
+    "threshold": 45,
+    "unit": "ft",
+    "sourceId": "S1",
+    "description": "Multi-family height in lower-density R3 is commonly limited to 45 ft in Height District 1 (LAMC §12.21.1 A.1); the exact limit is set by the lot's Height District."
+  },
+  {
+    "key": "setbackFront",
+    "label": "Front setback (multi-family)",
+    "appliesTo": "multi_family",
+    "operator": ">=",
+    "threshold": 15,
+    "unit": "ft",
+    "sourceId": "S1",
+    "description": "R3 front yard minimum is 15 ft (LAMC §12.11 C)."
+  },
+  {
+    "key": "setbackRear",
+    "label": "Rear setback (multi-family)",
+    "appliesTo": "multi_family",
+    "operator": ">=",
+    "threshold": 15,
+    "unit": "ft",
+    "sourceId": "S1",
+    "description": "R3 rear yard minimum is 15 ft (LAMC §12.11 C)."
+  },
+  {
+    "key": "setbackSide",
+    "label": "Side setback (multi-family)",
+    "appliesTo": "multi_family",
+    "operator": ">=",
+    "threshold": 5,
+    "unit": "ft",
+    "sourceId": "S1",
+    "description": "R3 side yard minimum is generally 5 ft plus 1 ft per story above the second (LAMC §12.11 C)."
+  },
+  {
+    "key": "parking",
+    "label": "Off-street parking (multi-family)",
+    "appliesTo": "multi_family",
+    "operator": ">=",
+    "threshold": 1,
+    "unit": "spaces",
+    "sourceId": "S1",
+    "description": "R3 generally requires 1–2 parking spaces per dwelling unit by unit size (LAMC §12.21 A.4); AB 2097 removes minimums within ½ mile of major transit. Per-unit ratio needs manual confirmation against the unit count."
   }
 ]

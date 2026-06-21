@@ -65,13 +65,19 @@ export interface BandRoomMessage {
   kind: "agent" | "human" | "orchestrator"; // who posted it, for styling
 }
 
-// ADU subtype. The applicability eval (Arize) keys off this — a rule whose
-// `appliesTo` doesn't match the project's subtype scores low and fails.
-export type ProjectType = "detached_adu" | "attached_adu";
+// Residential project subtype. The applicability eval (Arize) keys off this — a
+// rule whose `appliesTo` doesn't match the project's subtype scores low and fails.
+export type ProjectType =
+  | "detached_adu"
+  | "attached_adu"
+  | "single_family"
+  | "multi_family";
 
 export const PROJECT_TYPES: { value: ProjectType; label: string }[] = [
   { value: "detached_adu", label: "Detached ADU" },
   { value: "attached_adu", label: "Attached ADU" },
+  { value: "single_family", label: "Single-family dwelling" },
+  { value: "multi_family", label: "Multi-family / units" },
 ];
 
 export interface Project {
@@ -103,26 +109,35 @@ export interface Source {
   live: boolean; // true = fetched live this run, false = served from cache
 }
 
+// Units the compliance engine understands. Length in ft, area in sqft, lot
+// coverage as a percentage, floor-area ratio as a bare ratio, parking in spaces,
+// dwelling counts in units, and document presence in docs.
+export type Unit = "ft" | "sqft" | "pct" | "far" | "spaces" | "units" | "docs";
+
 export interface Rule {
-  key: string; // maxSize | height | setbackRear | setbackSide | requiredDocs
+  key: string; // maxSize | height | setbackFront/Rear/Side | lotCoverage | far | parking | requiredDocs
   label: string;
-  appliesTo: "detached_adu" | "attached_adu" | "any";
+  appliesTo: ProjectType | "any";
   operator: "<=" | ">=" | "present";
   threshold: number | null;
-  unit: "ft" | "sqft" | "docs" | null;
+  unit: Unit | null;
   sourceId: string;
   description: string;
 }
 
 export interface PlanFact {
-  key: string; // unitSize | height | setbackRear | setbackSide | sheets
+  key: string; // unitSize | height | setbackFront/Rear/Side | lotCoverage | far | parking | dwellingUnits | sheets
   label: string;
   value: number | string | string[] | null;
-  unit: "ft" | "sqft" | "docs" | null;
+  unit: Unit | null;
   sheet: string; // e.g. "A-2"
   bbox: [number, number, number, number] | null; // normalized [x,y,w,h] 0..1
   confidence: number; // 0..1
   raw?: string;
+  // Set only when the plan READER itself failed (token-budget truncation,
+  // refusal, API/parse error) rather than the dimension simply not being shown.
+  // Lets the UI say WHY a value is missing instead of a blanket "couldn't read".
+  readError?: string;
 }
 
 export interface EvalResult {

@@ -218,6 +218,10 @@ const RULE_TERMS: Record<string, string[]> = {
   height: ["height", "feet in height", "roof pitch", "stories", "story"],
   setbackSide: ["side setback", "side yard"],
   setbackRear: ["rear setback", "rear yard"],
+  setbackFront: ["front setback", "front yard", "prevailing setback"],
+  lotCoverage: ["lot coverage", "buildable area", "percent of the lot"],
+  far: ["floor area ratio", "residential floor area", "floor area"],
+  parking: ["parking", "off-street", "covered parking", "spaces per unit"],
   requiredDocs: ["site plan", "plot plan", "floor plan", "elevation", "title-24", "submittal", "checklist", "application"],
 };
 

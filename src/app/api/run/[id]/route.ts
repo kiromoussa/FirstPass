@@ -6,6 +6,13 @@ import type { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// This single route drives the whole orchestration (Claude + Browserbase + APS
+// translate + Design Automation). A DWG run polls Design Automation for up to
+// ~240s before tiling/vision, so the default cap would kill it mid-run. 300s is
+// the value supported on every Vercel plan; on Fluid Compute (Pro) this can be
+// raised toward 800s, and heavy DWG sets ultimately want a durable background
+// job rather than a single long request.
+export const maxDuration = 300;
 
 // SSE stream: runs the orchestrator and emits a full ProjectState snapshot on
 // every step. The dashboard subscribes to this and re-renders live.
