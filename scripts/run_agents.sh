@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# Run all three Band agents in parallel (requires tmux or separate terminals)
-set -euo pipefail
+# Run the core Band code-research agents in parallel.
+set -uo pipefail
 cd "$(dirname "$0")/.."
 
 echo "Starting FirstPass code research agents..."
-echo "Run 'uv run firstpass-kickoff --address \"YOUR ADDRESS\"' in another terminal to start research."
+echo "Kickoff: paste address in Band or run: uv run firstpass-kickoff --address \"YOUR ADDRESS\""
 echo ""
 
-uv run firstpass-municipal &
-PID1=$!
-uv run firstpass-state &
-PID2=$!
-uv run firstpass-synthesizer &
-PID3=$!
+pids=()
+start() { uv run "$1" & pids+=($!); }
 
-trap 'kill $PID1 $PID2 $PID3 2>/dev/null' EXIT INT TERM
+start firstpass-municipal
+start firstpass-state
+start firstpass-synthesizer
+start firstpass-compare
 
+trap 'kill "${pids[@]}" 2>/dev/null' EXIT INT TERM
 wait

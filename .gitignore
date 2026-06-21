@@ -1,6 +1,25 @@
+# Secrets — never commit
 firstpass.config.yaml
+BAND_AGENTS.md
+
+# Node / Next.js
+node_modules
+.next
+out
+.env
+.env.local
+.env*.local
+*.log
+.DS_Store
+.vercel
+next-env.d.ts
+.claude
+tsconfig.tsbuildinfo
+
+# Python
 __pycache__/
 *.py[cod]
+*.pyc
 .venv/
 venv/
 dist/
@@ -8,4 +27,7 @@ dist/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
 output/
+plans/*
+!plans/.gitkeep

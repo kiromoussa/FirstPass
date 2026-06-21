@@ -1,0 +1,23 @@
+RESIDENTIAL CODE — California Residential Code (CRC), Title 24 Part 2.5
+Representative excerpts compiled by the Residential Code Researcher agent.
+Governs detached one- and two-family dwellings and townhouses, including most ADUs.
+
+### CRC R305 — Minimum Ceiling Height [S6]
+Habitable space, hallways, and portions of basements containing these spaces shall
+have a ceiling height of not less than 7 feet. Bathrooms, toilet rooms, and
+laundry rooms shall have a ceiling height of not less than 6 feet 8 inches.
+
+### CRC R310 — Emergency Escape and Rescue Openings [S6]
+Basements and every sleeping room shall have at least one operable emergency
+escape and rescue opening with a minimum net clear opening of 5.7 square feet, a
+minimum net clear height of 24 inches, and a minimum net clear width of 20 inches.
+
+### CRC R314 — Smoke Alarms [S6]
+Smoke alarms shall be installed in each sleeping room, outside each separate
+sleeping area in the immediate vicinity of the bedrooms, and on each story. Alarms
+shall be interconnected and hardwired with battery backup in new construction.
+
+### CRC R315 — Carbon Monoxide Alarms [S6]
+Carbon monoxide alarms shall be provided outside each separate sleeping area in
+the immediate vicinity of the bedrooms in dwelling units that have a fuel-burning
+appliance or an attached garage.

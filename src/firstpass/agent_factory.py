@@ -12,9 +12,19 @@ from firstpass.archive_tool import ARCHIVE_SCRAPE_TOOLS
 from firstpass.browserbase_tool import BROWSERBASE_TOOLS
 from firstpass.config import DEFAULT_MODEL, init_environment, load_agent_config
 from firstpass.permit.tool import PERMIT_TOOLS
+from firstpass.plan_analysis_tool import PLAN_ANALYSIS_TOOLS
 from firstpass.report_tool import MERGE_REPORT_TOOLS, REPORT_TOOLS
 
-AgentRole = Literal["researcher", "synthesizer", "municipal_researcher", "permit_agent"]
+AgentRole = Literal[
+    "researcher",
+    "synthesizer",
+    "municipal_researcher",
+    "permit_agent",
+    "comparator",
+    "planner",
+    "solutions",
+    "visual",
+]
 
 # Keep completions short — full code text lives in output/*.txt, not chat/tool payloads
 RESEARCHER_MAX_TOKENS = 1024
@@ -28,6 +38,14 @@ def _tools_for_role(role: AgentRole) -> list:
         return PERMIT_TOOLS + REPORT_TOOLS
     if role == "municipal_researcher":
         return ARCHIVE_SCRAPE_TOOLS + BROWSERBASE_TOOLS + REPORT_TOOLS
+    if role == "comparator":
+        return REPORT_TOOLS + ARCHIVE_SCRAPE_TOOLS
+    if role == "planner":
+        return REPORT_TOOLS
+    if role == "solutions":
+        return REPORT_TOOLS
+    if role == "visual":
+        return REPORT_TOOLS + PLAN_ANALYSIS_TOOLS
     return ARCHIVE_SCRAPE_TOOLS + REPORT_TOOLS
 
 

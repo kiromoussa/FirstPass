@@ -1,0 +1,28 @@
+MUNICIPAL CODE RESEARCH — Alameda, CA
+Accessory Dwelling Units (detached ADU)
+Compiled by the Municipal Code Researcher agent from official sources.
+
+Section bodies are tagged with their source id in brackets, e.g. [S1].
+
+### AMC §30-5.21(b) — Unit Size [S1]
+The maximum floor area of a detached accessory dwelling unit shall not exceed
+1,200 square feet of conditioned space. This maximum applies regardless of lot
+size; smaller maximums established elsewhere in this chapter do not apply where
+they would conflict with state law permitting an 800 square foot unit.
+
+### AMC §30-5.21(c) — Side Setback [S3]
+A minimum side setback of 4 feet shall be provided for an accessory dwelling
+unit. No side setback is required for an existing structure converted to an ADU,
+or for a new ADU constructed in the same location and to the same dimensions as
+the structure it replaces.
+
+### AMC §30-5.21(c) — Rear Setback [S3]
+A minimum rear setback of 4 feet shall be provided for an accessory dwelling
+unit. Like the corresponding side requirement, no rear setback is required for a
+permitted conversion of existing permitted floor area.
+
+### Alameda P&B — Submittal Checklist [S4]
+A complete ADU submittal must include a site plan, a floor plan, building
+elevations, and a Title-24 energy compliance report. Incomplete submittals are
+returned without review. Electronic plan sets must be submitted as a single
+combined PDF in addition to any DWG sheets.

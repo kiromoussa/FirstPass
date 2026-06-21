@@ -1,0 +1,26 @@
+"""Solutions Agent — turns compare-codes gaps into actionable design fixes."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+
+from firstpass.agent_factory import create_band_agent
+from firstpass.prompts import SOLUTIONS_AGENT_PROMPT
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+async def _run() -> None:
+    agent = create_band_agent("solutions_agent", SOLUTIONS_AGENT_PROMPT, role="solutions")
+    logger.info("Solutions Agent is running. Press Ctrl+C to stop.")
+    await agent.run()
+
+
+def main() -> None:
+    asyncio.run(_run())
+
+
+if __name__ == "__main__":
+    main()

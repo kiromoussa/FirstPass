@@ -73,6 +73,23 @@ def _append_research_sessions(content: str) -> str:
     return "\n".join(lines) + "\n"
 
 
+class ReadTextReportInput(BaseModel):
+    """Read a report from the output/ folder."""
+
+    filename: str = Field(..., description="Filename in output/, e.g. final_summary.txt")
+
+
+def read_text_report(input: ReadTextReportInput) -> str:
+    path = OUTPUT_DIR / input.filename
+    if not path.is_file():
+        return json.dumps({"error": f"File not found: {path}", "filename": input.filename})
+    content = path.read_text(encoding="utf-8")
+    return json.dumps(
+        {"filename": input.filename, "path": str(path), "bytes": path.stat().st_size, "content": content},
+        indent=2,
+    )
+
+
 class WriteTextReportInput(BaseModel):
     """Write a building code research report to a .txt file in the output/ folder."""
 
@@ -240,4 +257,7 @@ def merge_research_reports(input: MergeResearchReportsInput) -> str:
 
 SYNTHESIS_TOOLS = [(MergeResearchReportsInput, merge_research_reports)]
 MERGE_REPORT_TOOLS = SYNTHESIS_TOOLS
-REPORT_TOOLS = [(WriteTextReportInput, write_text_report)]
+REPORT_TOOLS = [
+    (ReadTextReportInput, read_text_report),
+    (WriteTextReportInput, write_text_report),
+]

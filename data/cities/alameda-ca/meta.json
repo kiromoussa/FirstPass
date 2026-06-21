@@ -1,0 +1,30 @@
+{
+  "slug": "alameda-ca",
+  "city": "Alameda",
+  "state": "CA",
+  "jurisdictionId": "alameda-ca",
+  "projectTypes": ["detached_adu"],
+  "generatedAt": "2026-06-20",
+  "sources": [
+    {
+      "id": "S1",
+      "url": "https://library.municode.com/ca/alameda/codes/code_of_ordinances",
+      "title": "Alameda Municipal Code §30-5.21 — Accessory Dwelling Units (size)"
+    },
+    {
+      "id": "S2",
+      "url": "https://www.hcd.ca.gov/policy-and-research/accessory-dwelling-units",
+      "title": "California HCD — ADU Height Standards"
+    },
+    {
+      "id": "S3",
+      "url": "https://library.municode.com/ca/alameda/codes/code_of_ordinances",
+      "title": "Alameda Municipal Code §30-5.21 — ADU Setbacks"
+    },
+    {
+      "id": "S4",
+      "url": "https://www.alamedaca.gov/Departments/Planning-Building-and-Transportation",
+      "title": "Alameda Planning & Building — ADU Permit Submittal Checklist"
+    }
+  ]
+}

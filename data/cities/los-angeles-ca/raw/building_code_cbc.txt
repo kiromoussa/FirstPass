@@ -1,0 +1,23 @@
+BUILDING CODE — California Building Code (CBC), Title 24 Part 2
+Representative excerpts compiled by the Building Code Researcher agent.
+Note: detached one- and two-family dwellings and ADUs are generally governed by
+the California Residential Code (CRC); the CBC governs other occupancies and is
+referenced for structural and fire-separation provisions.
+
+### CBC §310 — Residential Occupancy Classification [S5]
+Dwelling units are classified in Group R. A detached accessory dwelling unit
+serving a one- or two-family dwelling is regulated under the California
+Residential Code; where an ADU is within or attached to a larger Group R building,
+the applicable Group R occupancy and fire-separation provisions of this code apply.
+
+### CBC §705 — Exterior Walls and Fire Separation Distance [S5]
+The fire-resistance rating of exterior walls and the allowable area of openings
+are determined by the fire separation distance to the property line or to an
+assumed imaginary line between buildings on the same lot. Walls with a fire
+separation distance of less than 5 feet require a one-hour fire-resistance rating
+and limited openings.
+
+### CBC §1011 — Stairways [S5]
+Stairways serving an occupied space shall have a minimum width, maximum riser
+height of 7 3/4 inches, minimum tread depth of 10 inches, and handrails as
+required. Refer to the Residential Code for stairways within dwelling units.
