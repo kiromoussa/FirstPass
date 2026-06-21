@@ -15,7 +15,7 @@ function timeOf(ts: number): string {
 function RoomMessage({ m }: { m: BandRoomMessage }) {
   const band = SPONSOR_META.band.color;
   const accent =
-    m.kind === "agent" ? band : m.kind === "human" ? "#3ddc97" : "#8aa0b6";
+    m.kind === "agent" ? band : m.kind === "human" ? "#1f8a4c" : "#6b7280";
   const role =
     m.kind === "agent" ? "agent" : m.kind === "human" ? "you" : "orchestrator";
 
@@ -26,9 +26,9 @@ function RoomMessage({ m }: { m: BandRoomMessage }) {
     >
       <div className="flex items-center gap-2 mb-1">
         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: accent }} />
-        <span className="text-xs font-medium text-slate-200 truncate">{m.author}</span>
+        <span className="text-xs font-medium text-ink truncate">{m.author}</span>
         {m.chatLabel && (
-          <span className="text-[9px] px-1.5 py-0.5 rounded bg-ink-700 text-slate-500 flex-shrink-0">
+          <span className="text-[9px] px-1.5 py-0.5 rounded bg-ink-700 text-muted flex-shrink-0">
             {m.chatLabel}
           </span>
         )}
@@ -39,10 +39,10 @@ function RoomMessage({ m }: { m: BandRoomMessage }) {
           {role}
         </span>
         {m.ts > 0 && (
-          <span className="ml-auto text-[9px] text-slate-600 flex-shrink-0">{timeOf(m.ts)}</span>
+          <span className="ml-auto text-[9px] text-faint flex-shrink-0">{timeOf(m.ts)}</span>
         )}
       </div>
-      <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap break-words">{m.content}</p>
+      <p className="text-xs text-body leading-relaxed whitespace-pre-wrap break-words">{m.content}</p>
     </div>
   );
 }
@@ -68,11 +68,11 @@ export function BandConversation({
     <div className={`flex flex-col ${className}`}>
       <div className="flex items-center justify-between gap-2 mb-2">
         <div>
-          <h3 className="text-[10px] uppercase tracking-widest text-slate-500">
+          <h3 className="text-[10px] uppercase tracking-widest text-muted">
             Agent conversation · Band
           </h3>
           {roomId && (
-            <p className="text-[10px] text-slate-600 mt-0.5 font-mono truncate max-w-[280px]">
+            <p className="text-[10px] text-faint mt-0.5 font-mono truncate max-w-[280px]">
               room {roomId.slice(0, 8)}…
             </p>
           )}
@@ -88,7 +88,7 @@ export function BandConversation({
               Open Band ↗
             </a>
           )}
-          <span className="text-[10px] text-slate-600">{messages.length} msgs</span>
+          <span className="text-[10px] text-faint">{messages.length} msgs</span>
         </div>
       </div>
       <div
@@ -97,10 +97,10 @@ export function BandConversation({
         }`}
       >
         {messages.length === 0 ? (
-          <p className="text-xs text-slate-600 py-4 px-1">
+          <p className="text-xs text-faint py-4 px-1">
             {roomId
-              ? "Room open — waiting for agents to @mention each other…"
-              : "Connecting Band room — ensure BAND_API_KEY and local agents are running."}
+              ? "Room open, waiting for agents to @mention each other…"
+              : "Connecting Band room. Ensure BAND_API_KEY and local agents are running."}
           </p>
         ) : (
           messages.map((m) => <RoomMessage key={m.id} m={m} />)

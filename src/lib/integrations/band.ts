@@ -114,13 +114,20 @@ export class BandChannel {
   private room: LiveRoom | null = null;
   private project?: Project;
   private plansPrepPromise: Promise<PlansPrepResult> | null = null;
+  private plansPrepResult: PlansPrepResult | null = null;
+  private plotStatus: string | null = null;
   readonly buffer: AgentMessage[] = [];
   readonly ready: Promise<void>;
 
   constructor(public readonly projectId: string, project?: Project) {
     this.project = project;
     if (project?.apsUrn || project?.planMime) {
-      this.plansPrepPromise = ensurePlansReady(project);
+      this.plansPrepPromise = ensurePlansReady(project, (status) => {
+        this.plotStatus = status;
+      }).then((result) => {
+        this.plansPrepResult = result;
+        return result;
+      });
     }
     this.ready = this.bootstrapRoom(project).catch(() => undefined);
   }
@@ -143,13 +150,30 @@ export class BandChannel {
       return { ok: false, files: [], message: "Project context missing for plan prep." };
     }
     if (!this.plansPrepPromise) {
-      this.plansPrepPromise = ensurePlansReady(this.project);
+      this.plansPrepPromise = ensurePlansReady(this.project, (status) => {
+        this.plotStatus = status;
+      }).then((result) => {
+        this.plansPrepResult = result;
+        return result;
+      });
     }
     return this.plansPrepPromise;
   }
 
+  /** Latest Autodesk plot workitem status, if a DWG is being plotted. */
+  getPlotStatus(): string | null {
+    return this.plotStatus;
+  }
+
+  /** Plan prep result once finished; null while still running. */
+  peekPlansPrep(): PlansPrepResult | null {
+    return this.plansPrepResult;
+  }
+
   /** Open chat 2/3 when prior phase deliverables land on disk. */
-  async advancePhases(runStartedMs: number): Promise<{ plansPrep?: PlansPrepResult }> {
+  async advancePhases(
+    runStartedMs: number
+  ): Promise<{ plansPrep?: PlansPrepResult; chat2Opened?: boolean }> {
     const room = this.room;
     if (!room) return {};
 
@@ -180,7 +204,7 @@ export class BandChannel {
         await room.client.sendMessage(chat.id, kick.content, kick.mentions).catch(() => null);
         room.phases.push({ id: chat.id, label: "Chat 2 · Design Review" });
         room.designOpened = true;
-        return { plansPrep };
+        return { plansPrep, chat2Opened: true };
       }
     }
 

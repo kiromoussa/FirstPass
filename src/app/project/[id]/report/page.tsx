@@ -27,7 +27,7 @@ export default function ReportPage() {
         <Link href={`/project/${id}`} className="text-accent font-bold tracking-tight">◢ FirstPass</Link>
         <button
           onClick={() => window.print()}
-          className="bg-ink-700 hover:bg-ink-600 text-white rounded-lg px-4 py-2 text-sm"
+          className="bg-ink-700 hover:bg-ink-600 text-ink rounded-lg px-4 py-2 text-sm"
         >
           Download / Print PDF
         </button>
@@ -35,16 +35,16 @@ export default function ReportPage() {
 
       <div className="max-w-3xl mx-auto px-8 py-10">
         {!report ? (
-          <div className="text-slate-500">Loading report… (run the project first if this is empty)</div>
+          <div className="text-muted">Loading report… (run the project first if this is empty)</div>
         ) : (
           <>
             <div className="flex items-start justify-between gap-6 mb-8">
               <div>
-                <h1 className="text-2xl font-semibold text-white">Permit-Readiness Report</h1>
-                <p className="text-sm text-slate-400 mt-1">
+                <h1 className="text-2xl font-semibold text-ink">Permit-Readiness Report</h1>
+                <p className="text-sm text-body mt-1">
                   {state?.project.name} · {state?.project.address} · Detached ADU
                 </p>
-                <p className="text-[11px] text-slate-600 mt-1">
+                <p className="text-[11px] text-faint mt-1">
                   Generated {new Date(report.generatedAt).toLocaleString()}
                 </p>
               </div>
@@ -52,25 +52,25 @@ export default function ReportPage() {
             </div>
 
             <div className="rounded-xl border border-ink-700 bg-ink-900 p-5 mb-8">
-              <h2 className="text-xs uppercase tracking-widest text-slate-500 mb-2">Executive summary</h2>
-              <p className="text-sm text-slate-300 leading-relaxed">{report.summary}</p>
+              <h2 className="text-xs uppercase tracking-widest text-muted mb-2">Executive summary</h2>
+              <p className="text-sm text-body leading-relaxed">{report.summary}</p>
             </div>
 
-            <h2 className="text-xs uppercase tracking-widest text-slate-500 mb-3">Findings</h2>
+            <h2 className="text-xs uppercase tracking-widest text-muted mb-3">Findings</h2>
             <div className="space-y-3 mb-8">
               {report.sections.map((s, i) => {
                 const src = sourceById(s.citationSourceId);
                 return (
                   <div key={i} className="rounded-lg border border-ink-700 bg-ink-900 p-4">
                     <div className="flex items-center justify-between mb-1.5">
-                      <h3 className="text-sm font-medium text-white">{s.heading}</h3>
+                      <h3 className="text-sm font-medium text-ink">{s.heading}</h3>
                       {s.status && <StatusPill status={s.status} />}
                     </div>
-                    <p className="text-sm text-slate-400 leading-relaxed">{s.body}</p>
+                    <p className="text-sm text-body leading-relaxed">{s.body}</p>
                     {src && (
-                      <div className="mt-2 text-[11px] text-slate-600 border-t border-ink-800 pt-2">
+                      <div className="mt-2 text-[11px] text-faint border-t border-ink-800 pt-2">
                         Cited:{" "}
-                        <a href={src.url} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">
+                        <a href={src.url} target="_blank" rel="noreferrer" className="text-teal hover:underline">
                           {src.title}
                         </a>{" "}
                         · retrieved {new Date(src.retrievedAt).toLocaleDateString()}
@@ -81,11 +81,11 @@ export default function ReportPage() {
               })}
             </div>
 
-            <h2 className="text-xs uppercase tracking-widest text-slate-500 mb-3">Required documents</h2>
+            <h2 className="text-xs uppercase tracking-widest text-muted mb-3">Required documents</h2>
             <div className="rounded-lg border border-ink-700 bg-ink-900 p-4 mb-8 space-y-2">
               {state?.checklist.map((c) => (
                 <div key={c.item} className="flex items-center justify-between text-sm">
-                  <span className="text-slate-300">{c.item}</span>
+                  <span className="text-body">{c.item}</span>
                   <span className={c.present ? "text-accent" : "text-flag-review"}>
                     {c.present ? "✓ present" : "missing"}
                   </span>
@@ -93,7 +93,7 @@ export default function ReportPage() {
               ))}
             </div>
 
-            <p className="text-[11px] text-slate-600 leading-relaxed border-t border-ink-700 pt-4">
+            <p className="text-[11px] text-faint leading-relaxed border-t border-ink-700 pt-4">
               {report.disclaimer}
             </p>
           </>

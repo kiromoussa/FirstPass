@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 // Live view of the Redis multi-agent blackboard (project:{id}:blackboard). The
 // Python Band agents publish each research artifact here as they finish, and
 // every downstream agent reads from it instead of re-opening output/*.txt. This
-// panel makes that shared memory visible in the dashboard — the heart of the
+// panel makes that shared memory visible in the dashboard, the heart of the
 // "Redis as the firm's brain, not a cache" story (docs/REDIS_PLAN.md §7).
 
 interface Artifact {
@@ -52,7 +52,7 @@ export function BlackboardPanel({ projectId }: { projectId: string }) {
 
   if (artifacts.length === 0) {
     return (
-      <div className="text-[11px] text-slate-600 leading-relaxed">
+      <div className="text-[11px] text-faint leading-relaxed">
         Waiting for agents to publish to Redis…
       </div>
     );
@@ -70,16 +70,16 @@ export function BlackboardPanel({ projectId }: { projectId: string }) {
             >
               <span className="flex items-center gap-1.5 min-w-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />
-                <span className="text-[11px] text-slate-200 truncate">
+                <span className="text-[11px] text-ink truncate">
                   {LABELS[a.field] ?? a.field}
                 </span>
               </span>
-              <span className="text-[9px] font-mono text-slate-500 flex-shrink-0">
+              <span className="text-[9px] font-mono text-muted flex-shrink-0">
                 {(a.chars / 1000).toFixed(1)}k
               </span>
             </button>
             {isOpen && (
-              <pre className="max-h-48 overflow-y-auto scrollbar-thin whitespace-pre-wrap break-words text-[10px] leading-relaxed text-slate-400 px-2.5 pb-2 font-mono">
+              <pre className="max-h-48 overflow-y-auto scrollbar-thin whitespace-pre-wrap break-words text-[10px] leading-relaxed text-body px-2.5 pb-2 font-mono">
                 {a.text.slice(0, 4000)}
                 {a.text.length > 4000 ? "\n…" : ""}
               </pre>
@@ -87,7 +87,7 @@ export function BlackboardPanel({ projectId }: { projectId: string }) {
           </div>
         );
       })}
-      <div className="text-[9px] text-slate-600 pt-0.5">
+      <div className="text-[9px] text-faint pt-0.5">
         ↑ read from Redis · shared across all agents
       </div>
     </div>

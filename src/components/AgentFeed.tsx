@@ -13,12 +13,12 @@ export function AgentFeed({ messages }: { messages: AgentMessage[] }) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-3 border-b border-ink-700">
-        <h3 className="text-xs uppercase tracking-widest text-slate-500">Agent activity · Band</h3>
-        <span className="text-[10px] text-slate-600">{messages.length} msgs</span>
+        <h3 className="text-xs uppercase tracking-widest text-muted">Agent activity · Band</h3>
+        <span className="text-[10px] text-faint">{messages.length} msgs</span>
       </div>
       <div className="flex-1 overflow-y-auto scrollbar-thin px-3 py-3 space-y-2">
         {messages.length === 0 && (
-          <div className="text-xs text-slate-600 px-2 py-4">Waiting for agents…</div>
+          <div className="text-xs text-faint px-2 py-4">Waiting for agents…</div>
         )}
         {messages.map((m) => {
           const agent = AGENT_META[m.from];
@@ -37,9 +37,9 @@ export function AgentFeed({ messages }: { messages: AgentMessage[] }) {
             >
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-sm">{agent.emoji}</span>
-                <span className="text-xs font-medium text-slate-200">{agent.label}</span>
+                <span className="text-xs font-medium text-ink">{agent.label}</span>
                 {m.to && (
-                  <span className="text-[10px] text-slate-500">→ {AGENT_META[m.to].label}</span>
+                  <span className="text-[10px] text-muted">→ {AGENT_META[m.to].label}</span>
                 )}
                 <span
                   className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wide"
@@ -48,7 +48,7 @@ export function AgentFeed({ messages }: { messages: AgentMessage[] }) {
                   {mt.label}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed">{m.text}</p>
+              <p className="text-xs text-body leading-relaxed">{m.text}</p>
               {m.sponsor && (
                 <span
                   className="inline-block mt-1.5 text-[9px] px-1.5 py-0.5 rounded"

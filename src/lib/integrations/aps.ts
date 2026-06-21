@@ -75,6 +75,17 @@ const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
 export const urnOf = (objectId: string) =>
   Buffer.from(objectId).toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 
+/** Encode an OSS object key exactly once for URL paths (avoids double-encoding URN keys). */
+export function ossObjectUrlSegment(objectKey: string): string {
+  let decoded = objectKey;
+  try {
+    decoded = decodeURIComponent(objectKey);
+  } catch {
+    /* key was not percent-encoded */
+  }
+  return encodeURIComponent(decoded);
+}
+
 async function ensureBucket(t: string): Promise<void> {
   const res = await fetch(`${APS_BASE}/oss/v2/buckets`, {
     method: "POST",
@@ -96,10 +107,11 @@ export async function uploadDwg(
   if (!t) return null;
   try {
     await ensureBucket(t);
-    const objectKey = encodeURIComponent(fileName);
+    const objectKey = fileName;
+    const keyPath = ossObjectUrlSegment(objectKey);
     // 1. Get signed S3 upload URL(s)
     const signRes = await fetch(
-      `${APS_BASE}/oss/v2/buckets/${BUCKET_KEY}/objects/${objectKey}/signeds3upload?minutesExpiration=15`,
+      `${APS_BASE}/oss/v2/buckets/${BUCKET_KEY}/objects/${keyPath}/signeds3upload?minutesExpiration=15`,
       { headers: auth(t) }
     );
     if (!signRes.ok) throw new Error(`signeds3upload GET ${signRes.status}`);
@@ -109,7 +121,7 @@ export async function uploadDwg(
     if (!put.ok) throw new Error(`s3 PUT ${put.status}`);
     // 3. Finalize the upload
     const fin = await fetch(
-      `${APS_BASE}/oss/v2/buckets/${BUCKET_KEY}/objects/${objectKey}/signeds3upload`,
+      `${APS_BASE}/oss/v2/buckets/${BUCKET_KEY}/objects/${keyPath}/signeds3upload`,
       {
         method: "POST",
         headers: { ...auth(t), "Content-Type": "application/json" },
@@ -296,18 +308,25 @@ export function decodeUrn(urn: string): { objectId: string; bucket: string; key:
 
 // A signed, time-limited GET url for an OSS object (used to feed the DWG to
 // Design Automation as a workitem input).
-export async function signedDownloadUrl(bucket: string, objectKey: string): Promise<string | null> {
+export async function signedDownloadUrl(
+  bucket: string,
+  objectKey: string
+): Promise<{ url: string } | { error: string }> {
   const t = await getToken();
-  if (!t) return null;
+  if (!t) return { error: "APS auth failed (data:read token)" };
   try {
+    const keyPath = ossObjectUrlSegment(objectKey);
     const r = await fetch(
-      `${APS_BASE}/oss/v2/buckets/${bucket}/objects/${encodeURIComponent(objectKey)}/signeds3download?minutesExpiration=60`,
+      `${APS_BASE}/oss/v2/buckets/${bucket}/objects/${keyPath}/signeds3download?minutesExpiration=60`,
       { headers: auth(t) }
     );
-    if (!r.ok) return null;
-    return ((await r.json()) as { url: string }).url;
-  } catch {
-    return null;
+    if (!r.ok) {
+      const body = (await r.text().catch(() => "")).slice(0, 200);
+      return { error: `signeds3download HTTP ${r.status}${body ? `: ${body}` : ""} (bucket=${bucket}, key=${objectKey})` };
+    }
+    return { url: ((await r.json()) as { url: string }).url };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -316,19 +335,23 @@ export async function signedDownloadUrl(bucket: string, objectKey: string): Prom
 export async function signedUploadTarget(
   bucket: string,
   objectKey: string
-): Promise<{ url: string; uploadKey: string } | null> {
+): Promise<{ url: string; uploadKey: string } | { error: string }> {
   const t = await getToken();
-  if (!t) return null;
+  if (!t) return { error: "APS auth failed (data:write token)" };
   try {
+    const keyPath = ossObjectUrlSegment(objectKey);
     const r = await fetch(
-      `${APS_BASE}/oss/v2/buckets/${bucket}/objects/${encodeURIComponent(objectKey)}/signeds3upload?minutesExpiration=60`,
+      `${APS_BASE}/oss/v2/buckets/${bucket}/objects/${keyPath}/signeds3upload?minutesExpiration=60`,
       { headers: auth(t) }
     );
-    if (!r.ok) return null;
+    if (!r.ok) {
+      const body = (await r.text().catch(() => "")).slice(0, 200);
+      return { error: `signeds3upload HTTP ${r.status}${body ? `: ${body}` : ""}` };
+    }
     const j = (await r.json()) as { urls: string[]; uploadKey: string };
     return { url: j.urls[0], uploadKey: j.uploadKey };
-  } catch {
-    return null;
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -336,12 +359,16 @@ export async function finalizeUpload(bucket: string, objectKey: string, uploadKe
   const t = await getToken();
   if (!t) return null;
   try {
-    await fetch(`${APS_BASE}/oss/v2/buckets/${bucket}/objects/${encodeURIComponent(objectKey)}/signeds3upload`, {
+    const keyPath = ossObjectUrlSegment(objectKey);
+    await fetch(`${APS_BASE}/oss/v2/buckets/${bucket}/objects/${keyPath}/signeds3upload`, {
       method: "POST",
       headers: { ...auth(t), "Content-Type": "application/json" },
       body: JSON.stringify({ uploadKey }),
     });
-    const r = await fetch(`${APS_BASE}/oss/v2/buckets/${bucket}/objects/${encodeURIComponent(objectKey)}/signeds3download`, { headers: auth(t) });
+    const r = await fetch(
+      `${APS_BASE}/oss/v2/buckets/${bucket}/objects/${keyPath}/signeds3download`,
+      { headers: auth(t) }
+    );
     if (!r.ok) return null;
     return ((await r.json()) as { url: string }).url;
   } catch {

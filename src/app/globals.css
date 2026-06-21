@@ -2,15 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* FirstPass light design tokens (Bricolage / Hanken / JetBrains) */
 :root {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    Helvetica, Arial, sans-serif;
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-paper: #fbfcfa;
+  --color-paper-tint: #f3f6f0;
+  --color-ink: #15170f;
+  --color-body: #54584d;
+  --color-muted: #82867a;
+  --color-faint: #9aa093;
+  --color-green: #1f8a4c;
+  --color-green-dark: #1a7a42;
+  --color-green-tint: #eef7f0;
+  --color-green-line: #d8ecdd;
+  --color-line: #eceee7;
+  --color-card-line: #e7e9e2;
+  --color-warn: #b07a09;
+  --color-blocker: #c2410c;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
 }
 
 html,
 body {
-  background: #0a0e14;
-  color: #e6edf3;
+  background: var(--color-paper);
+  color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
@@ -19,7 +40,30 @@ body {
   box-sizing: border-box;
 }
 
-/* Blueprint grid backdrop for the viewer */
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Soft paper grid backdrop for app pages */
+.canvas-grid {
+  background-color: var(--color-paper);
+  background-image:
+    linear-gradient(#e8ece3 1px, transparent 1px),
+    linear-gradient(90deg, #e8ece3 1px, transparent 1px);
+  background-size: 38px 38px;
+}
+
+/* Hero grid with a soft radial fade */
+.hero-grid {
+  background-image:
+    linear-gradient(#e8ece3 1px, transparent 1px),
+    linear-gradient(90deg, #e8ece3 1px, transparent 1px);
+  background-size: 38px 38px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 18%, #000 35%, transparent 78%);
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 18%, #000 35%, transparent 78%);
+}
+
+/* Dark grid backdrop for the faux blueprint viewer (kept intentionally dark) */
 .blueprint-grid {
   background-color: #0d2235;
   background-image:
@@ -28,28 +72,99 @@ body {
   background-size: 28px 28px;
 }
 
-@keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(61, 220, 151, 0.45); }
-  70% { box-shadow: 0 0 0 8px rgba(61, 220, 151, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(61, 220, 151, 0); }
+/* Dark grid overlay used inside dark panels */
+.dot-grid-dark {
+  background-image:
+    linear-gradient(rgba(84, 224, 138, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(84, 224, 138, 0.05) 1px, transparent 1px);
+  background-size: 34px 34px;
 }
-.pulse { animation: pulse-ring 1.4s ease-out; }
 
-/* A tool "lights up" while active: a breathing glow in the tool's own color.
-   Drive the color per element with `--glow` (e.g. style={{ "--glow": "#ffb547" }}). */
-@keyframes tool-glow {
-  0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--glow) 45%, transparent),
-                         0 0 10px 0 color-mix(in srgb, var(--glow) 25%, transparent); }
-  50%      { box-shadow: 0 0 0 1px color-mix(in srgb, var(--glow) 75%, transparent),
-                         0 0 18px 2px color-mix(in srgb, var(--glow) 45%, transparent); }
+@keyframes pulse-ring {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.35); opacity: 0.6; }
 }
-.tool-active { animation: tool-glow 1.6s ease-in-out infinite; }
+.pulse { animation: pulse-ring 1.2s ease-in-out infinite; }
 
 @keyframes blink {
   0%, 100% { opacity: 1; }
-  50%      { opacity: 0.35; }
+  50%      { opacity: 0.4; }
 }
-.blink { animation: blink 1s ease-in-out infinite; }
+.blink { animation: blink 1.1s ease-in-out infinite; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+.float { animation: float 7s ease-in-out infinite; }
+
+@keyframes fpPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.35); opacity: 0.65; }
+}
 
 .scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
-.scrollbar-thin::-webkit-scrollbar-thumb { background: #243042; border-radius: 8px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #d5d8cd; border-radius: 8px; }
+
+.btn-primary {
+  background-color: var(--color-green);
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 0.875rem 1.5rem;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  box-shadow: 0 10px 24px -12px rgba(31, 138, 76, 0.7);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background-color: var(--color-green-dark);
+  box-shadow: 0 16px 30px -12px rgba(31, 138, 76, 0.8);
+}
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  background-color: #ffffff;
+  border: 1px solid #d5d8cd;
+  color: var(--color-ink);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  transition: transform 0.15s ease, border-color 0.2s ease;
+}
+.btn-ghost:hover {
+  transform: translateY(-2px);
+  border-color: rgba(31, 138, 76, 0.45);
+}
+
+.input-field {
+  width: 100%;
+  background-color: #ffffff;
+  border: 1px solid var(--color-card-line);
+  border-radius: var(--radius-md);
+  padding: 0.7rem 0.95rem;
+  font-size: 0.9rem;
+  line-height: 1.25rem;
+  color: var(--color-ink);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-field::placeholder {
+  color: var(--color-faint);
+}
+.input-field:focus {
+  outline: none;
+  border-color: rgba(31, 138, 76, 0.6);
+  box-shadow: 0 0 0 3px rgba(31, 138, 76, 0.14);
+}
+
+.surface-card {
+  background-color: #ffffff;
+  border: 1px solid var(--color-card-line);
+  border-radius: var(--radius-lg);
+}

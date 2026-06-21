@@ -133,3 +133,124 @@ export async function saveState(state: ProjectState): Promise<void> {
 export async function loadState(id: string): Promise<ProjectState | null> {
   return kvGet<ProjectState>(stateKey(id));
 }
+
+const PROJECT_INDEX = "projects:index";
+
+/** Track a new project id for listing (sorted by createdAt). */
+export async function addToProjectIndex(id: string, createdAt: number): Promise<void> {
+  const r = await client();
+  if (r) {
+    try {
+      await r.zadd(PROJECT_INDEX, createdAt, id);
+      return;
+    } catch (e) {
+      warnMemoryFallback(`index add failed: ${(e as Error).message}`);
+    }
+  }
+  const idx = (await kvGet<{ id: string; createdAt: number }[]>(PROJECT_INDEX)) ?? [];
+  if (!idx.some((e) => e.id === id)) {
+    idx.unshift({ id, createdAt });
+    await kvSet(PROJECT_INDEX, idx);
+  }
+}
+
+/** All project ids, newest first. Also picks up projects missing from the index. */
+export async function listProjectIds(): Promise<string[]> {
+  const fromIndex = await listProjectIdsFromIndex();
+  if (fromIndex.length > 0) return fromIndex;
+  return scanProjectIds();
+}
+
+async function listProjectIdsFromIndex(): Promise<string[]> {
+  const r = await client();
+  if (r) {
+    try {
+      return (await r.zrevrange(PROJECT_INDEX, 0, -1)) ?? [];
+    } catch (e) {
+      warnMemoryFallback(`index list failed: ${(e as Error).message}`);
+    }
+  }
+  const idx = (await kvGet<{ id: string; createdAt: number }[]>(PROJECT_INDEX)) ?? [];
+  return idx.sort((a, b) => b.createdAt - a.createdAt).map((e) => e.id);
+}
+
+async function scanProjectIds(): Promise<string[]> {
+  const r = await client();
+  if (r) {
+    try {
+      const ids: string[] = [];
+      let cursor = "0";
+      do {
+        const [next, keys] = (await r.scan(cursor, "MATCH", "proj:*", "COUNT", 100)) as [
+          string,
+          string[],
+        ];
+        cursor = next;
+        for (const key of keys) {
+          const id = key.slice("proj:".length);
+          if (id) ids.push(id);
+        }
+      } while (cursor !== "0");
+      return ids;
+    } catch (e) {
+      warnMemoryFallback(`scan failed: ${(e as Error).message}`);
+    }
+  }
+  return [...mem.keys()]
+    .filter((k) => k.startsWith("proj:"))
+    .map((k) => k.slice("proj:".length));
+}
+
+export async function removeFromProjectIndex(id: string): Promise<void> {
+  const r = await client();
+  if (r) {
+    try {
+      await r.zrem(PROJECT_INDEX, id);
+      return;
+    } catch (e) {
+      warnMemoryFallback(`index remove failed: ${(e as Error).message}`);
+    }
+  }
+  const idx = (await kvGet<{ id: string; createdAt: number }[]>(PROJECT_INDEX)) ?? [];
+  await kvSet(
+    PROJECT_INDEX,
+    idx.filter((e) => e.id !== id)
+  );
+}
+
+export async function kvDel(key: string): Promise<void> {
+  const r = await client();
+  if (r) {
+    try {
+      await r.del(key);
+      return;
+    } catch (e) {
+      warnMemoryFallback(`del failed: ${(e as Error).message}`);
+    }
+  }
+  mem.delete(key);
+}
+
+/** Remove all persisted data for a project. */
+export async function deleteProject(id: string): Promise<void> {
+  await removeFromProjectIndex(id);
+  await kvDel(`proj:${id}`);
+  await kvDel(stateKey(id));
+  await kvDel(`plan:${id}`);
+  await kvDel(`plot:${id}`);
+
+  const r = await client();
+  if (r) {
+    try {
+      const plotKeys = await r.keys(`plot:${id}:*`);
+      if (plotKeys.length) await r.del(...plotKeys);
+      await r.del(`project:${id}:blackboard`);
+    } catch (e) {
+      warnMemoryFallback(`project delete failed: ${(e as Error).message}`);
+    }
+  } else {
+    for (const key of [...mem.keys()]) {
+      if (key.startsWith(`plot:${id}:`)) mem.delete(key);
+    }
+  }
+}

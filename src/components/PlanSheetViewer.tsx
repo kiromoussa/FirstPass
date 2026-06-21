@@ -44,7 +44,7 @@ export function PlanSheetViewer({ projectId }: { projectId: string }) {
   const sheet = ready ? meta!.sheets[Math.min(active, meta!.sheets.length - 1)] : null;
 
   return (
-    <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-ink-700 bg-ink-900">
+    <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-ink-700 bg-white">
       {ready ? (
         <div className="absolute inset-0 flex flex-col">
           <div className="flex-1 min-h-0 bg-white">
@@ -59,13 +59,13 @@ export function PlanSheetViewer({ projectId }: { projectId: string }) {
             />
           </div>
           {meta!.sheets.length > 1 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin px-3 py-2 bg-ink-900 border-t border-ink-700">
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin px-3 py-2 bg-deep-800 border-t border-ink-700">
               {meta!.sheets.map((s, i) => (
                 <button
                   key={i}
                   onClick={() => setActive(i)}
                   className={`text-[10px] font-mono whitespace-nowrap px-2 py-1 rounded ${
-                    i === active ? "bg-accent text-ink-900" : "text-blue-200/70 hover:text-blue-100 bg-ink-700/60"
+                    i === active ? "bg-accent text-white" : "text-muted hover:text-ink bg-ink-700"
                   }`}
                 >
                   {s.name}
@@ -78,7 +78,7 @@ export function PlanSheetViewer({ projectId }: { projectId: string }) {
         <div className="absolute inset-0 flex flex-col items-center justify-center blueprint-grid text-sm text-blue-200/80 px-6 text-center">
           {failed ? (
             <span className="text-flag-warn">
-              Sheet preview unavailable — the findings below are still accurate.
+              Sheet preview unavailable. The findings below are still accurate.
             </span>
           ) : (
             <>
@@ -88,7 +88,7 @@ export function PlanSheetViewer({ projectId }: { projectId: string }) {
           )}
         </div>
       )}
-      <div className="absolute top-3 left-3 text-[10px] text-blue-200/70 font-mono pointer-events-none">
+      <div className="absolute top-3 left-3 text-[10px] text-white/90 font-mono pointer-events-none bg-[#15170f]/70 rounded px-1.5 py-0.5">
         {ready && sheet ? `AUTODESK · ${sheet.name}` : "AUTODESK APS · DESIGN AUTOMATION"}
       </div>
     </div>

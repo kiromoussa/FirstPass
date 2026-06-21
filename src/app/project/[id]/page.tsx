@@ -32,7 +32,7 @@ export default function ProjectDashboard() {
     if (!id) return;
     // Own the EventSource in the effect (no persistent "started" ref): under
     // React Strict Mode the effect runs mount→cleanup→mount, and a ref guard
-    // would close the first stream then refuse to reopen — leaving the run
+    // would close the first stream then refuse to reopen, leaving the run
     // stuck on "Connecting…". Letting cleanup close and remount reopen is the
     // correct, Strict-Mode-safe pattern.
     const es = new EventSource(`/api/run/${id}`);
@@ -91,7 +91,7 @@ export default function ProjectDashboard() {
   const roomId = state?.bandRoomId ?? bandRoomId ?? state?.project.bandRoomId;
 
   // Show the step-by-step run flow until the pipeline finishes (or fails), then
-  // a completion summary with the code violations — rather than dropping the
+  // a completion summary with the code violations, rather than dropping the
   // user into an empty dashboard. The dashboard opens on demand (no re-run).
   if (!done || !viewDashboard) {
     return (
@@ -114,8 +114,8 @@ export default function ProjectDashboard() {
           <Link href="/" className="text-accent font-bold tracking-tight">◢ FirstPass</Link>
           <div className="h-5 w-px bg-ink-700" />
           <div>
-            <div className="text-sm font-medium text-white">{state?.project.name ?? "Loading…"}</div>
-            <div className="text-[11px] text-slate-500">{state?.project.address} · Detached ADU</div>
+            <div className="text-sm font-medium text-ink">{state?.project.name ?? "Loading…"}</div>
+            <div className="text-[11px] text-muted">{state?.project.address} · Detached ADU</div>
           </div>
         </div>
         <div className="flex items-center gap-6">
@@ -138,7 +138,7 @@ export default function ProjectDashboard() {
 
       <div className="px-6 py-2 border-b border-ink-700 flex items-center justify-between flex-shrink-0">
         <SponsorRail active={activeSponsor} />
-        <span className="text-[11px] text-slate-600">
+        <span className="text-[11px] text-faint">
           Deterministic checks · Claude reasoning · cited & audited
         </span>
       </div>
@@ -148,15 +148,15 @@ export default function ProjectDashboard() {
         {/* Left: phases + facts */}
         <aside className="border-r border-ink-700 overflow-y-auto scrollbar-thin p-4 space-y-6">
           <div>
-            <h3 className="text-[10px] uppercase tracking-widest text-slate-500 mb-3">Pipeline</h3>
+            <h3 className="text-[10px] uppercase tracking-widest text-muted mb-3">Pipeline</h3>
             <PhaseRail status={state?.project.status ?? "created"} />
           </div>
           <div>
-            <h3 className="text-[10px] uppercase tracking-widest text-slate-500 mb-3">Extracted facts</h3>
+            <h3 className="text-[10px] uppercase tracking-widest text-muted mb-3">Extracted facts</h3>
             <FactsList facts={state?.facts ?? []} />
           </div>
           <div>
-            <h3 className="text-[10px] uppercase tracking-widest text-slate-500 mb-3">
+            <h3 className="text-[10px] uppercase tracking-widest text-muted mb-3">
               Redis blackboard
             </h3>
             <BlackboardPanel projectId={id} />
@@ -184,7 +184,7 @@ export default function ProjectDashboard() {
                 key={t}
                 onClick={() => setTab(t)}
                 className={`text-xs px-3 py-1.5 rounded-lg capitalize ${
-                  tab === t ? "bg-ink-700 text-white" : "text-slate-500 hover:text-slate-300"
+                  tab === t ? "bg-ink-700 text-ink" : "text-muted hover:text-body"
                 }`}
               >
                 {t}

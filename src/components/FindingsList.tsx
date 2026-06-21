@@ -25,7 +25,7 @@ export function FindingsList({
   onSelect: (id: string) => void;
 }) {
   if (findings.length === 0) {
-    return <div className="text-sm text-slate-600 px-1 py-4">No findings yet.</div>;
+    return <div className="text-sm text-faint px-1 py-4">No findings yet.</div>;
   }
   return (
     <div className="space-y-2">
@@ -38,7 +38,7 @@ export function FindingsList({
           }`}
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-medium text-slate-200">{f.title}</span>
+            <span className="text-sm font-medium text-ink">{f.title}</span>
             <div className="flex items-center gap-1.5">
               {f.corrected && (
                 <span className="text-[9px] text-accent" title="Corrected by Reviewer">✓ corrected</span>
@@ -46,7 +46,7 @@ export function FindingsList({
               <StatusPill status={f.status} />
             </div>
           </div>
-          <p className="text-xs text-slate-500 mt-1">{f.message}</p>
+          <p className="text-xs text-muted mt-1">{f.message}</p>
         </button>
       ))}
     </div>

@@ -34,7 +34,10 @@ function safePlanName(name: string, fallbackExt: string): string {
 }
 
 /** Ensure PDF/PNG sheets exist in plans/ for the Visual Band agent. */
-export async function ensurePlansReady(project: Project): Promise<PlansPrepResult> {
+export async function ensurePlansReady(
+  project: Project,
+  onProgress?: (status: string) => void
+): Promise<PlansPrepResult> {
   let files = await listPlanFiles();
   if (files.length > 0) {
     return { ok: true, files, source: "disk" };
@@ -64,7 +67,8 @@ export async function ensurePlansReady(project: Project): Promise<PlansPrepResul
         message: "DWG uploaded but Autodesk APS credentials are not configured (APS_CLIENT_ID/SECRET).",
       };
     }
-    const { sheets, failure } = await plotDwgSheets(project.apsUrn);
+    onProgress?.("submitting workitem to Autodesk Design Automation…");
+    const { sheets, failure } = await plotDwgSheets(project.apsUrn, onProgress);
     if (sheets.length === 0) {
       return {
         ok: false,

@@ -130,11 +130,11 @@ export async function* runBandPipeline(
 
   if (project.apsUrn) {
     state.messages.push({
-      id: `dwg_prep_${Date.now()}`,
+      id: `dwg_prep_${project.id}`,
       ts: Date.now(),
       from: "orchestrator",
       type: "info",
-      text: "DWG uploaded — plotting sheets to plans/ in the background (Autodesk). Visual will read them when Chat 2 opens.",
+      text: "DWG uploaded. Plotting sheets with Autodesk in the background while code research runs in Chat 1.",
       sponsor: "claude",
     });
   } else if (project.planMime) {
@@ -163,22 +163,55 @@ export async function* runBandPipeline(
   yield snapshot();
 
   let plansPrepNotified = false;
+  let chat2Notified = false;
+  let lastPlotStatus = "";
+  let waitingForResearchNotified = false;
 
   while (Date.now() - started < MAX_RUN_MS) {
-    const { plansPrep } = await channel.advancePhases(runStartedMs);
-    if (plansPrep && !plansPrepNotified) {
-      plansPrepNotified = true;
-      const detail =
-        plansPrep.ok && plansPrep.files.length
-          ? `${plansPrep.message ?? "Plan sheets ready"} — Visual agent will read ${plansPrep.files.length} file(s) and write plan_facts.txt for Compare Codes.`
-          : plansPrep.message ?? "No plan sheets in plans/ — upload PDF or DWG before starting.";
+    const plotStatus = channel.getPlotStatus();
+    if (plotStatus && plotStatus !== lastPlotStatus) {
+      lastPlotStatus = plotStatus;
       state.messages.push({
-        id: `plans_prep_${Date.now()}`,
+        id: `plot_status_${lastPlotStatus.replace(/\W+/g, "_").slice(0, 40)}`,
         ts: Date.now(),
         from: "orchestrator",
-        type: plansPrep.ok ? "info" : "finding",
+        type: "info",
+        text: `Autodesk plot: ${plotStatus}`,
+        sponsor: "claude",
+      });
+    }
+
+    const prepResult = channel.peekPlansPrep();
+    if (prepResult && !plansPrepNotified) {
+      plansPrepNotified = true;
+      const detail =
+        prepResult.ok && prepResult.files.length
+          ? `${prepResult.message ?? "Plan sheets ready"} (${prepResult.files.length} file${prepResult.files.length === 1 ? "" : "s"} in plans/). Visual agent will read them when Chat 2 opens.`
+          : prepResult.message ?? "DWG plot failed. Upload a PDF instead or check APS credentials.";
+      state.messages.push({
+        id: `plans_prep_${project.id}`,
+        ts: Date.now(),
+        from: "orchestrator",
+        type: prepResult.ok ? "info" : "finding",
         text: detail,
         sponsor: "claude",
+      });
+    }
+
+    const { plansPrep, chat2Opened } = await channel.advancePhases(runStartedMs);
+    if (chat2Opened && !chat2Notified) {
+      chat2Notified = true;
+      const detail =
+        plansPrep?.ok && plansPrep.files.length
+          ? `Chat 2 opened. Visual agent will read ${plansPrep.files.length} sheet${plansPrep.files.length === 1 ? "" : "s"} from plans/.`
+          : plansPrep?.message ?? "Chat 2 opened but no plan sheets are available.";
+      state.messages.push({
+        id: `chat2_open_${project.id}`,
+        ts: Date.now(),
+        from: "orchestrator",
+        type: plansPrep?.ok ? "info" : "finding",
+        text: detail,
+        sponsor: "band",
       });
     }
     state.bandTranscript = await channel.roomTranscript();
@@ -188,6 +221,23 @@ export async function* runBandPipeline(
 
     state.project.status = await inferPhase(lastAuthor, runStartedMs);
     state.project.bandRoomId = channel.roomId ?? undefined;
+
+    if (
+      !waitingForResearchNotified &&
+      Date.now() - started > 20_000 &&
+      !(await outputFresh("final_summary.txt", runStartedMs))
+    ) {
+      waitingForResearchNotified = true;
+      state.messages.push({
+        id: `wait_research_${project.id}`,
+        ts: Date.now(),
+        from: "orchestrator",
+        type: "info",
+        text: "Still waiting for Chat 1 code research (needs output/final_summary.txt). DWG plotting runs in parallel. If Band is quiet, run ./scripts/run_workflow_agents.sh in a terminal.",
+        sponsor: "band",
+      });
+    }
+
     yield snapshot();
 
     if (await isWorkflowDone(runStartedMs)) {

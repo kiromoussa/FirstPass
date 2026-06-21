@@ -32,7 +32,7 @@ ARCHIVE_ITEMS: dict[str, dict[str, str]] = {
     },
 }
 
-DEFAULT_ADDRESS = "700 Rosal Ave, Oakland, CA 94610"
+DEFAULT_ADDRESS = "1216 E 92nd St, Los Angeles, CA 90002"
 
 OAKLAND_MUNICIPAL_URLS: list[str] = [
     "https://www.oaklandca.gov/My-Household/Building-and-Remodeling/Homeowner-Projects-Permits/Accessory-Dwelling-Units-ADUs/ADU-with-Single-Family-Home",

@@ -31,3 +31,4 @@ dist/
 output/
 plans/*
 !plans/.gitkeep
+.gstack/

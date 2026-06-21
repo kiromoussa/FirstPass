@@ -24,7 +24,7 @@ export function PhaseRail({ status }: { status: Phase }) {
             />
             <span
               className={`text-sm ${
-                state === "todo" ? "text-slate-600" : state === "active" ? "text-white font-medium" : "text-slate-400"
+                state === "todo" ? "text-faint" : state === "active" ? "text-ink font-medium" : "text-body"
               }`}
             >
               {p.label}

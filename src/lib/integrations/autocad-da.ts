@@ -230,11 +230,14 @@ export async function plotDwgSheets(
   try {
     if (!(await ensureActivity(token))) return fail("could not register the Design Automation plot activity");
 
-    const inUrl = await signedDownloadUrl(decoded.bucket, decoded.key);
+    onProgress?.("signing OSS download URL…");
+    const inSigned = await signedDownloadUrl(decoded.bucket, decoded.key);
     const outKey = `da-out/${decoded.key.replace(/[^a-zA-Z0-9]/g, "_")}-${ALIAS}.zip`;
-    const outTarget = await signedUploadTarget(BUCKET_KEY, outKey);
-    if (!inUrl) return fail("could not sign the input DWG download URL");
-    if (!outTarget) return fail("could not sign the result-archive upload URL");
+    const outSigned = await signedUploadTarget(BUCKET_KEY, outKey);
+    if ("error" in inSigned) return fail(`could not sign the input DWG download URL (${inSigned.error})`);
+    if ("error" in outSigned) return fail(`could not sign the result-archive upload URL (${outSigned.error})`);
+    const inUrl = inSigned.url;
+    const outTarget = outSigned;
 
     // Submit the workitem, retrying transient rejections (429 rate-limit / 5xx).
     // Other 4xx (bad activity ref, etc.) is NOT transient — fail fast. Backoff is

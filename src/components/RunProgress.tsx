@@ -7,15 +7,15 @@ import { BandConversation } from "@/components/BandConversation";
 
 const ORDER: Phase[] = ["jurisdiction", "research", "read", "comply", "review", "report", "done"];
 
-// One-line description of what each phase is actually doing — gives the step
+// One-line description of what each phase is actually doing, gives the step
 // flow some substance while the agents work.
 const BAND_PHASE_DETAIL: Record<string, string> = {
   jurisdiction: "CEO Boss delegates; Project and Property Manager writes the project brief.",
   research: "Municipal + State researchers scrape codes; Synthesizer merges.",
   read: "Visual Analysis reads the plan set with Claude vision.",
   comply: "Compare Codes flags plan vs code violations.",
-  review: "—",
-  report: "—",
+  review: "Final audit.",
+  report: "Composing report.",
 };
 
 const PHASE_DETAIL: Record<string, string> = {
@@ -29,7 +29,7 @@ const PHASE_DETAIL: Record<string, string> = {
 
 // The real tools/services behind the run, in the order they engage. The active
 // one is derived from the live message stream (the `sponsor` of each message),
-// so this reflects what is actually working — not a script.
+// so this reflects what is actually working, not a script.
 const TOOLS: { key: Sponsor; what: string }[] = [
   { key: "browserbase", what: "Fetches official city code in a headless browser" },
   { key: "redis", what: "Chunked-code store for token-efficient retrieval (RAG)" },
@@ -121,8 +121,8 @@ export function RunProgress({
           </span>
         </div>
         <div className="text-right">
-          <div className="text-sm font-medium text-white">{state?.project.name ?? "Starting…"}</div>
-          <div className="text-[11px] text-slate-500">{state?.project.address}</div>
+          <div className="text-sm font-medium text-ink">{state?.project.name ?? "Starting…"}</div>
+          <div className="text-[11px] text-muted">{state?.project.address}</div>
         </div>
       </header>
 
@@ -136,13 +136,13 @@ export function RunProgress({
                 ? "Checks complete"
                 : "Running your pre-submission checks"}
             </h1>
-            <p className="mt-2 text-slate-400 text-sm leading-relaxed max-w-xl">
+            <p className="mt-2 text-body text-sm leading-relaxed max-w-xl">
               {error
                 ? error
                 : done
                 ? `Found ${violations.length} item${violations.length === 1 ? "" : "s"} to address. Review the violations on the right, then open the dashboard or the full report.`
                 : bandMode
-                ? "Agents are collaborating live in Band — the conversation stream is on the right. Keep ./scripts/run_workflow_agents.sh running locally."
+                ? "Agents are collaborating live in Band. The conversation stream is on the right. Keep ./scripts/run_workflow_agents.sh running locally."
                 : "Live tool activity and the code being retrieved are on the right. Violations appear as the checks run."}
             </p>
 
@@ -154,7 +154,7 @@ export function RunProgress({
                     style={{ width: `${Math.max(pct, 4)}%` }}
                   />
                 </div>
-                <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px] text-slate-500">
+                <div className="mt-1.5 flex items-center justify-between gap-3 text-[11px] text-muted">
                   <span className="truncate">{done ? "Done" : latest ? latest.text : "Connecting to the run…"}</span>
                   <span className="flex-shrink-0">{pct}%</span>
                 </div>
@@ -173,7 +173,7 @@ export function RunProgress({
                     </button>
                     <Link
                       href={`/project/${projectId}/report`}
-                      className="text-sm text-slate-300 hover:text-white border border-ink-700 rounded-lg px-4 py-2.5"
+                      className="text-sm text-body hover:text-ink border border-ink-700 rounded-lg px-4 py-2.5"
                     >
                       View full report
                     </Link>
@@ -182,12 +182,12 @@ export function RunProgress({
                 {error && (
                   <>
                     <Link
-                      href="/"
+                      href="/dashboard"
                       className="bg-accent hover:bg-accent-600 text-ink-950 font-semibold rounded-lg px-4 py-2.5 text-sm"
                     >
                       Start over
                     </Link>
-                    <button onClick={onOpenDashboard} className="text-sm text-slate-400 hover:text-white">
+                    <button onClick={onOpenDashboard} className="text-sm text-body hover:text-ink">
                       Open dashboard anyway →
                     </button>
                   </>
@@ -221,13 +221,13 @@ export function RunProgress({
                       )}
                     </span>
                     <div className="min-w-0">
-                      <div className={`text-sm font-medium ${phaseState === "todo" ? "text-slate-600" : "text-white"}`}>
+                      <div className={`text-sm font-medium ${phaseState === "todo" ? "text-faint" : "text-ink"}`}>
                         {p.label}
                         {phaseState === "active" && (
                           <span className="ml-2 text-[10px] text-accent uppercase tracking-wide">working…</span>
                         )}
                       </div>
-                      <div className={`text-xs leading-relaxed ${phaseState === "todo" ? "text-slate-700" : "text-slate-400"}`}>
+                      <div className={`text-xs leading-relaxed ${phaseState === "todo" ? "text-faint" : "text-body"}`}>
                         {phaseDetail[p.key] ?? PHASE_DETAIL[p.key]}
                       </div>
                     </div>
@@ -241,7 +241,7 @@ export function RunProgress({
               <Panel title="Live agent conversation">
                 <BandConversation messages={transcript} roomId={roomId} />
               </Panel>
-              {/* Tools in use — the active one lights up in its own color */}
+              {/* Tools in use, the active one lights up in its own color */}
               <Panel title="Tools in use">
                 <div className="space-y-1.5">
                   {TOOLS.map((t) => {
@@ -251,13 +251,10 @@ export function RunProgress({
                     return (
                       <div
                         key={t.key}
-                        className={`flex items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-all duration-300 ${
-                          isActive ? "tool-active" : ""
-                        }`}
+                        className="flex items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors duration-300"
                         style={
                           isActive
                             ? {
-                                ["--glow" as string]: meta.color,
                                 borderColor: meta.color,
                                 background: `${meta.color}1f`,
                               }
@@ -270,7 +267,6 @@ export function RunProgress({
                           className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isActive ? "blink" : ""}`}
                           style={{
                             background: isActive || isUsed ? meta.color : "#3a4150",
-                            boxShadow: isActive ? `0 0 8px 1px ${meta.color}` : "none",
                           }}
                         />
                         <span
@@ -293,18 +289,18 @@ export function RunProgress({
                         {!isActive && isUsed && !(t.key === "band" && bandRoomId) && (
                           <span className="text-[9px]" style={{ color: meta.color }}>✓ done</span>
                         )}
-                        <span className="ml-auto text-[10px] text-slate-600 truncate max-w-[170px] text-right">{t.what}</span>
+                        <span className="ml-auto text-[10px] text-faint truncate max-w-[170px] text-right">{t.what}</span>
                       </div>
                     );
                   })}
                 </div>
               </Panel>
 
-              {/* Code violations — visible as they stream and after completion */}
+              {/* Code violations, visible as they stream and after completion */}
               <Panel title={`Code violations${violations.length ? ` · ${violations.length}` : ""}`}>
                 {violations.length === 0 ? (
-                  <p className="text-xs text-slate-600">
-                    {done ? "No violations — all checks passed." : "None flagged yet…"}
+                  <p className="text-xs text-faint">
+                    {done ? "No violations. All checks passed." : "None flagged yet…"}
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -329,7 +325,7 @@ export function RunProgress({
                           className="block rounded-md border border-ink-700 bg-ink-800/50 px-2.5 py-1.5 hover:border-ink-600"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-slate-300 truncate">{s.title}</span>
+                            <span className="text-[11px] text-body truncate">{s.title}</span>
                             <span
                               className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0"
                               style={
@@ -341,7 +337,7 @@ export function RunProgress({
                               {s.live ? "live" : "cached"}
                             </span>
                           </div>
-                          <div className="text-[10px] text-slate-600 mt-0.5">
+                          <div className="text-[10px] text-faint mt-0.5">
                             {hostOf(s.url)} · retrieved {timeOf(s.retrievedAt)}
                           </div>
                         </a>
@@ -351,7 +347,7 @@ export function RunProgress({
                   {codeSections.map((c) => (
                     <div key={c.section} className="rounded-md border border-ink-700 bg-ink-800/50 px-2.5 py-1.5 mb-1.5">
                       <div className="text-[11px] font-medium text-accent">{c.section}</div>
-                      {c.text && <p className="text-[10px] text-slate-500 leading-relaxed mt-0.5 line-clamp-3">{c.text}</p>}
+                      {c.text && <p className="text-[10px] text-muted leading-relaxed mt-0.5 line-clamp-3">{c.text}</p>}
                     </div>
                   ))}
                 </Panel>
@@ -368,7 +364,7 @@ export function RunProgress({
                         <div key={m.id} className="rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-2">
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-sm">{agent.emoji}</span>
-                            <span className="text-xs font-medium text-slate-200">{agent.label}</span>
+                            <span className="text-xs font-medium text-ink">{agent.label}</span>
                             <span
                               className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wide"
                               style={{ color: mt.color, background: `${mt.color}1a` }}
@@ -376,7 +372,7 @@ export function RunProgress({
                               {mt.label}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-400 leading-relaxed line-clamp-3">{m.text}</p>
+                          <p className="text-xs text-body leading-relaxed line-clamp-3">{m.text}</p>
                         </div>
                       );
                     })}
@@ -395,7 +391,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   return (
     <section className="rounded-lg border border-ink-700 bg-ink-900/40 overflow-hidden">
       <div className="px-4 py-2.5 border-b border-ink-700">
-        <h3 className="text-[10px] uppercase tracking-widest text-slate-500">{title}</h3>
+        <h3 className="text-[10px] uppercase tracking-widest text-muted">{title}</h3>
       </div>
       <div className="p-3">{children}</div>
     </section>
@@ -407,7 +403,7 @@ function ViolationRow({ f }: { f: Finding }) {
   return (
     <div className="rounded-lg border px-3 py-2" style={{ borderColor: m.border, background: m.bg }}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium text-slate-100">{f.title}</span>
+        <span className="text-sm font-medium text-ink">{f.title}</span>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {f.corrected && <span className="text-[9px] text-accent" title="Corrected by Reviewer">✓ corrected</span>}
           <span
@@ -418,8 +414,8 @@ function ViolationRow({ f }: { f: Finding }) {
           </span>
         </div>
       </div>
-      <p className="text-xs text-slate-400 mt-1 leading-relaxed">{f.message}</p>
-      {f.codeSection && <div className="text-[10px] text-slate-500 mt-1.5">Cite: {f.codeSection}</div>}
+      <p className="text-xs text-body mt-1 leading-relaxed">{f.message}</p>
+      {f.codeSection && <div className="text-[10px] text-muted mt-1.5">Cite: {f.codeSection}</div>}
     </div>
   );
 }
