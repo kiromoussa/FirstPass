@@ -1,0 +1,9 @@
+{
+  "sheets": [
+    {"sheet": "A1.0", "name": "Site Plan", "source": "A1.0_Site_Plan.pdf"},
+    {"sheet": "A2.0", "name": "Floor Plan", "source": "A2.0_Floor_Plan.pdf"},
+    {"sheet": "A3.0", "name": "Elevations", "source": "A3.0_Elevations.pdf"},
+    {"sheet": "A4.0", "name": "Sections and Details", "source": "A4.0_Sections.pdf"},
+    {"name": "LADBS Plan Check Application", "source": "LADBS_Application.pdf"}
+  ]
+}

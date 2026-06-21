@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from datetime import datetime, timezone
@@ -9,8 +10,36 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from firstpass.synthesis import format_compliance_text, synthesize_from_files
+
 OUTPUT_DIR = Path(__file__).resolve().parents[2] / "output"
 SESSION_LINE_PREFIX = "Browserbase Session"
+
+
+def _normalize_for_hash(content: str) -> str:
+    """Strip timestamps and whitespace for duplicate detection."""
+    text = re.sub(r"Generated: \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC", "", content)
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _content_hash(content: str) -> str:
+    return hashlib.sha256(_normalize_for_hash(content).encode()).hexdigest()
+
+
+def _is_duplicate_content(content: str, exclude_path: Path | None = None) -> bool:
+    new_hash = _content_hash(content)
+    if not OUTPUT_DIR.exists():
+        return False
+    for path in OUTPUT_DIR.glob("*.txt"):
+        if exclude_path and path.resolve() == exclude_path.resolve():
+            continue
+        try:
+            existing = path.read_text(encoding="utf-8")
+            if _content_hash(existing) == new_hash:
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def _browserbase_sessions_from_file(path: Path) -> list[str]:
@@ -83,7 +112,20 @@ def write_text_report(input: WriteTextReportInput) -> str:
     if input.report_type == "final_summary":
         body = _append_research_sessions(body)
 
-    path.write_text(header + body + "\n", encoding="utf-8")
+    full_content = header + body + "\n"
+
+    if _is_duplicate_content(full_content, exclude_path=path):
+        return json.dumps(
+            {
+                "status": "duplicate",
+                "skipped": True,
+                "path": str(path),
+                "filename": filename,
+                "message": "Duplicate report content detected; write skipped.",
+            }
+        )
+
+    path.write_text(full_content, encoding="utf-8")
 
     payload: dict = {
         "status": "written",
@@ -103,16 +145,17 @@ def write_text_report(input: WriteTextReportInput) -> str:
 
 
 class MergeResearchReportsInput(BaseModel):
-    """Merge municipal + state reports into final_summary.txt from output/ files."""
+    """Synthesize municipal + state research into final_summary.txt."""
 
     address: str = Field(..., description="Project address from the kickoff message")
     project_type: str = Field(default="Detached ADU")
     municipal_filename: str = Field(default="municipal_codes.txt")
     state_filename: str = Field(default="state_codes.txt")
+    use_browserbase: bool = Field(default=True, description="Run ZIMAS parcel lookup when available")
 
 
 def merge_research_reports(input: MergeResearchReportsInput) -> str:
-    """Concatenate researcher reports into final_summary.txt (verbatim + session links)."""
+    """Synthesize compliance report from structured JSON + researcher .txt files."""
     municipal_name = _safe_filename(input.municipal_filename)
     state_name = _safe_filename(input.state_filename)
     municipal_path = OUTPUT_DIR / municipal_name
@@ -132,20 +175,25 @@ def merge_research_reports(input: MergeResearchReportsInput) -> str:
             }
         )
 
+    # Block synthesis if municipal report has jurisdiction mismatch
     municipal_content = municipal_path.read_text(encoding="utf-8")
-    state_content = state_path.read_text(encoding="utf-8")
-    body = (
-        f"FINAL CODE SYNTHESIS — {input.project_type}\n"
-        f"Address: {input.address}\n\n"
-        f"{'=' * 60}\n"
-        f"COMPLETE MUNICIPAL REPORT ({municipal_name})\n"
-        f"{'=' * 60}\n"
-        f"{municipal_content.strip()}\n\n"
-        f"{'=' * 60}\n"
-        f"COMPLETE STATE REPORT ({state_name})\n"
-        f"{'=' * 60}\n"
-        f"{state_content.strip()}\n"
+    if "JURISDICTION MISMATCH" in municipal_content or "No sources retrieved" in municipal_content:
+        return json.dumps(
+            {
+                "status": "blocked",
+                "reason": "Municipal report failed validation (missing official city sources).",
+                "instruction": "Re-run municipal researcher with official city sources before synthesizing.",
+            }
+        )
+
+    report, zimas_session = synthesize_from_files(
+        address=input.address,
+        project_type=input.project_type,
+        use_browserbase=input.use_browserbase,
     )
+    body = format_compliance_text(report)
+    if zimas_session:
+        body += f"\nZIMAS Browserbase Session: {zimas_session}\n"
     body = _append_research_sessions(body)
 
     path = OUTPUT_DIR / "final_summary.txt"
@@ -155,20 +203,41 @@ def merge_research_reports(input: MergeResearchReportsInput) -> str:
         f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n"
         f"{'=' * 60}\n\n"
     )
-    path.write_text(header + body, encoding="utf-8")
+    full_content = header + body
+
+    if _is_duplicate_content(full_content, exclude_path=path):
+        return json.dumps(
+            {
+                "status": "duplicate",
+                "skipped": True,
+                "path": str(path),
+                "instruction": (
+                    "Duplicate synthesis skipped. Reply once in chat confirming existing final_summary.txt. "
+                    "No @mentions, no more tools."
+                ),
+            }
+        )
+
+    path.write_text(full_content, encoding="utf-8")
 
     return json.dumps(
         {
             "status": "written",
             "path": str(path),
             "filename": "final_summary.txt",
+            "compliance_json": str(OUTPUT_DIR / "compliance_report.json"),
+            "confirmed_count": len(report.confirmed_requirements),
+            "unresolved_count": len(report.unresolved_items),
+            "preliminary_result": report.preliminary_result,
             "instruction": (
-                "Merge complete. Reply once in chat with plain text only — no @mentions, no more tools. "
-                f"Tell the user final_summary.txt is at {path}. Max 5 sentences. Then stop."
+                "Synthesis complete. Reply once in chat with plain text only — no @mentions, no more tools. "
+                f"Lead with: {report.preliminary_result} "
+                f"File: {path}. Max 5 sentences. Then stop."
             ),
         }
     )
 
 
-MERGE_REPORT_TOOLS = [(MergeResearchReportsInput, merge_research_reports)]
+SYNTHESIS_TOOLS = [(MergeResearchReportsInput, merge_research_reports)]
+MERGE_REPORT_TOOLS = SYNTHESIS_TOOLS
 REPORT_TOOLS = [(WriteTextReportInput, write_text_report)]

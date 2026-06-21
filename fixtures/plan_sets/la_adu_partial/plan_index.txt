@@ -1,0 +1,6 @@
+# Sheet index for sample LA ADU plan set (partial package)
+A1.0 Site Plan
+A2.0 Floor Plan
+A3.0 Elevations
+A4.0 Sections and Details
+LADBS_Plan_Check_Application.pdf

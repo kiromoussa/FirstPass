@@ -8,8 +8,9 @@ from pathlib import Path
 
 from firstpass.archive_tool import ArchiveCodeScrapeInput, archive_code_scrape
 from firstpass.config import init_environment
-from firstpass.code_sources import ARCHIVE_ITEMS, DEFAULT_ADDRESS
-from firstpass.report_tool import WriteTextReportInput, write_text_report
+from firstpass.code_sources import DEFAULT_ADDRESS
+from firstpass.jurisdiction import parse_city_from_address
+from firstpass.report_tool import MergeResearchReportsInput, merge_research_reports
 
 
 def _scrape_and_write(
@@ -24,32 +25,7 @@ def _scrape_and_write(
     data = json.loads(raw)
     if path := data.get("report_path"):
         return Path(path)
-    raise RuntimeError(f"Scrape failed for {filename}: {data.get('errors', raw)}")
-
-
-def _build_final_summary(municipal_path: Path, state_path: Path, address: str, project_type: str) -> str:
-    municipal = municipal_path.read_text(encoding="utf-8") if municipal_path.exists() else "(missing)"
-    state = state_path.read_text(encoding="utf-8") if state_path.exists() else "(missing)"
-    return f"""FINAL SUMMARY — {project_type}
-Address: {address}
-
-{'=' * 60}
-MUNICIPAL FINDINGS (from {municipal_path.name})
-{'=' * 60}
-{municipal}
-
-{'=' * 60}
-STATE FINDINGS (from {state_path.name})
-{'=' * 60}
-{state}
-
-{'=' * 60}
-SYNTHESIS
-{'=' * 60}
-This report combines municipal and state code excerpts scraped from Internet Archive.
-Review both sections above for applicable ADU requirements.
-Verify against current official Oakland and California code editions before submission.
-"""
+    raise RuntimeError(f"Scrape failed for {filename}: {data.get('errors', data.get('validation_warnings', raw))}")
 
 
 def main() -> None:
@@ -61,60 +37,64 @@ def main() -> None:
     parser.add_argument(
         "--with-browserbase",
         action="store_true",
-        help="Also open archive.org in Browserbase (slower; requires BROWSERBASE_API_KEY)",
+        help="Also browse official sources in Browserbase (slower; requires BROWSERBASE_API_KEY)",
     )
     args = parser.parse_args()
 
-    ocr_only = not args.with_browserbase
+    city = parse_city_from_address(args.address) or "Oakland"
 
-    print(f"Scraping municipal codes for {args.address}...")
+    print(f"Scraping municipal codes for {args.address} ({city})...")
     municipal_path = _scrape_and_write(
         "municipal_codes.txt",
         "municipal",
         ArchiveCodeScrapeInput(
-            research_goal=f"Municipal ADU/zoning codes for {args.address}",
-            jurisdiction="Oakland, CA",
-            archive_url="https://archive.org/search?query=oakland+planning+code+accessory+dwelling+unit",
-            search_terms="accessory dwelling unit ADU Oakland planning setback",
-            use_browserbase=not ocr_only,
+            research_goal=f"Municipal ADU/zoning for {args.address}, {args.project_type}",
+            jurisdiction=f"{city}, CA",
+            address=args.address,
+            project_type=args.project_type,
+            search_terms=f"accessory dwelling unit ADU {city} LAMC zoning setback height lot coverage LADBS",
+            use_browserbase=args.with_browserbase,
         ),
     )
     print(f"  Wrote {municipal_path}")
 
-    print("Scraping California state residential code from Internet Archive...")
-    crc = ARCHIVE_ITEMS["ca_residential_2025"]
+    print("Scraping California state ADU statutes and building code...")
     state_path = _scrape_and_write(
         "state_codes.txt",
         "state",
         ArchiveCodeScrapeInput(
-            research_goal="California Title 24 residential ADU requirements",
+            research_goal=f"State ADU statutes and building code for {args.address}, {args.project_type}",
             jurisdiction="California",
-            archive_item_id=crc["id"],
-            archive_url=crc["url"],
-            search_terms="accessory dwelling unit ADU setback height fire separation",
-            use_browserbase=not ocr_only,
+            address=args.address,
+            project_type=args.project_type,
+            search_terms="accessory dwelling unit ADU 65852.2 66313 ministerial setback parking height sprinkler",
+            use_browserbase=args.with_browserbase,
         ),
     )
     print(f"  Wrote {state_path}")
 
-    print("Writing final summary...")
-    summary_content = _build_final_summary(municipal_path, state_path, args.address, args.project_type)
-    final_result = json.loads(
-        write_text_report(
-            WriteTextReportInput(
-                filename="final_summary.txt",
-                content=summary_content,
-                report_type="final_summary",
+    print("Synthesizing compliance report...")
+    merge_result = json.loads(
+        merge_research_reports(
+            MergeResearchReportsInput(
+                address=args.address,
+                project_type=args.project_type,
+                use_browserbase=args.with_browserbase,
             )
         )
     )
-    final_path = Path(final_result["path"])
-    print(f"  Wrote {final_path}")
+    final_path = Path(merge_result.get("path", "output/final_summary.txt"))
+    print(f"  Status: {merge_result.get('status')}")
+    if merge_result.get("preliminary_result"):
+        print(f"  {merge_result['preliminary_result']}")
     print()
     print("Done. Output files:")
     print(f"  {municipal_path}")
     print(f"  {state_path}")
     print(f"  {final_path}")
+    print(f"  output/compliance_report.json")
+    print(f"  output/municipal_requirements.json")
+    print(f"  output/state_requirements.json")
 
 
 if __name__ == "__main__":

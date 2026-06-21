@@ -18,6 +18,8 @@ firstpass-state = "firstpass.agents.state:main"
 firstpass-synthesizer = "firstpass.agents.synthesizer:main"
 firstpass-kickoff = "firstpass.orchestrator:main"
 firstpass-local = "firstpass.local_research:main"
+firstpass-permit = "firstpass.permit.cli:main"
+firstpass-permit-agent = "firstpass.agents.permit:main"
 
 [build-system]
 requires = ["hatchling"]

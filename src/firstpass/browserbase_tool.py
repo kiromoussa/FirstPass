@@ -24,7 +24,7 @@ from firstpass.code_sources import (
 SourceHintField = Literal["auto", "municipal", "state", "icc", "dgs", "hcd"]
 
 TEXT_LIMIT = 15_000
-NAV_TIMEOUT_MS = 75_000
+NAV_TIMEOUT_MS = 45_000
 
 
 class BrowserbaseResearchInput(BaseModel):
@@ -345,6 +345,66 @@ def browserbase_research(input: BrowserbaseResearchInput) -> str:
         },
         indent=2,
     )
+
+
+def scrape_municipal_web(
+    profile,
+    search_query: str,
+    max_pages: int = 4,
+) -> tuple[list[dict], list[str], list[str]]:
+    """Browse official municipal seed URLs and return page records, errors, session URLs."""
+    api_key = os.environ.get("BROWSERBASE_API_KEY")
+    if not api_key or not profile.municipal_seed_urls:
+        return [], ["Browserbase unavailable or no municipal seeds"], []
+
+    project_id = os.environ.get("BROWSERBASE_PROJECT_ID")
+    bb = Browserbase(api_key=api_key)
+    create_params: dict = {
+        "browser_settings": {"blockAds": True, "recordSession": True, "solveCaptchas": True},
+    }
+    if project_id:
+        create_params["project_id"] = project_id
+
+    session = bb.sessions.create(**create_params)
+    session_url = f"https://browserbase.com/sessions/{session.id}"
+    pages: list[dict] = []
+    errors: list[str] = []
+    visited: set[str] = set()
+
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.connect_over_cdp(session.connect_url)
+            page = browser.contexts[0].pages[0]
+
+            urls = list(profile.municipal_seed_urls)
+            for url in urls:
+                if len(pages) >= max_pages:
+                    break
+                if url in visited:
+                    continue
+                try:
+                    record = _load_page(page, url)
+                    visited.add(record["url"])
+                    pages.append(record)
+                    for link in _find_relevant_links(page, page.url, search_query, limit=3):
+                        if link not in visited and len(pages) < max_pages:
+                            try:
+                                sub = _load_page(page, link)
+                                if sub["url"] not in visited:
+                                    visited.add(sub["url"])
+                                    pages.append(sub)
+                            except Exception as exc:  # noqa: BLE001
+                                errors.append(f"Failed follow-up {link}: {exc}")
+                except PlaywrightTimeoutError:
+                    errors.append(f"Timeout loading {url}")
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(f"Failed to load {url}: {exc}")
+
+            browser.close()
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"Browserbase municipal session error: {exc}")
+
+    return pages, errors, [session_url]
 
 
 BROWSERBASE_TOOLS = [(BrowserbaseResearchInput, browserbase_research)]
