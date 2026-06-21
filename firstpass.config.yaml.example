@@ -9,10 +9,12 @@ browserbase:
   api_key: ""
   project_id: ""
 
-# Register 3 External Agents at app.band.ai with these exact names for @mention routing:
-#   - Municipal Code Researcher
-#   - State Code Researcher
-#   - Code Synthesizer
+# Register External Agents at app.band.ai with these exact names for @mention routing.
+# Core three (pre-registered ids below): Municipal Code Researcher, State Code
+# Researcher, Code Synthesizer. The extra code-layer researchers are optional — any
+# you leave with an empty agent_id are automatically skipped by the orchestrator:
+#   - Building Code Researcher, Residential Code Researcher,
+#   - Plumbing Code Researcher, Green Code Researcher
 band:
   municipal_researcher:
     agent_id: "28e83f6c-4362-4539-8e53-0f31477d99c1"
@@ -20,6 +22,23 @@ band:
 
   state_researcher:
     agent_id: "0d05ac9f-7998-4030-86d2-72381854ebd3"
+    api_key: ""
+
+  # Optional additional code-layer researchers (skipped if agent_id is empty).
+  building_researcher:
+    agent_id: ""
+    api_key: ""
+
+  residential_researcher:
+    agent_id: ""
+    api_key: ""
+
+  plumbing_researcher:
+    agent_id: ""
+    api_key: ""
+
+  green_researcher:
+    agent_id: ""
     api_key: ""
 
   code_synthesizer:

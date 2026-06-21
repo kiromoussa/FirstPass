@@ -29,9 +29,74 @@ ARCHIVE_ITEMS: dict[str, dict[str, str]] = {
         "title": "California Government Code (search for 65852 ADU sections)",
         "url": "https://archive.org/search?query=california+government+code+65852+accessory+dwelling",
     },
+    "ca_plumbing_2022": {
+        "id": "",
+        "title": "2022 California Plumbing Code (Title 24 Part 5)",
+        "url": "https://archive.org/search?query=california+plumbing+code+title+24",
+    },
 }
 
 DEFAULT_ADDRESS = "700 Rosal Ave, Oakland, CA 94610"
+
+# The full stack of code layers a pre-submission review must cover. local_research
+# (and the Band researchers) produce one report per layer; each report file name
+# is what the downstream chunker classifies on, so keep the layer in the name.
+CODE_LAYERS: list[dict] = [
+    {
+        "layer": "municipal",
+        "filename": "municipal_codes.txt",
+        "jurisdiction": "Oakland, CA",
+        "research_goal": "Municipal ADU / zoning codes (size, setbacks, parking, submittal)",
+        "archive_item_id": None,
+        "archive_url": "https://archive.org/search?query=oakland+planning+code+accessory+dwelling+unit",
+        "search_terms": "accessory dwelling unit ADU planning zoning setback parking",
+    },
+    {
+        "layer": "state",
+        "filename": "state_codes.txt",
+        "jurisdiction": "California",
+        "research_goal": "California state ADU standards that preempt local limits (Gov. Code 65852 / 66310, Title 24)",
+        "archive_item_id": ARCHIVE_ITEMS["ca_residential_2025"]["id"],
+        "archive_url": ARCHIVE_ITEMS["ca_residential_2025"]["url"],
+        "search_terms": "accessory dwelling unit ADU height setback ministerial",
+    },
+    {
+        "layer": "building",
+        "filename": "building_codes.txt",
+        "jurisdiction": "California",
+        "research_goal": "California Building Code (CBC) occupancy, fire separation, egress for dwellings",
+        "archive_item_id": ARCHIVE_ITEMS["ca_building_2022"]["id"],
+        "archive_url": ARCHIVE_ITEMS["ca_building_2022"]["url"],
+        "search_terms": "occupancy fire separation exterior wall egress dwelling",
+    },
+    {
+        "layer": "residential",
+        "filename": "residential_codes.txt",
+        "jurisdiction": "California",
+        "research_goal": "California Residential Code (CRC) ceiling height, smoke/CO alarms, escape openings",
+        "archive_item_id": ARCHIVE_ITEMS["ca_residential_2025"]["id"],
+        "archive_url": ARCHIVE_ITEMS["ca_residential_2025"]["url"],
+        "search_terms": "ceiling height smoke alarm carbon monoxide emergency escape rescue opening",
+    },
+    {
+        "layer": "plumbing",
+        "filename": "plumbing_codes.txt",
+        "jurisdiction": "California",
+        "research_goal": "California Plumbing Code (CPC) minimum fixtures and water heater requirements",
+        "archive_item_id": ARCHIVE_ITEMS["ca_plumbing_2022"]["id"] or None,
+        "archive_url": ARCHIVE_ITEMS["ca_plumbing_2022"]["url"],
+        "search_terms": "water closet lavatory fixture water heater dwelling unit",
+    },
+    {
+        "layer": "green",
+        "filename": "green_codes.txt",
+        "jurisdiction": "California",
+        "research_goal": "CALGreen water-efficiency, EV-ready, and waste-reduction mandatory measures",
+        "archive_item_id": ARCHIVE_ITEMS["ca_green_2022"]["id"],
+        "archive_url": ARCHIVE_ITEMS["ca_green_2022"]["url"],
+        "search_terms": "water conserving fixture electric vehicle EV charging construction waste",
+    },
+]
 
 OAKLAND_MUNICIPAL_URLS: list[str] = [
     "https://www.oaklandca.gov/My-Household/Building-and-Remodeling/Homeowner-Projects-Permits/Accessory-Dwelling-Units-ADUs/ADU-with-Single-Family-Home",
