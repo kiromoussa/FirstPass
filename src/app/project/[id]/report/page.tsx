@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import type { ProjectState } from "@/lib/types";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { StatusPill } from "@/components/FindingsList";
@@ -24,7 +25,10 @@ export default function ReportPage() {
   return (
     <main className="min-h-screen">
       <header className="flex items-center justify-between px-6 py-3 border-b border-ink-700 print:hidden">
-        <Link href={`/project/${id}`} className="text-accent font-bold tracking-tight">◢ FirstPass</Link>
+        <Link href={`/project/${id}`} className="flex items-center gap-2 group">
+          <Image src="/firstpass-mark.png" alt="FirstPass logo" width={24} height={24} priority className="h-6 w-6 object-contain" />
+          <span className="text-ink font-bold tracking-tight">FirstPass</span>
+        </Link>
         <button
           onClick={() => window.print()}
           className="bg-ink-700 hover:bg-ink-600 text-ink rounded-lg px-4 py-2 text-sm"

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { PHASES, type ProjectState, type Phase, type Sponsor, type Finding, type BandRoomMessage } from "@/lib/types";
 import { AGENT_META, MSG_META, SPONSOR_META, STATUS_META } from "@/lib/ui";
 import { BandConversation } from "@/components/BandConversation";
@@ -81,7 +82,6 @@ export function RunProgress({
   const roomId = state?.bandRoomId ?? bandRoomId;
   const bandMode = !!roomId || transcript.length > 0;
   const phaseDetail = bandMode ? BAND_PHASE_DETAIL : PHASE_DETAIL;
-  const recent = messages.slice(-4);
   const latest = messages[messages.length - 1];
 
   // Which tool is active right now = the sponsor on the most recent message
@@ -111,11 +111,34 @@ export function RunProgress({
   // Violations = anything that isn't a clean PASS.
   const violations = findings.filter((f) => f.status !== "PASS");
 
+  // The run log: most recent pipeline updates, newest last. Shown beneath the
+  // run-status line in the right rail.
+  const log = messages.slice(-6);
+
+  // Subtitle beneath the run-status heading. Band mode shows no extra copy.
+  const subtitle = error
+    ? error
+    : done
+    ? `Found ${violations.length} item${violations.length === 1 ? "" : "s"} to address. Review the violations on the right, then open the dashboard or the full report.`
+    : bandMode
+    ? ""
+    : "The live agent conversation is in the center; tool activity, violations, and retrieved code are on the right.";
+
   return (
     <main className="min-h-screen flex flex-col">
       <header className="px-8 py-5 flex items-center justify-between border-b border-ink-700 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <Link href="/" className="text-accent text-xl font-bold tracking-tight">◢ FirstPass</Link>
+          <Link href="/" className="flex items-center gap-2 group">
+            <Image
+              src="/firstpass-mark.png"
+              alt="FirstPass logo"
+              width={28}
+              height={28}
+              priority
+              className="h-7 w-7 object-contain"
+            />
+            <span className="text-ink text-xl font-bold tracking-tight">FirstPass</span>
+          </Link>
           <span className="text-xs text-ink-600 bg-ink-800 px-2 py-0.5 rounded-full">
             {done ? "checks complete" : "running checks"}
           </span>
@@ -127,7 +150,7 @@ export function RunProgress({
       </header>
 
       <div className="flex-1 flex items-start justify-center px-6 py-10">
-        <div className="w-full max-w-5xl">
+        <div className="w-full max-w-6xl">
           <div className="mb-8">
             <h1 className="text-2xl font-semibold tracking-tight">
               {error
@@ -136,15 +159,11 @@ export function RunProgress({
                 ? "Checks complete"
                 : "Running your pre-submission checks"}
             </h1>
-            <p className="mt-2 text-body text-sm leading-relaxed max-w-xl">
-              {error
-                ? error
-                : done
-                ? `Found ${violations.length} item${violations.length === 1 ? "" : "s"} to address. Review the violations on the right, then open the dashboard or the full report.`
-                : bandMode
-                ? "Agents are collaborating live in Band. The conversation stream is on the right. Keep ./scripts/run_workflow_agents.sh running locally."
-                : "Live tool activity and the code being retrieved are on the right. Violations appear as the checks run."}
-            </p>
+            {subtitle && (
+              <p className="mt-2 text-body text-sm leading-relaxed max-w-xl">
+                {subtitle}
+              </p>
+            )}
 
             {!error && (
               <div className="mt-5">
@@ -196,38 +215,38 @@ export function RunProgress({
             )}
           </div>
 
-          <div className="grid lg:grid-cols-[1fr_minmax(320px,400px)] gap-6">
-            {/* Step flow */}
-            <ol className="space-y-2">
+          <div className="grid lg:grid-cols-[200px_minmax(0,1fr)_320px] gap-5 items-start">
+            {/* Left: compressed step flow */}
+            <ol className="space-y-1.5">
               {PHASES.map((p) => {
                 const idx = ORDER.indexOf(p.key);
                 const phaseState = done || current > idx ? "done" : current === idx ? "active" : "todo";
                 return (
                   <li
                     key={p.key}
-                    className={`flex items-start gap-3 rounded-lg border px-4 py-3 transition-colors ${
+                    className={`flex items-start gap-2.5 rounded-lg border px-3 py-2 transition-colors ${
                       phaseState === "active" ? "border-accent/50 bg-ink-800/60" : "border-ink-700 bg-ink-900/40"
                     }`}
                   >
                     <span className="mt-0.5 flex-shrink-0">
                       {phaseState === "done" ? (
-                        <span className="w-5 h-5 rounded-full bg-accent text-ink-950 text-xs font-bold flex items-center justify-center">
+                        <span className="w-4 h-4 rounded-full bg-accent text-ink-950 text-[10px] font-bold flex items-center justify-center">
                           ✓
                         </span>
                       ) : phaseState === "active" ? (
-                        <span className="w-5 h-5 rounded-full border-2 border-accent border-t-transparent animate-spin block" />
+                        <span className="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin block" />
                       ) : (
-                        <span className="w-5 h-5 rounded-full border border-ink-600 block" />
+                        <span className="w-4 h-4 rounded-full border border-ink-600 block" />
                       )}
                     </span>
                     <div className="min-w-0">
-                      <div className={`text-sm font-medium ${phaseState === "todo" ? "text-faint" : "text-ink"}`}>
+                      <div className={`text-[13px] font-medium leading-tight ${phaseState === "todo" ? "text-faint" : "text-ink"}`}>
                         {p.label}
                         {phaseState === "active" && (
-                          <span className="ml-2 text-[10px] text-accent uppercase tracking-wide">working…</span>
+                          <span className="ml-1.5 text-[9px] text-accent uppercase tracking-wide">working…</span>
                         )}
                       </div>
-                      <div className={`text-xs leading-relaxed ${phaseState === "todo" ? "text-faint" : "text-body"}`}>
+                      <div className={`text-[11px] leading-snug mt-0.5 ${phaseState === "todo" ? "text-faint" : "text-body"}`}>
                         {phaseDetail[p.key] ?? PHASE_DETAIL[p.key]}
                       </div>
                     </div>
@@ -236,11 +255,13 @@ export function RunProgress({
               })}
             </ol>
 
-            {/* Right rail: Band conversation (primary) · tools · violations */}
+            {/* Center: live agent conversation (the focal point) */}
+            <Panel title="Live agent conversation">
+              <BandConversation messages={transcript} roomId={roomId} />
+            </Panel>
+
+            {/* Right rail: tools · violations · code · run status + log */}
             <div className="space-y-4">
-              <Panel title="Live agent conversation">
-                <BandConversation messages={transcript} roomId={roomId} />
-              </Panel>
               {/* Tools in use, the active one lights up in its own color */}
               <Panel title="Tools in use">
                 <div className="space-y-1.5">
@@ -353,32 +374,50 @@ export function RunProgress({
                 </Panel>
               )}
 
-              {/* Pipeline status (short) */}
-              {recent.length > 0 && (
-                <Panel title={`Run status · ${messages.length} updates`}>
-                  <div className="space-y-2 max-h-[160px] overflow-y-auto scrollbar-thin">
-                    {recent.map((m) => {
-                      const agent = AGENT_META[m.from];
-                      const mt = MSG_META[m.type];
-                      return (
-                        <div key={m.id} className="rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-2">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm">{agent.emoji}</span>
-                            <span className="text-xs font-medium text-ink">{agent.label}</span>
-                            <span
-                              className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wide"
-                              style={{ color: mt.color, background: `${mt.color}1a` }}
-                            >
-                              {mt.label}
-                            </span>
+              {/* Run status + log: the live status line, with the run log beneath it */}
+              <Panel title="Run status">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${done || error ? "" : "blink"}`}
+                    style={{ background: error ? "#e5484d" : done ? "#3ddc97" : "#f5a623" }}
+                  />
+                  <span className="text-xs font-medium text-ink">
+                    {error ? "Run failed" : done ? "Complete" : "Running"}
+                  </span>
+                  <span className="ml-auto text-[10px] text-faint">{messages.length} updates</span>
+                </div>
+                <p className="mt-1.5 text-[11px] text-muted leading-relaxed line-clamp-2">
+                  {done ? "All checks finished." : latest ? latest.text : "Connecting to the run…"}
+                </p>
+
+                {/* Log */}
+                {log.length > 0 && (
+                  <>
+                    <div className="mt-3 mb-1.5 text-[9px] uppercase tracking-widest text-faint">Log</div>
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto scrollbar-thin">
+                      {log.map((m) => {
+                        const agent = AGENT_META[m.from];
+                        const mt = MSG_META[m.type];
+                        return (
+                          <div key={m.id} className="rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-2">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm">{agent.emoji}</span>
+                              <span className="text-xs font-medium text-ink">{agent.label}</span>
+                              <span
+                                className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                                style={{ color: mt.color, background: `${mt.color}1a` }}
+                              >
+                                {mt.label}
+                              </span>
+                            </div>
+                            <p className="text-xs text-body leading-relaxed line-clamp-3">{m.text}</p>
                           </div>
-                          <p className="text-xs text-body leading-relaxed line-clamp-3">{m.text}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Panel>
-              )}
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </Panel>
             </div>
           </div>
         </div>

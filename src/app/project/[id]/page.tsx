@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import type { BandRoomMessage, ProjectState, Sponsor } from "@/lib/types";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { PhaseRail } from "@/components/PhaseRail";
@@ -111,7 +112,10 @@ export default function ProjectDashboard() {
       {/* Top bar */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-ink-700 flex-shrink-0">
         <div className="flex items-center gap-4">
-          <Link href="/" className="text-accent font-bold tracking-tight">◢ FirstPass</Link>
+          <Link href="/" className="flex items-center gap-2 group">
+            <Image src="/firstpass-mark.png" alt="FirstPass logo" width={24} height={24} priority className="h-6 w-6 object-contain" />
+            <span className="text-ink font-bold tracking-tight">FirstPass</span>
+          </Link>
           <div className="h-5 w-px bg-ink-700" />
           <div>
             <div className="text-sm font-medium text-ink">{state?.project.name ?? "Loading…"}</div>

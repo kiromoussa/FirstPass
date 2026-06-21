@@ -3,7 +3,7 @@
 import fs from "fs/promises";
 import path from "path";
 import type { Project } from "./types";
-import { kvGet, kvSet } from "./store";
+import { kvGet, kvSet, listProjectIds } from "./store";
 import { persistActiveProject } from "./active-project";
 import { ensureProjectDir, projectMetaPath, PROJECTS_ROOT } from "./project-files";
 
@@ -45,14 +45,25 @@ export async function resolveProjectForCompare(projectId?: string): Promise<Proj
   try {
     const { loadActiveProject } = await import("./active-project");
     const active = await loadActiveProject();
-    if (!active) return null;
-    if (projectId && active.id !== projectId) {
-      return loadProject(projectId);
+    if (active) {
+      if (projectId && active.id !== projectId) {
+        return (await loadProject(projectId)) ?? active;
+      }
+      return (await loadProject(active.id)) ?? active;
     }
-    return (await loadProject(active.id)) ?? active;
   } catch {
-    return null;
+    /* fall through to latest-project fallback */
   }
+  // Last resort (demo-safe): never hard-fail Compare Codes — use the most
+  // recently created project so a missing/stale active_project.json can't block
+  // the run.
+  try {
+    const [latest] = await listProjectIds();
+    if (latest) return loadProject(latest);
+  } catch {
+    /* nothing else to try */
+  }
+  return null;
 }
 
 export { PROJECTS_ROOT, projectDir, projectMetaPath } from "./project-files";

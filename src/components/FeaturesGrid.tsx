@@ -17,7 +17,7 @@ const FEATURES: Feature[] = [
   {
     icon: stroke(<><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" /></>),
     title: "Multi-agent code research",
-    body: "Agents browse official municipal codes, ADU regulations, and state requirements, with every claim backed by a live, verifiable citation.",
+    body: "Agents browse official municipal codes, zoning regulations, and state requirements, with every claim backed by a live, verifiable citation.",
   },
   {
     icon: stroke(<><rect x="4" y="3" width="16" height="18" rx="2" /><line x1="8" y1="8" x2="16" y2="8" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="8" y1="16" x2="12" y2="16" /></>),

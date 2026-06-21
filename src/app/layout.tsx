@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     template: "%s · FirstPass",
   },
   description:
-    "Upload an ADU plan set and get a cited, sheet-by-sheet readiness report with likely violations, official code citations, and a missing-documents checklist before you submit to the city.",
+    "Upload a plan set and get a cited, sheet-by-sheet readiness report with likely violations, official code citations, and a missing-documents checklist before you submit to the city.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },

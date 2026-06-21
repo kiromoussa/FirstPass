@@ -5,7 +5,7 @@ import { CSSProperties, useEffect, useState } from "react";
 
 const STAGES = [
   { num: "01", name: "Jurisdiction resolution", detail: "Resolving city & responsible agencies" },
-  { num: "02", name: "Code research", detail: "Browsing municipal & state ADU codes, live" },
+  { num: "02", name: "Code research", detail: "Browsing municipal & state building codes, live" },
   { num: "03", name: "Plan reading", detail: "Extracting setbacks, heights, coverage" },
   { num: "04", name: "Compliance checks", detail: "Comparing plan facts to jurisdiction rules" },
   { num: "05", name: "Finding audit", detail: "Reviewer challenges & corrects findings" },
@@ -14,7 +14,7 @@ const STAGES = [
 
 const FEED = [
   "Resolved jurisdiction · City of Oakland · CA HCD",
-  "Fetched OakMC §17.103 ADU standards · retrieved today",
+  "Fetched OakMC §17.103 zoning standards · retrieved today",
   "Read 14 sheets · extracted 9 structured facts",
   "Max unit size: 1,200 sf allowed vs 850 sf built · PASS",
   "Auditor re-checked height on sheet A-301 · WARNING",
@@ -96,7 +96,7 @@ export function LandingHero() {
             <span className="text-teal">before the city does.</span>
           </h1>
           <p className="text-[18.5px] leading-[1.55] text-body mb-8 max-w-[460px]">
-            Upload an ADU plan set and get a cited, sheet-by-sheet readiness
+            Upload a plan set and get a cited, sheet-by-sheet readiness
             report with likely violations, official code citations, and a
             missing-documents checklist, all before you ever submit to the city.
           </p>
@@ -138,7 +138,7 @@ export function LandingHero() {
                 Permit-readiness pipeline
               </div>
               <div className="text-[13px] text-[#82867a]">
-                123 Oak St · Detached ADU · Oakland, CA
+                123 Oak St · Oakland, CA
               </div>
             </div>
             <div className="relative w-[78px] h-[78px] flex-none">

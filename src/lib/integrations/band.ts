@@ -238,6 +238,43 @@ export class BandChannel {
     return {};
   }
 
+  /** True once the chat at `phaseIndex` (0=Intake, 1=Design, 2=Closeout) is open. */
+  chatOpen(phaseIndex: number): boolean {
+    return !!this.room && this.room.phases.length > phaseIndex;
+  }
+
+  /**
+   * Re-drive a stalled handoff: post an explicit instruction into a chat with the
+   * target agents in the structured `mentions` array — Band only DELIVERS a
+   * message to an agent that is mentioned by id, so this is what actually wakes a
+   * stuck next-agent (plain "@name" text in the body is cosmetic). `targets` are
+   * bandHandles ("varbtw/code-synthesizer"), plain handles, or agent names.
+   * Best-effort; returns false if the room/chat isn't ready or no target resolves.
+   */
+  async nudge(targets: string[], content: string, phaseIndex = 0): Promise<boolean> {
+    const room = this.room;
+    if (!room) return false;
+    const chat = room.phases[phaseIndex];
+    if (!chat) return false;
+    const mentions: BandMention[] = [];
+    for (const t of targets) {
+      const want = t.replace(/^@/, "");
+      const a = room.roster.find(
+        (r) => r.bandHandle === want || r.handle === want || r.name === want
+      );
+      if (a && a.id !== room.selfId && !mentions.some((m) => m.id === a.id)) {
+        mentions.push(mentionOf(a));
+      }
+    }
+    if (mentions.length === 0) return false;
+    try {
+      await room.client.sendMessage(chat.id, content, mentions);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private async bootstrapRoom(project?: Project): Promise<void> {
     const key = process.env.BAND_API_KEY;
     if (!key) return;

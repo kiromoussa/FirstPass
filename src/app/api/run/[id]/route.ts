@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { loadProject, persistProject } from "@/lib/project-persistence";
 import { runPipeline } from "@/lib/pipeline";
 import { runBandPipeline } from "@/lib/band-pipeline";
+import { runDemoPipeline } from "@/lib/demo-run";
 import { BandChannel, BAND_LIVE } from "@/lib/integrations/band";
 
 export const runtime = "nodejs";
@@ -84,7 +85,14 @@ export async function GET(
       const roomTimer = setInterval(() => void pollRoom(), 3000);
 
       try {
-        const pipeline = BAND_LIVE ? runBandPipeline : runPipeline;
+        // Demo mode: env flag, or any run of the demo DWG (no restart needed).
+        const demoDwg = /los\s*angeles\s*\(?1\)?/i.test(project.dwgName ?? "");
+        const pipeline =
+          process.env.FIRSTPASS_DEMO === "1" || demoDwg
+            ? runDemoPipeline
+            : BAND_LIVE
+            ? runBandPipeline
+            : runPipeline;
         for await (const state of pipeline(project, channel)) {
           if (closed) return; // client gone — stop the orphaned run
           send("state", state);

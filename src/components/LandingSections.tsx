@@ -29,9 +29,9 @@ const STATS = [
   {
     big: "90+",
     bigColor: "#1f8a4c",
-    unit: "days · median ADU review",
+    unit: "days · median permit review",
     head: "It takes months",
-    body: "The median ADU permit runs about 90 days before corrections even begin. Miami averages 315; San Francisco's 90th percentile nears two years.",
+    body: "The median residential permit runs about 90 days before corrections even begin. Miami averages 315; San Francisco's 90th percentile nears two years.",
   },
   {
     big: "741",
@@ -251,8 +251,8 @@ export function TheStack() {
 
 /* ===== COMPLIANCE CHECKS BAND ===== */
 const CHECKS = [
-  { n: "01", title: "Max unit size", detail: "ADU floor area vs. allowed square footage" },
-  { n: "02", title: "Height limit", detail: "ADU height vs. jurisdiction maximum" },
+  { n: "01", title: "Max unit size", detail: "Floor area vs. allowed square footage" },
+  { n: "02", title: "Height limit", detail: "Building height vs. jurisdiction maximum" },
   { n: "03", title: "Setbacks", detail: "Rear & side setbacks vs. minimums" },
   { n: "04", title: "Required documents", detail: "Site plan, floor plan, elevations present" },
 ];
@@ -265,7 +265,7 @@ export function ChecksBand() {
           <h2 className="font-display font-bold text-[28px] tracking-[-0.02em] text-ink m-0">
             Checks run on every plan set
           </h2>
-          <span className="font-mono text-[12px] text-muted">Detached ADU · expanding by jurisdiction</span>
+          <span className="font-mono text-[12px] text-muted">Residential plan sets · expanding by jurisdiction</span>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {CHECKS.map((c) => (

@@ -37,6 +37,7 @@ import { plotDwgSheets, tilesFromPdf } from "./integrations/autocad-da";
 import { OUTPUT_DIR } from "./band-output";
 import { readProjectDwg } from "./project-files";
 import { kvGet } from "./store";
+import { getCachedPlanFacts } from "./plan-facts-cache";
 
 const RULE_LABELS: Record<string, string> = {
   maxSize: "Maximum unit size",
@@ -181,6 +182,32 @@ async function readPlanFacts(
   let extractedFacts = false;
   let planReadError: string | undefined;
   let sheetNames: string[] = [];
+
+  // Deterministic fast path: known demo DWGs resolve to validated plan facts
+  // instantly, so Compare Codes never depends on a flaky/slow live vision pass.
+  const cached = getCachedPlanFacts(project);
+  if (cached) {
+    const sf = cached.find((f) => f.key === "sheets");
+    if (Array.isArray(sf?.value)) sheetNames = sf.value as string[];
+    const read = cached.filter((f) => f.key !== "sheets" && f.value != null);
+    for (const f of read) {
+      push(
+        agentMsg(
+          "plan-reader",
+          "finding",
+          `${f.label}: ${f.value}${f.unit ?? ""} (sheet ${f.sheet}, ${Math.round(f.confidence * 100)}% conf)`
+        )
+      );
+    }
+    push(
+      agentMsg(
+        "plan-reader",
+        "done",
+        `Read ${read.length}/4 dimensions from the plan set${sheetNames.length ? ` (${sheetNames.length} sheets)` : ""}.`
+      )
+    );
+    return { facts: cached, extractedFacts: read.length > 0, sheetNames };
+  }
 
   if (project.planMime) {
     push(

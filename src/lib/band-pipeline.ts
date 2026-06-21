@@ -1,13 +1,26 @@
 // Band-first orchestrator — streams phased firm-style Band conversations (3 chats max).
 import type { Phase, Project, ProjectState } from "./types";
 import type { BandChannel } from "./integrations/band";
-import { outputFresh } from "./band-output";
+import { outputFresh, clearStaleDeliverables } from "./band-output";
 import { ANTHROPIC_AGENT_MODEL } from "./anthropic-model";
 import { rulesFor } from "./code-db";
 import { JURISDICTION_ID } from "./fixtures";
 
 const POLL_MS = 4_000;
 const MAX_RUN_MS = 45 * 60_000;
+// Once the plan set is known unreadable and code research is done, wait this long
+// for any code-only comparison to land before ending the run gracefully — rather
+// than hanging until MAX_RUN_MS waiting for a plan_vs_code.txt that can't come.
+const DEGRADE_GRACE_MS = 90_000;
+
+// Self-healing handoff watchdog. Every hop in the Band workflow depends on one
+// (Haiku-class) LLM agent emitting the right @mention to wake the next agent;
+// when an agent "handles" its message without posting that handoff, the chain
+// stalls silently. The watchdog watches deliverable files and, once a stage is
+// overdue, re-posts a direct @mention to the responsible agent (escalating to
+// the next agent directly if needed) so the flow self-heals instead of hanging.
+const NUDGE_COOLDOWN_MS = 60_000; // min gap between re-nudges of the same stage
+const MAX_NUDGES = 3; // per stage, before we give up and let MAX_RUN_MS handle it
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -112,6 +125,11 @@ export async function* runBandPipeline(
   const started = Date.now();
   let lastAuthor = "";
 
+  // Drop deliverables from PRIOR runs so phase detection reflects ONLY this run
+  // (the files are global on disk; without this a new run can "see" a previous
+  // run's final_summary.txt and skip the live agent collaboration entirely).
+  await clearStaleDeliverables(runStartedMs);
+
   const snapshot = (): ProjectState => ({
     ...state,
     messages: [...state.messages],
@@ -179,6 +197,145 @@ export async function* runBandPipeline(
   let chat2Notified = false;
   let lastPlotStatus = "";
   let waitingForResearchNotified = false;
+  let degradedSinceMs = 0;
+
+  // Watchdog bookkeeping: when each stage first became the blocking stage, and
+  // how many times / how recently we've nudged it.
+  const stageStart: Record<string, number> = {};
+  const stageNudge: Record<string, { count: number; last: number }> = {};
+
+  const addr = project.address || "the project address";
+  const type = (project.projectType || "detached_adu").replace(/_/g, " ");
+
+  // Fire a nudge for `id` when `blocking` has held for `graceMs`, throttled by
+  // NUDGE_COOLDOWN_MS and capped at MAX_NUDGES. `send` receives the 0-based
+  // attempt number so callers can escalate (e.g. re-ask the agent, then drive
+  // the next agent directly). Returns true if a nudge was sent this tick.
+  const maybeNudge = async (
+    id: string,
+    blocking: boolean,
+    graceMs: number,
+    send: (attempt: number) => Promise<boolean>
+  ): Promise<boolean> => {
+    if (!blocking) {
+      delete stageStart[id];
+      return false;
+    }
+    const now = Date.now();
+    if (!stageStart[id]) stageStart[id] = now;
+    if (now - stageStart[id] < graceMs) return false;
+    const st = stageNudge[id] ?? { count: 0, last: 0 };
+    if (st.count >= MAX_NUDGES || now - st.last < NUDGE_COOLDOWN_MS) return false;
+    const sent = await send(st.count);
+    if (sent) {
+      stageNudge[id] = { count: st.count + 1, last: now };
+      state.messages.push({
+        id: `nudge_${id}_${st.count}_${now}`,
+        ts: now,
+        from: "orchestrator",
+        type: "info",
+        text: `Handoff for "${id}" was overdue — re-pinged the responsible agent to keep the workflow moving.`,
+        sponsor: "band",
+      });
+    }
+    return sent;
+  };
+
+  // Watch every handoff and re-drive whichever stage is currently stalled.
+  const runWatchdog = async (): Promise<void> => {
+    const fresh = (f: string) => outputFresh(f, runStartedMs);
+    const [brief, muni, stateCodes, summary, planVsCode, solutions, permit] =
+      await Promise.all([
+        fresh("planner_brief.txt"),
+        fresh("municipal_codes.txt"),
+        fresh("state_codes.txt"),
+        fresh("final_summary.txt"),
+        fresh("plan_vs_code.txt"),
+        fresh("solutions_report.txt"),
+        fresh("permit_report.txt"),
+      ]);
+    const prep = channel.peekPlansPrep();
+    const plansOk = !!prep && prep.ok;
+    const hasSolutions = !!process.env.BAND_AGENT_SOLUTIONS_ID;
+    const hasPermit = !!process.env.BAND_AGENT_PERMIT_ID;
+
+    // 1. Intake brief (PPM).
+    await maybeNudge("intake brief", !brief, 45_000, () =>
+      channel.nudge(
+        ["varbtw/project-property-intake"],
+        `@varbtw/project-property-intake — I don't see \`output/planner_brief.txt\` yet. Complete intake for ${addr} (${type}), write \`output/planner_brief.txt\`, then @mention @varbtw/code-synthesizer **once**.`,
+        0
+      )
+    );
+
+    // 2. Scope + dispatch research. First re-ask the Synthesizer; if still stuck,
+    //    drive the missing researcher(s) directly.
+    await maybeNudge("code research", brief && !(muni && stateCodes), 120_000, (attempt) => {
+      if (attempt === 0) {
+        return channel.nudge(
+          ["varbtw/code-synthesizer"],
+          `@varbtw/code-synthesizer — \`output/planner_brief.txt\` is ready. List the municipal + state code research questions and @mention @varbtw/municipal-researcher and @varbtw/state-code-researcher in **one** message now, then stop.`,
+          0
+        );
+      }
+      const targets: string[] = [];
+      if (!muni) targets.push("varbtw/municipal-researcher");
+      if (!stateCodes) targets.push("varbtw/state-code-researcher");
+      return channel.nudge(
+        targets,
+        `${targets.map((t) => `@${t}`).join(" ")} — research the ADU/zoning code for ${addr} (${type}). Municipal: write \`output/municipal_codes.txt\`. State (California Gov Code + Title 24): write \`output/state_codes.txt\`. Then @mention @varbtw/code-synthesizer **once**.`,
+        0
+      );
+    });
+
+    // 3. Merge into the governing code set.
+    await maybeNudge("code merge", muni && stateCodes && !summary, 45_000, () =>
+      channel.nudge(
+        ["varbtw/code-synthesizer"],
+        `@varbtw/code-synthesizer — \`output/municipal_codes.txt\` and \`output/state_codes.txt\` are both ready. Merge them into \`output/final_summary.txt\` now and @mention @varbtw/compare-codes **once**, then stop.`,
+        0
+      )
+    );
+
+    // 4. Plan vs code comparison (Chat 2) — only when sheets actually exist.
+    await maybeNudge(
+      "plan comparison",
+      summary && channel.chatOpen(1) && plansOk && !planVsCode,
+      80_000,
+      () =>
+        channel.nudge(
+          ["varbtw/compare-codes"],
+          `@varbtw/compare-codes — plan sheets are in \`plans/\` and the governing codes are in \`output/final_summary.txt\`. Read the sheets, write \`output/plan_facts.txt\` and \`output/plan_vs_code.txt\`, then @mention @varbtw/improve-agent **once**.`,
+          1
+        )
+    );
+
+    // 5. Solutions (Chat 3).
+    await maybeNudge(
+      "solutions",
+      planVsCode && channel.chatOpen(2) && hasSolutions && !solutions,
+      80_000,
+      () =>
+        channel.nudge(
+          ["varbtw/improve-agent"],
+          `@varbtw/improve-agent — \`output/plan_vs_code.txt\` is ready. Research a design fix for each FAIL / NEEDS REVIEW item, write \`output/solutions_report.txt\`, then @mention @varbtw/permit-report-agent **once**.`,
+          2
+        )
+    );
+
+    // 6. Permit package (Chat 3).
+    await maybeNudge(
+      "permit package",
+      solutions && channel.chatOpen(2) && hasPermit && !permit,
+      80_000,
+      () =>
+        channel.nudge(
+          ["varbtw/permit-report-agent"],
+          `@varbtw/permit-report-agent — \`output/solutions_report.txt\` is ready. Compile the pre-submission permit package into \`output/permit_report.txt\`, then @mention @varbtw/ceo-boss **once**.`,
+          2
+        )
+    );
+  };
 
   while (Date.now() - started < MAX_RUN_MS) {
     const plotStatus = channel.getPlotStatus();
@@ -235,6 +392,9 @@ export async function* runBandPipeline(
     state.project.status = await inferPhase(lastAuthor, runStartedMs);
     state.project.bandRoomId = channel.roomId ?? undefined;
 
+    // Re-drive any silently-stalled handoff so the chain can't dead-end.
+    await runWatchdog().catch(() => undefined);
+
     if (
       !waitingForResearchNotified &&
       Date.now() - started > 20_000 &&
@@ -252,6 +412,36 @@ export async function* runBandPipeline(
     }
 
     yield snapshot();
+
+    // Graceful terminal path: if the plan set is definitively unreadable (the DWG
+    // plot failed / produced no sheets, or no plan was provided) then Compare
+    // Codes can't produce plan_vs_code.txt. Once code research is done, give a
+    // short grace window for any code-only comparison to land, then end the run
+    // with a clear, actionable message instead of hanging until MAX_RUN_MS.
+    const prep = channel.peekPlansPrep();
+    const planUnreadable = !!prep && !prep.ok;
+    if (
+      planUnreadable &&
+      (await outputFresh("final_summary.txt", runStartedMs)) &&
+      !(await isWorkflowDone(runStartedMs))
+    ) {
+      if (!degradedSinceMs) degradedSinceMs = Date.now();
+      const graceElapsed = Date.now() - degradedSinceMs > DEGRADE_GRACE_MS;
+      const haveComparison = await outputFresh("plan_vs_code.txt", runStartedMs);
+      if (graceElapsed && !haveComparison) {
+        state.project.status = "review";
+        state.messages.push({
+          id: `plans_unreadable_${project.id}`,
+          ts: Date.now(),
+          from: "orchestrator",
+          type: "finding",
+          text: `Could not turn this plan set into readable sheets — ${prep.message ?? "no sheets produced"}. Code research is complete (output/final_summary.txt). To finish the plan-vs-code comparison, re-upload a flattened PDF, or a DWG that contains paper-space layouts (the plotter reads paper space, not model space).`,
+          sponsor: "claude",
+        });
+        yield snapshot();
+        return;
+      }
+    }
 
     if (await isWorkflowDone(runStartedMs)) {
       state.project.status = "done";
