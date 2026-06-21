@@ -12,11 +12,14 @@ from firstpass.archive_tool import ARCHIVE_SCRAPE_TOOLS
 from firstpass.config import init_environment, load_agent_config
 from firstpass.report_tool import REPORT_TOOLS
 
-AgentRole = Literal["researcher", "synthesizer"]
+AgentRole = Literal["researcher", "synthesizer", "comparator"]
 
 
 def _tools_for_role(role: AgentRole) -> list:
-    if role == "synthesizer":
+    # Synthesizer and comparator both work off the researchers' reports in chat
+    # and write a single output report, so they prefer the report tool but can
+    # still scrape archive.org to fill any gap.
+    if role in ("synthesizer", "comparator"):
         return REPORT_TOOLS + ARCHIVE_SCRAPE_TOOLS
     return ARCHIVE_SCRAPE_TOOLS + REPORT_TOOLS
 

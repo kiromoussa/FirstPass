@@ -16,6 +16,7 @@ start() { uv run "$1" & pids+=($!); }
 # Core three (pre-registered).
 start firstpass-municipal
 start firstpass-state
+start firstpass-compare
 start firstpass-synthesizer
 
 # Optional per-layer researchers.

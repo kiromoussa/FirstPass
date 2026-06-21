@@ -41,6 +41,12 @@ band:
     agent_id: ""
     api_key: ""
 
+  # Compares the project plan set against the researched codes and flags likely
+  # violations (run via firstpass-compare).
+  compare_codes:
+    agent_id: "50d5fafe-b84a-49a7-b902-1558d4deeee3"
+    api_key: ""
+
   code_synthesizer:
     agent_id: "94d50391-87a6-4285-a8b7-03faf165722e"
     api_key: ""

@@ -20,6 +20,7 @@ firstpass-residential = "firstpass.agents.residential:main"
 firstpass-plumbing = "firstpass.agents.plumbing:main"
 firstpass-green = "firstpass.agents.green:main"
 firstpass-synthesizer = "firstpass.agents.synthesizer:main"
+firstpass-compare = "firstpass.agents.compare:main"
 firstpass-kickoff = "firstpass.orchestrator:main"
 firstpass-local = "firstpass.local_research:main"
 

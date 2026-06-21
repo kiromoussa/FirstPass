@@ -19,6 +19,7 @@ AGENT_NAMES = {
     "residential_researcher": "Residential Code Researcher",
     "plumbing_researcher": "Plumbing Code Researcher",
     "green_researcher": "Green Code Researcher",
+    "compare_codes": "Compare Codes",
     "code_synthesizer": "Code Synthesizer",
 }
 
@@ -47,6 +48,15 @@ def build_kickoff_message(address: str, project_type: str) -> str:
             f"@{display_name} — Scrape {layer['research_goal']} from Internet Archive "
             f"(archive.org). Write `output/{layer['filename']}`. Post a summary when done."
         )
+    # Compare Codes runs after the researchers (skipped if not configured).
+    if _try_agent_id("compare_codes"):
+        tasks.append(
+            "@Compare Codes — After the researchers post their reports, compare the "
+            "project's plan set against the applicable codes and flag where the design "
+            "likely violates them, with the governing citation. Write "
+            "`output/plan_vs_code.txt`. Post the comparison in chat."
+        )
+        report_files.append("plan_vs_code.txt")
     tasks.append(
         "@Code Synthesizer — After the researchers finish, merge every report into "
         "`output/final_summary.txt`. Post the file path and executive summary in chat."
