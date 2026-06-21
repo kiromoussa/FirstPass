@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { DISCLAIMER } from "@/lib/types";
+import { DISCLAIMER, PROJECT_TYPES, type ProjectType } from "@/lib/types";
 
 export default function Home() {
   const router = useRouter();
   const [name, setName] = useState("Maple St. Detached ADU");
   const [address, setAddress] = useState("1421 Maple St, Alameda, CA 94501");
+  const [projectType, setProjectType] = useState<ProjectType>("detached_adu");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [statusText, setStatusText] = useState("");
@@ -37,7 +38,7 @@ export default function Home() {
     const res = await fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, address, dwgName: isDwg ? file?.name : undefined, apsUrn }),
+      body: JSON.stringify({ name, address, projectType, dwgName: isDwg ? file?.name : undefined, apsUrn }),
     });
     const { id } = await res.json();
 
@@ -107,10 +108,17 @@ export default function Home() {
             />
 
             <label className="block text-sm text-slate-300 mb-1">Project type</label>
-            <div className="w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2.5 mb-4 text-sm text-slate-400 flex items-center justify-between">
-              <span>Detached ADU</span>
-              <span className="text-xs text-ink-600">Alameda, CA</span>
-            </div>
+            <select
+              value={projectType}
+              onChange={(e) => setProjectType(e.target.value as ProjectType)}
+              className="w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2.5 mb-4 text-sm focus:border-accent outline-none"
+            >
+              {PROJECT_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
 
             <label className="block text-sm text-slate-300 mb-1">Plan set (PDF or DWG)</label>
             <label className="w-full border border-dashed border-ink-600 rounded-lg px-3 py-6 mb-6 text-center text-sm text-slate-400 cursor-pointer hover:border-accent block">

@@ -24,8 +24,8 @@ export interface BandMention {
 // A configured agent in the room: a mention plus its research role and the
 // one-line ask used to seed the kickoff message.
 export interface BandAgentDef extends BandMention {
-  role: "researcher" | "synthesizer";
-  ask: string; // research goal — what this researcher should scrape
+  role: "researcher" | "comparator" | "synthesizer";
+  ask: string; // research/compare goal — what this agent should produce
   report: string; // output/<file> the agent must write (drives ingest_band_output)
 }
 
@@ -88,6 +88,17 @@ const AGENT_DEFS = [
     report: "green_codes.txt",
   },
   {
+    // New agent (friend's account): compares the project's plan set against the
+    // applicable codes the researchers found, flagging where the design
+    // violates them — a compliance comparison, before the synthesizer merges.
+    envId: "BAND_AGENT_COMPARE_ID",
+    name: "Compare Codes",
+    fallbackId: "50d5fafe-b84a-49a7-b902-1558d4deeee3",
+    role: "comparator",
+    ask: "compare the project's plan set against the applicable codes the researchers found and flag where the design violates them, with the governing citation",
+    report: "plan_vs_code.txt",
+  },
+  {
     envId: "BAND_AGENT_SYNTHESIZER_ID",
     name: "Code Synthesizer",
     fallbackId: "94d50391-87a6-4285-a8b7-03faf165722e",
@@ -134,6 +145,7 @@ const VIEWER_KEY_ENVS = [
   "BAND_AGENT_RESIDENTIAL_KEY",
   "BAND_AGENT_PLUMBING_KEY",
   "BAND_AGENT_GREEN_KEY",
+  "BAND_AGENT_COMPARE_KEY",
   "BAND_AGENT_SYNTHESIZER_KEY",
 ] as const;
 

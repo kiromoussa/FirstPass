@@ -53,6 +53,7 @@ function kickoffMessage(project: Project | undefined, agents: BandAgentDef[]): s
   const address = project?.address || "the project address";
   const type = (project?.projectType || "detached_adu").replace(/_/g, " ");
   const researchers = agents.filter((a) => a.role === "researcher");
+  const comparators = agents.filter((a) => a.role === "comparator");
   const synth = agents.find((a) => a.role === "synthesizer");
 
   const tasks = researchers.map(
@@ -60,13 +61,23 @@ function kickoffMessage(project: Project | undefined, agents: BandAgentDef[]): s
       `@${a.name} — Scrape ${a.ask} from Internet Archive (archive.org). ` +
       `Write \`output/${a.report}\`. Post a summary when done.`
   );
+  for (const c of comparators) {
+    tasks.push(
+      `@${c.name} — After the researchers post their reports, ${c.ask}. ` +
+        `Write \`output/${c.report}\`. Post the comparison in chat.`
+    );
+  }
   if (synth) {
     tasks.push(
       `@${synth.name} — After the researchers finish, merge every report into ` +
         `\`output/${synth.report}\`. Post the file path and executive summary in chat.`
     );
   }
-  const deliverables = [...researchers.map((a) => a.report), synth?.report]
+  const deliverables = [
+    ...researchers.map((a) => a.report),
+    ...comparators.map((a) => a.report),
+    synth?.report,
+  ]
     .filter(Boolean)
     .join(", ");
 

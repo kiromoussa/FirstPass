@@ -14,6 +14,52 @@ function getClient(): Anthropic | null {
   return client;
 }
 
+// Run a structured-output extraction and return the model's JSON text, or null
+// if it couldn't produce one. Streams (so a large vision/PDF request with
+// adaptive thinking doesn't hit the HTTP timeout) and gives the model real token
+// headroom — at max_tokens:4000 with adaptive thinking on, thinking alone can
+// exhaust the budget on a dense plan set, truncating the JSON to nothing. Every
+// failure mode is LOGGED rather than silently swallowed, so "couldn't read" can
+// be told apart from "API rejected the request" / "ran out of tokens" / "refused".
+async function extractJson(
+  c: Anthropic,
+  content: Anthropic.ContentBlockParam[],
+  schema: object,
+  label: string,
+  maxTokens = 16000
+): Promise<string | null> {
+  try {
+    const stream = c.messages.stream({
+      model: MODEL,
+      max_tokens: maxTokens,
+      messages: [{ role: "user", content }],
+      // Adaptive thinking + structured outputs; spread-cast because the pinned
+      // SDK's published types predate these fields.
+      ...({
+        thinking: { type: "adaptive" },
+        output_config: { format: { type: "json_schema", schema } },
+      } as any),
+    });
+    const resp = await stream.finalMessage();
+    if (resp.stop_reason === "refusal") {
+      console.error(`[claude:${label}] request refused — ${JSON.stringify((resp as any).stop_details ?? {})}`);
+      return null;
+    }
+    if (resp.stop_reason === "max_tokens") {
+      console.error(`[claude:${label}] hit max_tokens (${maxTokens}) before finishing — JSON truncated. Raise the budget or reduce the input.`);
+    }
+    const text = resp.content.find((b) => b.type === "text");
+    if (!text || text.type !== "text") {
+      console.error(`[claude:${label}] no text block in response (stop_reason=${resp.stop_reason}).`);
+      return null;
+    }
+    return text.text;
+  } catch (e) {
+    console.error(`[claude:${label}] API call failed:`, (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
 // Structured extraction of plan facts from blueprint page images.
 // `pageImages` are base64 PNGs (without data: prefix). Empty → cached facts.
 export async function extractPlanFacts(
@@ -90,7 +136,8 @@ export async function extractPlanFacts(
         confidence: typeof m.confidence === "number" ? m.confidence : cf.confidence,
       };
     });
-  } catch {
+  } catch (e) {
+    console.error("[claude:extractPlanFacts] failed, using cached reference facts:", (e as Error)?.message ?? e);
     return CACHED_FACTS;
   }
 }
@@ -153,7 +200,8 @@ export async function interpretDwgText(lines: string[]): Promise<PlanFact[]> {
       if (!m || typeof m.value !== "number") return cf;
       return { ...cf, value: m.value, confidence: m.confidence ?? cf.confidence, raw: m.raw ?? cf.raw };
     });
-  } catch {
+  } catch (e) {
+    console.error("[claude:interpretDwgText] failed, using cached reference facts:", (e as Error)?.message ?? e);
     return CACHED_FACTS;
   }
 }
@@ -223,33 +271,23 @@ export async function extractPlanFactsFromDoc(
     : ({ type: "image", source: { type: "base64", media_type: (mediaType || "image/png") as "image/png", data: dataBase64 } } as Anthropic.ContentBlockParam);
 
   try {
-    const resp = await c.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text:
-                `You are a licensed residential plan checker reading a ${projectType.replace(/_/g, " ")} ` +
-                "permit plan set. Read the drawings, dimension strings, and schedules and report ONLY what " +
-                "is actually shown: conditioned floor area (unitSize, sqft), building height to ridge (ft), " +
-                "rear setback (ft), and side setback (ft). Cite the sheet each value comes from (e.g. 'A1.0') " +
-                "and quote the raw label you read it from. Set confidence honestly: use a value below 0.4 if " +
-                "a dimension is unclear, ambiguous, or not shown — do NOT guess. Also list every sheet number " +
-                "in the set. Emit at most one fact per key.",
-            },
-            doc,
-          ],
-        },
-      ],
-      ...({ thinking: { type: "adaptive" }, output_config: { format: { type: "json_schema", schema } } } as any),
-    });
-    const text = resp.content.find((b) => b.type === "text");
-    if (!text || text.type !== "text") return nullFacts();
-    const parsed = JSON.parse(text.text) as { facts: any[]; sheets: string[] };
+    const content: Anthropic.ContentBlockParam[] = [
+      {
+        type: "text",
+        text:
+          `You are a licensed residential plan checker reading a ${projectType.replace(/_/g, " ")} ` +
+          "permit plan set. Read the drawings, dimension strings, and schedules and report ONLY what " +
+          "is actually shown: conditioned floor area (unitSize, sqft), building height to ridge (ft), " +
+          "rear setback (ft), and side setback (ft). Cite the sheet each value comes from (e.g. 'A1.0') " +
+          "and quote the raw label you read it from. Set confidence honestly: use a value below 0.4 if " +
+          "a dimension is unclear, ambiguous, or not shown — do NOT guess. Also list every sheet number " +
+          "in the set. Emit at most one fact per key.",
+      },
+      doc,
+    ];
+    const raw = await extractJson(c, content, schema, "extractPlanFactsFromDoc");
+    if (raw == null) return nullFacts();
+    const parsed = JSON.parse(raw) as { facts: any[]; sheets: string[] };
     const byKey = new Map(parsed.facts.map((f) => [f.key, f]));
     const facts: PlanFact[] = NUMERIC_KEYS.map((k) => {
       const m = byKey.get(k.key);
@@ -277,7 +315,8 @@ export async function extractPlanFactsFromDoc(
       confidence: parsed.sheets?.length ? 0.9 : 0,
     });
     return facts;
-  } catch {
+  } catch (e) {
+    console.error("[claude:extractPlanFactsFromDoc] could not parse model output:", (e as Error)?.message ?? e);
     return nullFacts();
   }
 }
@@ -340,15 +379,9 @@ export async function extractPlanFactsFromDocs(
   }
 
   try {
-    const resp = await c.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      messages: [{ role: "user", content }],
-      ...({ thinking: { type: "adaptive" }, output_config: { format: { type: "json_schema", schema } } } as any),
-    });
-    const text = resp.content.find((b) => b.type === "text");
-    if (!text || text.type !== "text") return nullFacts();
-    const parsed = JSON.parse(text.text) as { facts: any[] };
+    const raw = await extractJson(c, content, schema, "extractPlanFactsFromDocs", 32000);
+    if (raw == null) return nullFacts();
+    const parsed = JSON.parse(raw) as { facts: any[] };
     const byKey = new Map(parsed.facts.map((f) => [f.key, f]));
     const facts: PlanFact[] = NUMERIC_KEYS.map((k) => {
       const m = byKey.get(k.key);
@@ -359,7 +392,8 @@ export async function extractPlanFactsFromDocs(
     });
     facts.push({ key: "sheets", label: "Sheets present", value: sheets.map((s) => s.name), unit: "docs", sheet: "—", bbox: null, confidence: 0.95 });
     return facts;
-  } catch {
+  } catch (e) {
+    console.error("[claude:extractPlanFactsFromDocs] could not parse model output:", (e as Error)?.message ?? e);
     return nullFacts();
   }
 }
@@ -421,15 +455,9 @@ export async function extractPlanFactsFromImages(
   }
 
   try {
-    const resp = await c.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      messages: [{ role: "user", content }],
-      ...({ thinking: { type: "adaptive" }, output_config: { format: { type: "json_schema", schema } } } as any),
-    });
-    const text = resp.content.find((b) => b.type === "text");
-    if (!text || text.type !== "text") return nullFacts();
-    const parsed = JSON.parse(text.text) as { facts: any[] };
+    const raw = await extractJson(c, content, schema, "extractPlanFactsFromImages", 32000);
+    if (raw == null) return nullFacts();
+    const parsed = JSON.parse(raw) as { facts: any[] };
     const byKey = new Map(parsed.facts.map((f) => [f.key, f]));
     const facts: PlanFact[] = NUMERIC_KEYS.map((k) => {
       const m = byKey.get(k.key);
@@ -440,7 +468,8 @@ export async function extractPlanFactsFromImages(
     });
     facts.push({ key: "sheets", label: "Sheets present", value: sheetNames, unit: "docs", sheet: "—", bbox: null, confidence: 0.95 });
     return facts;
-  } catch {
+  } catch (e) {
+    console.error("[claude:extractPlanFactsFromImages] could not parse model output:", (e as Error)?.message ?? e);
     return nullFacts();
   }
 }

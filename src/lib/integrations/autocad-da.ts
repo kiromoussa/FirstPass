@@ -12,6 +12,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { unzipSync } from "fflate";
 import {
   APS_LIVE,
   BUCKET_KEY,
@@ -185,36 +186,29 @@ export async function plotDwgSheets(
     const dlUrl = await finalizeUpload(BUCKET_KEY, outKey, outTarget.uploadKey);
     if (!dlUrl) return [];
     const zipBuf = Buffer.from(await (await fetch(dlUrl)).arrayBuffer());
-    return await unzipPdfs(zipBuf);
+    return unzipPdfs(zipBuf);
   } catch {
     return [];
   }
 }
 
-// Unzip the result archive into per-sheet PDFs. Uses the system `unzip` (present
-// in local dev). In a serverless deploy this would be swapped for a zip lib.
-async function unzipPdfs(zipBuf: Buffer): Promise<PlottedSheet[]> {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firstpass-da-"));
-  const zipPath = path.join(dir, "out.zip");
-  fs.writeFileSync(zipPath, zipBuf);
+// Unzip the result archive into per-sheet PDFs. Uses fflate (pure JS, in-memory)
+// rather than the system `unzip` binary — the binary isn't present on serverless
+// (Vercel) functions, which would silently break the only accurate DWG path.
+function unzipPdfs(zipBuf: Buffer): PlottedSheet[] {
+  let entries: Record<string, Uint8Array>;
   try {
-    await execFileP("unzip", ["-o", zipPath, "-d", dir]);
+    entries = unzipSync(new Uint8Array(zipBuf));
   } catch {
     return [];
   }
   const sheets: PlottedSheet[] = [];
-  const walk = (d: string) => {
-    for (const ent of fs.readdirSync(d, { withFileTypes: true })) {
-      const p = path.join(d, ent.name);
-      if (ent.isDirectory()) walk(p);
-      else if (ent.name.toLowerCase().endsWith(".pdf")) {
-        sheets.push({ name: ent.name.replace(/\.pdf$/i, ""), data: fs.readFileSync(p).toString("base64") });
-      }
-    }
-  };
-  walk(dir);
+  for (const [name, bytes] of Object.entries(entries)) {
+    if (!name.toLowerCase().endsWith(".pdf")) continue; // skip dirs/other files
+    const base = name.split("/").pop()!.replace(/\.pdf$/i, "");
+    sheets.push({ name: base, data: Buffer.from(bytes).toString("base64") });
+  }
   // Stable order (TS, A0.1, A1.0 … S2.0)
   sheets.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best-effort */ }
   return sheets;
 }

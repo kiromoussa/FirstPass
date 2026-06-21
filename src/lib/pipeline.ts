@@ -18,7 +18,7 @@ import { DISCLAIMER } from "./types";
 import { JURISDICTION_ID, deriveChecklist } from "./fixtures";
 import { researchSources } from "./integrations/browserbase";
 import { extractPlanFacts, explain, interpretDwgText, extractPlanFactsFromDoc, extractPlanFactsFromDocs, extractPlanFactsFromImages } from "./integrations/claude";
-import { APS_LIVE, listViewables, extractSheetText } from "./integrations/aps";
+import { APS_LIVE, listViewables, extractSheetText, waitForTranslation } from "./integrations/aps";
 import { plotDwgSheets, tilesFromPdf } from "./integrations/autocad-da";
 import { evaluateFinding } from "./integrations/arize";
 import { BandChannel } from "./integrations/band";
@@ -186,6 +186,15 @@ export async function* runPipeline(
       // honest about what it can and can't read.
       emit(msg("plan-reader", "info", "Could not plot the DWG — falling back to text extraction; unread checks will be flagged for manual review.", { sponsor: "claude" }));
       yield snapshot();
+      // The text-extraction path reads Model Derivative metadata, which only
+      // exists once translation completes. translate() was kicked off at upload
+      // and never awaited, so wait for it here before listing/reading viewables —
+      // otherwise we'd read an empty manifest and flag everything for review.
+      const md = await waitForTranslation(urn);
+      if (md && md.status !== "success") {
+        emit(msg("plan-reader", "info", `Autodesk translation ${md.status} (${md.progress}) — no readable sheets; checks will be flagged for manual review.`, { sponsor: "claude" }));
+        yield snapshot();
+      }
       const lines: string[] = [];
       const sheets = await listViewables(urn);
       sheetNames = sheets.map((s) => s.name).filter((n) => n && !/^(2D|3D) Views$/i.test(n));

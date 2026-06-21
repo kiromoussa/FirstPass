@@ -65,11 +65,20 @@ export interface BandRoomMessage {
   kind: "agent" | "human" | "orchestrator"; // who posted it, for styling
 }
 
+// ADU subtype. The applicability eval (Arize) keys off this — a rule whose
+// `appliesTo` doesn't match the project's subtype scores low and fails.
+export type ProjectType = "detached_adu" | "attached_adu";
+
+export const PROJECT_TYPES: { value: ProjectType; label: string }[] = [
+  { value: "detached_adu", label: "Detached ADU" },
+  { value: "attached_adu", label: "Attached ADU" },
+];
+
 export interface Project {
   id: string;
   name: string;
   address: string;
-  projectType: "detached_adu";
+  projectType: ProjectType;
   jurisdictionId: string;
   citySlug?: string; // data/cities/<slug> corpus to run against (default alameda-ca)
   status: Phase;
