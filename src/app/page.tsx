@@ -42,7 +42,20 @@ export default function Home() {
     });
     const { id } = await res.json();
 
-    // 3. A PDF/image plan set is read natively by Claude vision — upload it and
+    // 3. Stage DWG on disk for Compare Codes (works even when APS upload fails).
+    if (file && isDwg) {
+      try {
+        setStatusText(apsUrn ? "DWG uploaded to APS…" : "Staging DWG for Compare Codes…");
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("projectId", id);
+        await fetch("/api/dwg/stage", { method: "POST", body: fd });
+      } catch {
+        /* agent will report missing file */
+      }
+    }
+
+    // 4. A PDF/image plan set is read natively by Claude vision — upload it and
     //    attach to the project before we navigate to the run.
     if (file && isVision) {
       try {

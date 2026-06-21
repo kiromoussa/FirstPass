@@ -3,6 +3,8 @@ import type { Phase, Project, ProjectState } from "./types";
 import type { BandChannel } from "./integrations/band";
 import { outputFresh } from "./band-output";
 import { ANTHROPIC_AGENT_MODEL } from "./anthropic-model";
+import { rulesFor } from "./code-db";
+import { JURISDICTION_ID } from "./fixtures";
 
 const POLL_MS = 4_000;
 const MAX_RUN_MS = 45 * 60_000;
@@ -19,7 +21,8 @@ const AUTHOR_PHASE: Record<string, Phase> = {
   "Visual Analysis": "read",
   "Compare Codes": "comply",
   "Solutions Agent": "review",
-  "Permit Report Agent": "report",
+  "Improve Agent": "review",
+  "Permit Agent": "report",
 };
 
 async function checkAnthropic(): Promise<string | null> {
@@ -69,10 +72,19 @@ async function inferPhase(latestAuthor: string | undefined, runStartedMs: number
 
 async function isWorkflowDone(runStartedMs: number): Promise<boolean> {
   if (await outputFresh("permit_report.txt", runStartedMs)) return true;
-  if (await outputFresh("solutions_report.txt", runStartedMs)) return true;
-  const hasCloseout =
-    !!process.env.BAND_AGENT_SOLUTIONS_ID || !!process.env.BAND_AGENT_PERMIT_ID;
-  if (!hasCloseout && (await outputFresh("plan_vs_code.txt", runStartedMs))) return true;
+  const hasPermit = !!process.env.BAND_AGENT_PERMIT_ID;
+  const hasSolutions = !!process.env.BAND_AGENT_SOLUTIONS_ID;
+  if (
+    (await outputFresh("solutions_report.txt", runStartedMs)) &&
+    !hasPermit
+  )
+    return true;
+  if (
+    !hasSolutions &&
+    !hasPermit &&
+    (await outputFresh("plan_vs_code.txt", runStartedMs))
+  )
+    return true;
   return false;
 }
 
@@ -82,10 +94,11 @@ export async function* runBandPipeline(
 ): AsyncGenerator<ProjectState> {
   await channel.ready;
 
+  const citySlug = project.citySlug ?? JURISDICTION_ID;
   const state: ProjectState = {
     project: { ...project, status: "jurisdiction" },
     sources: [],
-    rules: [],
+    rules: rulesFor(citySlug),
     facts: [],
     findings: [],
     checklist: [],
@@ -170,7 +183,7 @@ export async function* runBandPipeline(
       plansPrepNotified = true;
       const detail =
         plansPrep.ok && plansPrep.files.length
-          ? `${plansPrep.message ?? "Plan sheets ready"} — Visual agent will read ${plansPrep.files.length} file(s) and write plan_facts.txt for Compare Codes.`
+          ? `${plansPrep.message ?? "Plan sheets ready"} — @varbtw/compare-codes will read ${plansPrep.files.length} file(s), write plan_facts.txt + plan_vs_code.txt.`
           : plansPrep.message ?? "No plan sheets in plans/ — upload PDF or DWG before starting.";
       state.messages.push({
         id: `plans_prep_${Date.now()}`,

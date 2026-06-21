@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kvSet } from "@/lib/store";
+import { persistProject } from "@/lib/project-persistence";
 import { resolveCitySlug, loadCityMeta, cityLabel } from "@/lib/code-db";
 import type { Project, ProjectType } from "@/lib/types";
 import { PROJECT_TYPES } from "@/lib/types";
@@ -37,6 +37,6 @@ export async function POST(req: NextRequest) {
     dwgName: body.dwgName,
     apsUrn: body.apsUrn,
   };
-  await kvSet(`proj:${id}`, project);
+  await persistProject(project);
   return NextResponse.json({ id, citySlug });
 }

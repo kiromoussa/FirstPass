@@ -18,6 +18,8 @@ AGENT_CONFIG = [
     ("state_researcher", "State Code Researcher", "varbtw/state-code-researcher"),
     ("visual_analysis", "Visual Analysis", "varbtw/vis-agent"),
     ("compare_codes", "Compare Codes", "varbtw/compare-codes"),
+    ("solutions_agent", "Improve Agent", "varbtw/improve-agent"),
+    ("permit_report", "Permit Agent", "varbtw/permit-report-agent"),
 ]
 
 

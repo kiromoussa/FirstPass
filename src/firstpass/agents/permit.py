@@ -1,4 +1,4 @@
-"""Permit Agent — compares uploaded plan sets against city permit checklists."""
+"""Permit Agent — researches permit portals via Browserbase and builds submission packages."""
 
 from __future__ import annotations
 

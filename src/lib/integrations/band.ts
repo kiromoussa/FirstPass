@@ -85,27 +85,35 @@ Code research is complete (\`output/final_summary.txt\`).
 ${planLine}
 **Project type:** ${type}
 
-@${planner.bandHandle} — Open design review. @mention @varbtw/vis-agent **once** to read \`plans/\` (PDF/PNG from upload or DWG plot) and write \`output/plan_facts.txt\`. After Visual confirms, @mention @varbtw/compare-codes **once** to compare plan facts vs code.`,
+@${planner.bandHandle} — @mention @varbtw/compare-codes **once**. Compare Codes reads the DWG/PDF (APS plot + Claude vision), writes \`output/plan_facts.txt\` and \`output/plan_vs_code.txt\`, then hands off to Solutions. Visual (\`@varbtw/vis-agent\`) is fallback only if Compare Codes reports missing plan input.`,
     mentions: [mentionOf(planner)],
   };
 }
 
-function phase3Kickoff(compare: BandAgentDef, solutions?: BandAgentDef, permit?: BandAgentDef): {
+function phase3Kickoff(solutions?: BandAgentDef, permit?: BandAgentDef, compare?: BandAgentDef): {
   content: string;
   mentions: BandMention[];
 } {
-  const solutionsHandle = solutions?.bandHandle ?? "@varbtw/solutions-agent";
-  const permitHandle = permit?.bandHandle ?? "@varbtw/permit-report-agent";
-  const next = solutions
-    ? `${solutionsHandle} for design fixes, then ${permitHandle}, then @varbtw/ceo-boss for final sign-off.`
-    : `@varbtw/ceo-boss for executive review (register Solutions + Permit agents to extend closeout).`;
+  const solutionsHandle = solutions?.bandHandle ?? "varbtw/improve-agent";
+  const permitHandle = permit?.bandHandle ?? "varbtw/permit-report-agent";
+  if (solutions) {
+    return {
+      content: `**Chat 3 — Closeout**
+
+Comparison saved (\`output/plan_vs_code.txt\`).
+
+@${solutionsHandle} — Read plan_vs_code.txt and write \`output/solutions_report.txt\`. Research design fixes with Browserbase for each FAIL / NEEDS REVIEW item. @mention @${permitHandle} **once** when done, then stop.`,
+      mentions: [mentionOf(solutions)],
+    };
+  }
+  const compareHandle = compare?.bandHandle ?? "varbtw/compare-codes";
   return {
     content: `**Chat 3 — Closeout**
 
 Comparison saved (\`output/plan_vs_code.txt\`).
 
-@${compare.bandHandle} — Hand off closeout: ${next}`,
-    mentions: [mentionOf(compare)],
+@${compareHandle} — Hand off closeout: @varbtw/improve-agent for design fixes, then @varbtw/permit-report-agent for the permit package, then @varbtw/ceo-boss for final sign-off.`,
+    mentions: compare ? [mentionOf(compare)] : [],
   };
 }
 
@@ -197,7 +205,7 @@ export class BandChannel {
           if (a.id === room.selfId) continue;
           await room.client.addParticipant(chat.id!, a.id).catch(() => null);
         }
-        const kick = phase3Kickoff(compare, solutions, permit);
+        const kick = phase3Kickoff(solutions, permit, compare);
         await room.client.sendMessage(chat.id, kick.content, kick.mentions).catch(() => null);
         room.phases.push({ id: chat.id, label: "Chat 3 · Closeout" });
         room.closeoutOpened = true;

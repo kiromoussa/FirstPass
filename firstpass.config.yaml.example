@@ -37,7 +37,7 @@ band:
     agent_id: ""
     api_key: ""
   permit_report:
-    agent_id: ""   # @varbtw/permit-report-agent
+    agent_id: ""   # @varbtw/permit-report-agent (Permit Agent — Browserbase portal research + package review)
     api_key: ""
   orchestrator:
     agent_id: ""
