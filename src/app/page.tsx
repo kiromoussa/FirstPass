@@ -14,9 +14,13 @@ export default function Home() {
 
   async function start() {
     setBusy(true);
+    const name_l = file?.name.toLowerCase() ?? "";
+    const isDwg = /\.(dwg|dxf)$/.test(name_l) || /acad|dxf/i.test(file?.type ?? "");
+    const isVision = !!file && !isDwg && /\.(pdf|png|jpe?g)$/.test(name_l);
+
     let apsUrn: string | undefined;
     // 1. If a DWG was provided, upload it to Autodesk APS and start translation.
-    if (file) {
+    if (file && isDwg) {
       try {
         setStatusText("Uploading DWG to Autodesk APS…");
         const fd = new FormData();
@@ -33,9 +37,23 @@ export default function Home() {
     const res = await fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, address, dwgName: file?.name, apsUrn }),
+      body: JSON.stringify({ name, address, dwgName: isDwg ? file?.name : undefined, apsUrn }),
     });
     const { id } = await res.json();
+
+    // 3. A PDF/image plan set is read natively by Claude vision — upload it and
+    //    attach to the project before we navigate to the run.
+    if (file && isVision) {
+      try {
+        setStatusText("Uploading plan set for Claude to read…");
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("projectId", id);
+        await fetch("/api/plans/upload", { method: "POST", body: fd });
+      } catch {
+        /* fall back to reference facts */
+      }
+    }
     router.push(`/project/${id}`);
   }
 
@@ -94,22 +112,23 @@ export default function Home() {
               <span className="text-xs text-ink-600">Alameda, CA</span>
             </div>
 
-            <label className="block text-sm text-slate-300 mb-1">Plan set (DWG)</label>
+            <label className="block text-sm text-slate-300 mb-1">Plan set (PDF or DWG)</label>
             <label className="w-full border border-dashed border-ink-600 rounded-lg px-3 py-6 mb-6 text-center text-sm text-slate-400 cursor-pointer hover:border-accent block">
               <input
                 type="file"
-                accept=".dwg,application/acad,image/vnd.dwg,application/dxf,.dxf"
+                accept=".pdf,.png,.jpg,.jpeg,.dwg,.dxf,application/pdf,application/acad,image/vnd.dwg,application/dxf"
                 className="hidden"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               />
               {file ? (
                 <span className="text-accent">{file.name}</span>
               ) : (
-                <span>Drag &amp; drop or click to upload your AutoCAD DWG</span>
+                <span>Drag &amp; drop or click to upload your plan set</span>
               )}
               <div className="text-[11px] text-ink-600 mt-1">
-                Translated by Autodesk APS. Optional for the demo — a validated Alameda ADU
-                reference is used if none is provided.
+                <strong className="text-slate-400">PDF (recommended):</strong> Claude reads the sheets
+                directly and measures dimensions. <strong className="text-slate-400">DWG:</strong> translated
+                by Autodesk APS for viewing. Optional — a validated reference set is used if none is provided.
               </div>
             </label>
 

@@ -52,6 +52,19 @@ export interface AgentMessage {
   refs?: string[]; // finding/source ids
 }
 
+// A message read back from the REAL Band collaboration room (GET
+// /chats/{id}/messages). Unlike AgentMessage (the local synthetic feed the
+// pipeline emits), these are the actual posts the registered Band research
+// agents — and the human owner — make in the room, surfaced so the run can be
+// double-checked against what the agents truly said.
+export interface BandRoomMessage {
+  id: string;
+  author: string; // display name resolved from the room participants
+  content: string;
+  ts: number; // epoch ms (0 if Band gave no parseable timestamp)
+  kind: "agent" | "human" | "orchestrator"; // who posted it, for styling
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -65,6 +78,9 @@ export interface Project {
   pdfName?: string;
   dwgName?: string;
   apsUrn?: string; // Autodesk Model Derivative URN for the translated DWG
+  // A plan set (PDF/image) was uploaded for native Claude-vision reading; bytes
+  // live in the store under `plan:<id>`. This is the accurate fact source.
+  planMime?: string;
 }
 
 export interface Source {

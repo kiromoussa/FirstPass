@@ -15,10 +15,11 @@ import type {
   ReportSection,
 } from "./types";
 import { DISCLAIMER } from "./types";
-import { RULES, JURISDICTION_ID, deriveChecklist } from "./fixtures";
+import { JURISDICTION_ID, deriveChecklist } from "./fixtures";
 import { researchSources } from "./integrations/browserbase";
-import { extractPlanFacts, explain, interpretDwgText } from "./integrations/claude";
-import { APS_LIVE, manifest, listViewables, extractSheetText } from "./integrations/aps";
+import { extractPlanFacts, explain, interpretDwgText, extractPlanFactsFromDoc, extractPlanFactsFromDocs, extractPlanFactsFromImages } from "./integrations/claude";
+import { APS_LIVE, listViewables, extractSheetText } from "./integrations/aps";
+import { plotDwgSheets, tilesFromPdf } from "./integrations/autocad-da";
 import { evaluateFinding } from "./integrations/arize";
 import { BandChannel } from "./integrations/band";
 import { flushTraces } from "./integrations/otel";
@@ -28,8 +29,8 @@ import {
   scoreFrom,
   languageLint,
 } from "./compliance";
-import { saveState } from "./store";
-import { seedCodeChunks, retrieveCode, cityLabel } from "./code-db";
+import { saveState, kvGet } from "./store";
+import { seedCodeChunks, retrieveCode, cityLabel, rulesFor } from "./code-db";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -65,10 +66,13 @@ export async function* runPipeline(
 ): AsyncGenerator<ProjectState> {
   // The city corpus this run retrieves code from (data/cities/<slug>).
   const citySlug = project.citySlug ?? JURISDICTION_ID;
+  // The jurisdiction's own compliance rules (LA plan → LA limits, Alameda plan →
+  // Alameda limits). Falls back to the built-in set for un-researched cities.
+  const rules = rulesFor(citySlug);
   const state: ProjectState = {
     project: { ...project, status: "jurisdiction" },
     sources: [],
-    rules: RULES,
+    rules,
     facts: [],
     findings: [],
     checklist: [],
@@ -123,49 +127,99 @@ export async function* runPipeline(
   // ---- Phase 3: Plan Reading (APS translation + Claude) ----
   state.project.status = "read";
   let facts: PlanFact[];
+  // `extractedFacts` = we genuinely read dimensioned values off the drawing.
+  // When a DWG is uploaded but nothing readable comes back, we must NOT pass the
+  // reference demo numbers off as measured — the checks become "needs review".
+  let extractedFacts = false;
+  let sheetNames: string[] = [];
   const urn = project.apsUrn;
-  if (APS_LIVE && urn) {
-    emit(msg("plan-reader", "info", "Checking Autodesk translation of the DWG…", { sponsor: "claude" }));
+  if (project.planMime) {
+    // Accurate path: Claude reads the uploaded plan set (PDF/image) natively.
+    emit(msg("plan-reader", "info", `Reading the ${/pdf/i.test(project.planMime) ? "PDF" : "image"} plan set with Claude vision — measuring dimensions off the drawings…`, { sponsor: "claude" }));
     yield snapshot();
-    // Translation was kicked off at upload. A real multi-sheet plan set can take
-    // a minute+, so poll until it actually finishes rather than bailing early to
-    // reference facts (which is what made the read feel instant + generic).
-    let mfst = await manifest(urn);
-    for (let i = 0; i < 40 && mfst && mfst.status !== "success" && mfst.status !== "failed" && mfst.status !== "timeout"; i++) {
-      emit(msg("plan-reader", "info", `Autodesk translating the DWG… ${mfst.progress || "in progress"}`, { sponsor: "claude" }));
+    const stored = await kvGet<{ mediaType: string; data: string }>(`plan:${project.id}`);
+    if (stored?.data) {
+      facts = await extractPlanFactsFromDoc(stored.data, stored.mediaType, project.projectType);
+      const read = facts.filter((f) => f.key !== "sheets" && f.value != null);
+      const sf = facts.find((f) => f.key === "sheets");
+      if (Array.isArray(sf?.value)) sheetNames = sf.value as string[];
+      extractedFacts = read.length > 0;
+      emit(msg("plan-reader", "done", `Read ${read.length}/4 dimensions from the plans${sheetNames.length ? ` across ${sheetNames.length} sheets` : ""}. Unread values will be flagged for manual review.`, { sponsor: "claude" }));
       yield snapshot();
-      await sleep(3000);
-      mfst = await manifest(urn);
+    } else {
+      emit(msg("plan-reader", "info", "Plan set could not be loaded — flagging checks for manual review.", { sponsor: "claude" }));
+      facts = await extractPlanFacts([]);
     }
-    if (mfst?.status === "success") {
-      // Read EVERY sheet/layout in the set, not just the first viewable.
-      const sheets = await listViewables(urn);
-      emit(msg("plan-reader", "done", `DWG translated — ${sheets.length} sheet${sheets.length === 1 ? "" : "s"} found. Extracting text & properties from each…`, { sponsor: "claude" }));
+  } else if (APS_LIVE && urn) {
+    // Accurate DWG path: plot every layout to a legible PDF with Autodesk Design
+    // Automation (real AutoCAD in the cloud), then read the sheets with Claude
+    // vision. APS Model Derivative properties are empty and its rasters are
+    // illegible, so this plot→vision route is what makes DWG facts trustworthy.
+    emit(msg("plan-reader", "info", "Plotting the DWG sheets to PDF with Autodesk (AutoCAD cloud)…", { sponsor: "claude" }));
+    yield snapshot();
+    const plotted = await plotDwgSheets(urn);
+    if (plotted.length > 0) {
+      sheetNames = plotted.map((s) => s.name);
+      emit(msg("plan-reader", "info", `Plotted ${plotted.length} sheet${plotted.length === 1 ? "" : "s"} (${sheetNames.join(", ")}). Tiling at high resolution so dimensions are legible…`, { sponsor: "claude" }));
+      yield snapshot();
+      // Tile each sheet into high-DPI crops — a full ARCH-D sheet downsampled to
+      // vision's ~1568px makes dimension text unreadable; tiles keep it legible.
+      const tiles: { label: string; data: string }[] = [];
+      for (const s of plotted) {
+        if (tiles.length >= 80) break; // stay under the 100-image/request cap
+        tiles.push(...(await tilesFromPdf(s.data, s.name)));
+      }
+      emit(msg("plan-reader", "info", `Reading ${tiles.length} sheet tiles with Claude vision — measuring dimensions off the drawings…`, { sponsor: "claude" }));
+      yield snapshot();
+      facts = tiles.length > 0
+        ? await extractPlanFactsFromImages(tiles, project.projectType)
+        : await extractPlanFactsFromDocs(plotted, project.projectType);
+      const read = facts.filter((f) => f.key !== "sheets" && f.value != null);
+      extractedFacts = read.length > 0;
+      for (const f of facts.filter((x) => x.key !== "sheets" && x.value != null)) {
+        emit(msg("plan-reader", "finding", `Read ${f.label}: ${f.value}${f.unit} from sheet ${f.sheet} (${Math.round(f.confidence * 100)}% conf) — "${f.raw}".`, { sponsor: "claude" }));
+      }
+      emit(msg("plan-reader", "done", `Read ${read.length}/4 dimensions across ${plotted.length} plotted sheets. Unread values will be flagged for manual review.`, { sponsor: "claude" }));
+      yield snapshot();
+    } else {
+      // DA unavailable/failed → fall back to the (text) extraction path, which is
+      // honest about what it can and can't read.
+      emit(msg("plan-reader", "info", "Could not plot the DWG — falling back to text extraction; unread checks will be flagged for manual review.", { sponsor: "claude" }));
       yield snapshot();
       const lines: string[] = [];
-      for (let i = 0; i < sheets.length; i++) {
-        const sheetLines = await extractSheetText(urn, sheets[i]);
-        lines.push(...sheetLines);
-        emit(msg("plan-reader", "info", `Read sheet ${i + 1}/${sheets.length}: ${sheets[i].name} (${sheetLines.length} labels).`, { sponsor: "claude" }));
-        yield snapshot();
-      }
-      emit(msg("plan-reader", "info", `Interpreting ${lines.length} extracted labels with Claude…`, { sponsor: "claude" }));
-      yield snapshot();
-      facts = await interpretDwgText(lines);
-    } else {
-      emit(msg("plan-reader", "info", `Translation did not complete (${mfst?.status ?? "no manifest"}) — using the validated reference facts for this pass.`, { sponsor: "claude" }));
-      facts = await extractPlanFacts(pageImages);
+      const sheets = await listViewables(urn);
+      sheetNames = sheets.map((s) => s.name).filter((n) => n && !/^(2D|3D) Views$/i.test(n));
+      for (const v of sheets) lines.push(...(await extractSheetText(urn, v)));
+      facts = lines.length > 0 ? ((extractedFacts = true), await interpretDwgText(lines)) : await extractPlanFacts([]);
     }
   } else {
-    emit(msg("plan-reader", "info", "Reading the plan set and extracting structured facts…", { sponsor: "claude" }));
+    // No DWG uploaded — the curated reference set is the intended demo input.
+    emit(msg("plan-reader", "info", "Reading the reference plan set and extracting structured facts…", { sponsor: "claude" }));
     yield snapshot();
     facts = await extractPlanFacts(pageImages);
+    extractedFacts = true;
   }
+
+  // Honesty gate: a DWG was uploaded but we couldn't measure it → don't fabricate
+  // values. Null the numeric facts (engine → NEEDS_REVIEW) but keep the REAL
+  // sheet list we got from the translation.
+  const unverified = (!!urn || !!project.planMime) && !extractedFacts;
+  if (unverified) {
+    facts = facts.map((f) =>
+      f.key === "sheets"
+        ? sheetNames.length
+          ? { ...f, value: sheetNames, raw: `Sheets in set: ${sheetNames.join(", ")}`, confidence: 0.95 }
+          : f
+        : { ...f, value: null, confidence: 0, raw: "Not extracted — the DWG exposed no readable dimension text." }
+    );
+  }
+
   state.facts = facts;
   const shown = facts.filter((f) => f.key !== "sheets").slice(0, 3);
   for (const f of shown) {
+    const valStr = f.value == null ? "not found in drawing" : `${f.value}${f.unit && f.unit !== "docs" ? f.unit : ""}`;
     emit(
-      msg("plan-reader", "finding", `${f.label}: ${f.value}${f.unit && f.unit !== "docs" ? f.unit : ""} (sheet ${f.sheet}, ${Math.round(f.confidence * 100)}% conf)`, { sponsor: "claude" })
+      msg("plan-reader", f.value == null ? "info" : "finding", `${f.label}: ${valStr} (sheet ${f.sheet}, ${Math.round(f.confidence * 100)}% conf)`, { sponsor: "claude" })
     );
   }
   yield snapshot();
@@ -182,17 +236,23 @@ export async function* runPipeline(
   for (const key of numericKeys) {
     // First pass deliberately does NOT enforce applicability — this is how the
     // wrong (attached) height rule gets selected, the bug Arize will catch.
-    const rule = selectRule(RULES, key, project.projectType, false);
+    const rule = selectRule(rules, key, project.projectType, false);
     const fact = factByKey(key);
     if (!rule || !fact) continue;
     const res = compareNumeric(fact, rule);
     const chunk = await retrieveCode(key, rule.appliesTo, citySlug); // RAG: only the relevant chunk
+    // When the value couldn't be read, state the applicable limit + citation so
+    // the reviewer knows exactly what to verify by hand — not a bare "no value".
+    const detail =
+      fact.value == null
+        ? `Could not read from the drawing — applicable limit: ${rule.operator} ${rule.threshold}${rule.unit ?? ""} (${chunk?.section ?? rule.sourceId}). Manual verification required.`
+        : res.detail;
     const f: Finding = {
       id: `f_${key}`,
       ruleKey: key,
       title: RULE_LABELS[key],
       status: res.status,
-      message: res.detail,
+      message: detail,
       factRef: fact.key,
       ruleRef: rule.key,
       sourceRef: rule.sourceId,
@@ -203,7 +263,7 @@ export async function* runPipeline(
     };
     state.findings.push(f);
     emit(
-      msg("compliance", res.status === "FAIL" ? "finding" : "info", `${f.title}: ${res.status} — ${res.detail}`, { refs: [f.id] })
+      msg("compliance", res.status === "FAIL" ? "finding" : "info", `${f.title}: ${res.status} — ${detail}`, { refs: [f.id] })
     );
     await sleep(250);
     yield snapshot();
@@ -238,7 +298,7 @@ export async function* runPipeline(
   await sleep(300);
 
   for (const f of state.findings) {
-    const rule = RULES.find((r) => r.key === f.ruleKey && r.sourceId === f.sourceRef) ?? RULES.find((r) => r.key === f.ruleKey);
+    const rule = rules.find((r) => r.key === f.ruleKey && r.sourceId === f.sourceRef) ?? rules.find((r) => r.key === f.ruleKey);
     const fact = facts.find((x) => x.key === f.factRef);
     const source = state.sources.find((s) => s.id === f.sourceRef);
     const evals = evaluateFinding({ finding: f, rule, fact, source, projectSubtype: project.projectType });
@@ -254,7 +314,7 @@ export async function* runPipeline(
       await sleep(700);
 
       // Re-select WITH applicability enforced → the correct detached rule.
-      const correctRule = selectRule(RULES, f.ruleKey, project.projectType, true);
+      const correctRule = selectRule(rules, f.ruleKey, project.projectType, true);
       const correctFact = facts.find((x) => x.key === (f.ruleKey === "maxSize" ? "unitSize" : f.ruleKey));
       if (correctRule && correctFact) {
         const res = compareNumeric(correctFact, correctRule);

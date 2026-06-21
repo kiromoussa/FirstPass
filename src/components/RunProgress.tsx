@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { PHASES, type ProjectState, type Phase, type Sponsor, type Finding } from "@/lib/types";
+import { PHASES, type ProjectState, type Phase, type Sponsor, type Finding, type BandRoomMessage } from "@/lib/types";
 import { AGENT_META, MSG_META, SPONSOR_META, STATUS_META } from "@/lib/ui";
 
 const ORDER: Phase[] = ["jurisdiction", "research", "read", "comply", "review", "report", "done"];
@@ -49,12 +49,14 @@ export function RunProgress({
   error,
   projectId,
   bandRoomId,
+  bandRoom = [],
   onOpenDashboard,
 }: {
   state: ProjectState | null;
   error: string | null;
   projectId: string;
   bandRoomId?: string | null;
+  bandRoom?: BandRoomMessage[];
   onOpenDashboard: () => void;
 }) {
   const status = state?.project.status ?? "created";
@@ -336,7 +338,27 @@ export function RunProgress({
                 </Panel>
               )}
 
-              {/* Live agent activity */}
+              {/* The REAL Band room transcript — the actual conversation
+                  between the registered research agents, polled live from
+                  Band. Shown whenever a room is open so the run can be
+                  double-checked against what the agents truly said. */}
+              {bandRoomId && (
+                <Panel
+                  title={`Band room · live${bandRoom.length ? ` · ${bandRoom.length}` : ""}`}
+                >
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto scrollbar-thin">
+                    {bandRoom.length === 0 ? (
+                      <p className="text-xs text-slate-600 py-1">
+                        Room open — waiting for the agents to reply…
+                      </p>
+                    ) : (
+                      bandRoom.map((m) => <RoomMessage key={m.id} m={m} />)
+                    )}
+                  </div>
+                </Panel>
+              )}
+
+              {/* Live agent activity (local pipeline narration) */}
               <Panel title={`Agent activity · Band${messages.length ? ` · ${messages.length}` : ""}`}>
                 <div className="space-y-2 max-h-[260px] overflow-y-auto scrollbar-thin">
                   {recent.length === 0 && <div className="text-xs text-slate-600 py-1">Waiting for agents…</div>}
@@ -385,6 +407,37 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
       </div>
       <div className="p-3">{children}</div>
     </section>
+  );
+}
+
+// One message from the real Band room. Color-coded by who posted it: the
+// research agents (purple/Band), the human owner, or the FirstPass orchestrator.
+function RoomMessage({ m }: { m: BandRoomMessage }) {
+  const band = SPONSOR_META.band.color;
+  const accent =
+    m.kind === "agent" ? band : m.kind === "human" ? "#3ddc97" : "#8aa0b6";
+  const role =
+    m.kind === "agent" ? "agent" : m.kind === "human" ? "you" : "orchestrator";
+  return (
+    <div
+      className="rounded-lg border bg-ink-800/60 px-3 py-2"
+      style={{ borderColor: `${accent}55` }}
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: accent }} />
+        <span className="text-xs font-medium text-slate-200 truncate">{m.author}</span>
+        <span
+          className="text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
+          style={{ color: accent, background: `${accent}1a` }}
+        >
+          {role}
+        </span>
+        {m.ts > 0 && (
+          <span className="ml-auto text-[9px] text-slate-600 flex-shrink-0">{timeOf(m.ts)}</span>
+        )}
+      </div>
+      <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap break-words">{m.content}</p>
+    </div>
   );
 }
 

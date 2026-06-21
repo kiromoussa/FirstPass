@@ -280,4 +280,78 @@ export async function extractText(
   return out.slice(0, 4000);
 }
 
+// Decode a Model Derivative URN back to its OSS objectId / bucket / key. The
+// URN is url-safe base64 of `urn:adsk.objects:os.object:<bucket>/<key>`.
+export function decodeUrn(urn: string): { objectId: string; bucket: string; key: string } | null {
+  try {
+    const b64 = urn.replace(/-/g, "+").replace(/_/g, "/");
+    const objectId = Buffer.from(b64 + "=".repeat((4 - (b64.length % 4)) % 4), "base64").toString("utf-8");
+    const m = objectId.match(/^urn:adsk\.objects:os\.object:([^/]+)\/(.+)$/);
+    if (!m) return null;
+    return { objectId, bucket: m[1], key: m[2] };
+  } catch {
+    return null;
+  }
+}
+
+// A signed, time-limited GET url for an OSS object (used to feed the DWG to
+// Design Automation as a workitem input).
+export async function signedDownloadUrl(bucket: string, objectKey: string): Promise<string | null> {
+  const t = await getToken();
+  if (!t) return null;
+  try {
+    const r = await fetch(
+      `${APS_BASE}/oss/v2/buckets/${bucket}/objects/${encodeURIComponent(objectKey)}/signeds3download?minutesExpiration=60`,
+      { headers: auth(t) }
+    );
+    if (!r.ok) return null;
+    return ((await r.json()) as { url: string }).url;
+  } catch {
+    return null;
+  }
+}
+
+// A signed PUT url for a (new) OSS object plus the uploadKey needed to finalize
+// it — used as the Design Automation workitem output target.
+export async function signedUploadTarget(
+  bucket: string,
+  objectKey: string
+): Promise<{ url: string; uploadKey: string } | null> {
+  const t = await getToken();
+  if (!t) return null;
+  try {
+    const r = await fetch(
+      `${APS_BASE}/oss/v2/buckets/${bucket}/objects/${encodeURIComponent(objectKey)}/signeds3upload?minutesExpiration=60`,
+      { headers: auth(t) }
+    );
+    if (!r.ok) return null;
+    const j = (await r.json()) as { urls: string[]; uploadKey: string };
+    return { url: j.urls[0], uploadKey: j.uploadKey };
+  } catch {
+    return null;
+  }
+}
+
+export async function finalizeUpload(bucket: string, objectKey: string, uploadKey: string): Promise<string | null> {
+  const t = await getToken();
+  if (!t) return null;
+  try {
+    await fetch(`${APS_BASE}/oss/v2/buckets/${bucket}/objects/${encodeURIComponent(objectKey)}/signeds3upload`, {
+      method: "POST",
+      headers: { ...auth(t), "Content-Type": "application/json" },
+      body: JSON.stringify({ uploadKey }),
+    });
+    const r = await fetch(`${APS_BASE}/oss/v2/buckets/${bucket}/objects/${encodeURIComponent(objectKey)}/signeds3download`, { headers: auth(t) });
+    if (!r.ok) return null;
+    return ((await r.json()) as { url: string }).url;
+  } catch {
+    return null;
+  }
+}
+
+// Token with the `code:all` scope Design Automation requires.
+export async function getDaToken(): Promise<string | null> {
+  return getToken("code:all data:read data:write bucket:create bucket:read");
+}
+
 export { BUCKET_KEY };

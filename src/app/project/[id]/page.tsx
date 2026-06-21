@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import type { ProjectState, Sponsor } from "@/lib/types";
+import type { BandRoomMessage, ProjectState, Sponsor } from "@/lib/types";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { PhaseRail } from "@/components/PhaseRail";
 import { SponsorRail } from "@/components/SponsorRail";
@@ -24,11 +24,15 @@ export default function ProjectDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [viewDashboard, setViewDashboard] = useState(false);
   const [bandRoomId, setBandRoomId] = useState<string | null>(null);
-  const started = useRef(false);
+  const [bandRoom, setBandRoom] = useState<BandRoomMessage[]>([]);
 
   useEffect(() => {
-    if (started.current || !id) return;
-    started.current = true;
+    if (!id) return;
+    // Own the EventSource in the effect (no persistent "started" ref): under
+    // React Strict Mode the effect runs mount→cleanup→mount, and a ref guard
+    // would close the first stream then refuse to reopen — leaving the run
+    // stuck on "Connecting…". Letting cleanup close and remount reopen is the
+    // correct, Strict-Mode-safe pattern.
     const es = new EventSource(`/api/run/${id}`);
     es.addEventListener("state", (e) => {
       setState(JSON.parse((e as MessageEvent).data));
@@ -37,6 +41,14 @@ export default function ProjectDashboard() {
     es.addEventListener("band", (e) => {
       try {
         setBandRoomId(JSON.parse((e as MessageEvent).data).roomId ?? null);
+      } catch {
+        /* ignore */
+      }
+    });
+    // Live transcript of the real Band room (the actual agent conversation).
+    es.addEventListener("band-room", (e) => {
+      try {
+        setBandRoom(JSON.parse((e as MessageEvent).data).messages ?? []);
       } catch {
         /* ignore */
       }
@@ -85,6 +97,7 @@ export default function ProjectDashboard() {
         error={error}
         projectId={id}
         bandRoomId={bandRoomId}
+        bandRoom={bandRoom}
         onOpenDashboard={() => setViewDashboard(true)}
       />
     );

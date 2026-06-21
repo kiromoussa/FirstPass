@@ -87,8 +87,23 @@ export function ApsViewer({ urn }: { urn: string }) {
           Autodesk.Viewing.Document.load(
             `urn:${urn}`,
             (doc: any) => {
-              const node = doc.getRoot().getDefaultGeometry();
-              viewer.loadDocumentNode(doc, node).then(() => setPhase("ready"));
+              const root = doc.getRoot();
+              // A DWG usually translates to 2D sheets, so the default *3D*
+              // geometry is null. Fall back to whatever viewable exists (2D or
+              // 3D) instead of passing null to loadDocumentNode (which throws).
+              let node = root.getDefaultGeometry();
+              if (!node) {
+                const geoms = root.search({ type: "geometry" });
+                node = geoms && geoms.length ? geoms[0] : null;
+              }
+              if (!node) {
+                setPhase("error");
+                return;
+              }
+              viewer
+                .loadDocumentNode(doc, node)
+                .then(() => setPhase("ready"))
+                .catch(() => setPhase("error"));
             },
             () => setPhase("error")
           );

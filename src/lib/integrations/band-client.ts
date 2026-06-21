@@ -21,41 +21,129 @@ export interface BandMention {
   handle: string;
 }
 
+// A configured agent in the room: a mention plus its research role and the
+// one-line ask used to seed the kickoff message.
+export interface BandAgentDef extends BandMention {
+  role: "researcher" | "synthesizer";
+  ask: string; // research goal — what this researcher should scrape
+  report: string; // output/<file> the agent must write (drives ingest_band_output)
+}
+
 const DEFAULT_BASE = "https://app.band.ai/api/v1/agent";
 
-// The three research agents already registered at app.band.ai. The ids match
-// the firstpass.config.yaml the room was first built with so the room works
-// against the same agents out of the box; override any of them via env.
+// The full researcher roster, mirroring the friend's orchestrator (main branch:
+// src/firstpass/orchestrator.py AGENT_NAMES). The friend's engine now researches
+// every code layer, not just municipal+state. The CORE THREE are pre-registered
+// at app.band.ai (ids below); the four extra code-layer researchers have no
+// fallback id, so they are AUTOMATICALLY SKIPPED until you register them and set
+// their env id — exactly the "skipped if agent_id is empty" rule in their
+// firstpass.config.yaml.example. Override any id via env.
 const AGENT_DEFS = [
   {
     envId: "BAND_AGENT_MUNICIPAL_ID",
     name: "Municipal Code Researcher",
     fallbackId: "28e83f6c-4362-4539-8e53-0f31477d99c1",
+    role: "researcher",
+    ask: "Municipal ADU / zoning codes (size, setbacks, parking, submittal)",
+    report: "municipal_codes.txt",
   },
   {
     envId: "BAND_AGENT_STATE_ID",
     name: "State Code Researcher",
     fallbackId: "0d05ac9f-7998-4030-86d2-72381854ebd3",
+    role: "researcher",
+    ask: "California state ADU standards that preempt local limits (Gov. Code 65852 / 66310, Title 24)",
+    report: "state_codes.txt",
+  },
+  {
+    envId: "BAND_AGENT_BUILDING_ID",
+    name: "Building Code Researcher",
+    fallbackId: "",
+    role: "researcher",
+    ask: "California Building Code (CBC) occupancy, fire separation, egress for dwellings",
+    report: "building_codes.txt",
+  },
+  {
+    envId: "BAND_AGENT_RESIDENTIAL_ID",
+    name: "Residential Code Researcher",
+    fallbackId: "",
+    role: "researcher",
+    ask: "California Residential Code (CRC) ceiling height, smoke/CO alarms, escape openings",
+    report: "residential_codes.txt",
+  },
+  {
+    envId: "BAND_AGENT_PLUMBING_ID",
+    name: "Plumbing Code Researcher",
+    fallbackId: "",
+    role: "researcher",
+    ask: "California Plumbing Code (CPC) minimum fixtures and water heater requirements",
+    report: "plumbing_codes.txt",
+  },
+  {
+    envId: "BAND_AGENT_GREEN_ID",
+    name: "Green Code Researcher",
+    fallbackId: "",
+    role: "researcher",
+    ask: "CALGreen water-efficiency, EV-ready, and waste-reduction mandatory measures",
+    report: "green_codes.txt",
   },
   {
     envId: "BAND_AGENT_SYNTHESIZER_ID",
     name: "Code Synthesizer",
     fallbackId: "94d50391-87a6-4285-a8b7-03faf165722e",
+    role: "synthesizer",
+    ask: "",
+    report: "final_summary.txt",
   },
 ] as const;
 
-// Mention list for the registered research agents (handle = kebab-cased name,
-// matching the Python build_mentions()).
-export function bandAgents(): BandMention[] {
-  return AGENT_DEFS.map((a) => ({
-    id: process.env[a.envId] || a.fallbackId,
-    name: a.name,
-    handle: a.name.toLowerCase().replace(/\s+/g, "-"),
-  }));
+// Every CONFIGURED agent (handle = kebab-cased name, matching the Python
+// build_mentions()). Agents without a resolved id are skipped, so registering
+// only the core three keeps the room working while leaving room to grow.
+export function bandAgents(): BandAgentDef[] {
+  const out: BandAgentDef[] = [];
+  for (const a of AGENT_DEFS) {
+    const id = process.env[a.envId] || a.fallbackId;
+    if (!id) continue; // unconfigured optional researcher → skip
+    out.push({
+      id,
+      name: a.name,
+      handle: a.name.toLowerCase().replace(/\s+/g, "-"),
+      role: a.role,
+      ask: a.ask,
+      report: a.report,
+    });
+  }
+  return out;
 }
 
 function base(): string {
   return (process.env.BAND_REST_URL || DEFAULT_BASE).replace(/\/+$/, "");
+}
+
+// Band's messages API is mention-scoped per agent: each key only sees messages
+// that @mention it. To reconstruct the FULL room transcript we read with every
+// available agent key and union the results. These are the read-only "viewer"
+// keys (the orchestrator BAND_API_KEY is what actually sends). Distinct, so a
+// shared orchestrator/agent key isn't queried twice.
+const VIEWER_KEY_ENVS = [
+  "BAND_API_KEY",
+  "BAND_AGENT_MUNICIPAL_KEY",
+  "BAND_AGENT_STATE_KEY",
+  "BAND_AGENT_BUILDING_KEY",
+  "BAND_AGENT_RESIDENTIAL_KEY",
+  "BAND_AGENT_PLUMBING_KEY",
+  "BAND_AGENT_GREEN_KEY",
+  "BAND_AGENT_SYNTHESIZER_KEY",
+] as const;
+
+export function bandViewerKeys(): string[] {
+  const seen = new Set<string>();
+  for (const env of VIEWER_KEY_ENVS) {
+    const k = process.env[env];
+    if (k) seen.add(k);
+  }
+  return [...seen];
 }
 
 export class BandClient {
@@ -77,6 +165,8 @@ export class BandClient {
       method,
       headers: this.headers,
       body: body === undefined ? undefined : JSON.stringify(body),
+      // Never let a slow/hanging Band call stall a run — Band is best-effort.
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
@@ -134,4 +224,46 @@ export class BandClient {
       message: { content, mentions },
     });
   }
+
+  // Read the full room transcript. `?status=all` returns every message (not the
+  // mention-filtered subset /context gives the agent); Band documents this
+  // endpoint as the one "for diagnostics and dashboards", which is exactly the
+  // live room view FirstPass shows. The wire shape isn't pinned in the docs, so
+  // callers normalize defensively — here we just unwrap the common envelopes.
+  async listMessages(chatId: string): Promise<RawBandMessage[]> {
+    const data = await this.request<unknown>(
+      "GET",
+      `/chats/${chatId}/messages?status=all`
+    );
+    if (Array.isArray(data)) return data as RawBandMessage[];
+    if (data && typeof data === "object") {
+      const obj = data as { messages?: unknown; items?: unknown };
+      if (Array.isArray(obj.messages)) return obj.messages as RawBandMessage[];
+      if (Array.isArray(obj.items)) return obj.items as RawBandMessage[];
+    }
+    return [];
+  }
+}
+
+// Loose shape for a Band message. The agent API doesn't publish an exact schema,
+// so every field is optional and consumers probe the common alternatives.
+export interface RawBandMessage {
+  id?: string | number;
+  content?: string;
+  text?: string;
+  message?: { content?: string };
+  // author identity arrives under several names depending on message origin.
+  // Band's live shape uses sender_id + sender_name; older/other shapes nest it.
+  author?: { id?: string; name?: string };
+  sender?: { id?: string; name?: string };
+  sender_id?: string;
+  sender_name?: string;
+  participant_id?: string;
+  author_name?: string;
+  // Phoenix/Elixir backend → timestamps are usually inserted_at
+  created_at?: string;
+  inserted_at?: string;
+  timestamp?: string | number;
+  // Band embeds the id→name map for the @[[uuid]] markers in the content here.
+  metadata?: { mentions?: { id?: string; name?: string }[] };
 }
