@@ -2,13 +2,14 @@
 
 ![FirstPass landing page — permit-readiness pipeline](docs/images/landing-hero.png)
 
-**AI-powered pre-submission permit-readiness assistant** for residential ADU projects.
+**AI-powered pre-submission permit-readiness assistant** for architecture and building projects.
 
 Upload a plan set (PDF or DWG), and FirstPass runs a multi-agent pipeline: it resolves the jurisdiction, researches the governing building codes, reads your plans, runs compliance checks, audits the findings, and produces a **cited permit-readiness report** with a score, flagged issues, and a missing-documents checklist.
 
 > FirstPass is a *pre-submission compliance assistant*, not official permit approval. Findings indicate *likely* issues for early correction and require confirmation by a licensed professional and the governing jurisdiction.
 
-**Built for the [UC Berkeley AI Hackathon 2026](https://berkeley.ai)** by Kiro Moussa, Varun Sanjeev, David Pelazini, and Krishiv Bhatia.
+**Built for the [UC Berkeley AI Hackathon 2026](https://berkeley.ai)** by Kiro Moussa, Varun Sanjeev, David Pelazini, and Krishiv Bhatia.  
+**[Devpost submission →](https://devpost.com/software/firstpass-mdta7f)**
 
 **Demo video:** [youtu.be/xaxAYptLR-M](https://youtu.be/xaxAYptLR-M)
 
@@ -16,7 +17,7 @@ Upload a plan set (PDF or DWG), and FirstPass runs a multi-agent pipeline: it re
 
 ## The problem
 
-Most residential permit submissions don't pass on the first try. Rules live across municipal portals, state amendments, and PDF code books — technically public, but hard to navigate without a compliance team. Small architecture firms lose weeks (and clients) to avoidable rejections.
+Most permit submissions don't pass on the first try. Rules live across municipal portals, state amendments, and PDF code books — technically public, but hard to navigate without a compliance team. Architecture firms lose weeks (and clients) to avoidable rejections.
 
 FirstPass is the **first pass** a plan set gets before a city plan reviewer sees it: catch likely violations early, with official citations and retrieval dates, in minutes instead of months.
 
@@ -106,7 +107,7 @@ uv sync
 ./scripts/run_agents.sh
 ```
 
-**Try the demo:** open the app, use the pre-filled Los Angeles ADU address, upload `Los_Angeles_(1).dwg` (or any PDF plan set), and click **Run FirstPass**. The demo pipeline runs real plan reading and compliance against the cached Los Angeles code corpus.
+**Try the demo:** open the app, enter a project address, upload a plan set (PDF or DWG — `Los_Angeles_(1).dwg` works well), and click **Run FirstPass**. The demo pipeline runs real plan reading and compliance against the cached Los Angeles code corpus.
 
 ---
 
