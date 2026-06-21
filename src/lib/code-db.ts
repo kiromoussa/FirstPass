@@ -162,6 +162,18 @@ export async function storedChunkCount(slug: string): Promise<number> {
   return ids?.length ?? 0;
 }
 
+// All chunks for a store-backed city, read from Redis. [] if none.
+export async function loadStoredChunks(slug: string): Promise<CodeChunk[]> {
+  const ids = await kvGet<string[]>(indexKey(slug));
+  if (!ids?.length) return [];
+  const out: CodeChunk[] = [];
+  for (const id of ids) {
+    const c = await kvGet<CodeChunk>(chunkKey(slug, id));
+    if (c) out.push(c);
+  }
+  return out;
+}
+
 // Retrieve the single most relevant code chunk for a rule key (+ optional
 // applicability hint, e.g. "detached_adu" vs "attached_adu") within a city.
 // Reads from Redis when available, else the city's on-disk / built-in corpus.
