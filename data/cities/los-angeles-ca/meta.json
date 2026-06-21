@@ -19,7 +19,8 @@
     "residential_code_crc.txt": "S6",
     "plumbing_code_cpc.txt": "S7",
     "green_code_calgreen.txt": "S8",
-    "state_codes.txt": "B1"
+    "state_codes.txt": "B1",
+    "building_regulations_lamc.txt": "S9"
   },
   "sources": [
     {
@@ -66,6 +67,11 @@
       "id": "B1",
       "url": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=GOV&sectionNum=66314",
       "title": "California Gov. Code §66310 et seq. — ADU State Standards (leginfo, verbatim)"
+    },
+    {
+      "id": "S9",
+      "url": "https://codelibrary.amlegal.com/codes/los_angeles/latest/lamc/0-0-0-1",
+      "title": "Los Angeles Municipal Code, Chapter IX — Building Regulations (LABC, full text)"
     }
   ]
 }
