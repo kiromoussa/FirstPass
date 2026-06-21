@@ -40,6 +40,14 @@ The live **Run** screen shows the pipeline step-by-step: agent activity, tools i
 
 ---
 
+## Results
+
+Real output from a Los Angeles single-family / ADU review — **1216 E 92nd St** (`Los Angeles(1).dwg`). FirstPass reads the plan set in the Autodesk viewer, extracts setbacks and height from the sheets, runs deterministic compliance against the LA corpus, and surfaces a **40/100 permit-readiness score** with cited findings (1 likely violation, 7 items needing review).
+
+![FirstPass dashboard — plan viewer, extracted facts, compliance findings, and agent activity for a Los Angeles ADU review](./docs/results-dashboard.png)
+
+---
+
 ## Sponsor tools (hackathon stack)
 
 FirstPass is built around the hackathon sponsor integrations. Each tool has a visible role in the product — not just a logo in the footer.
