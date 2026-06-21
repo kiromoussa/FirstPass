@@ -2,6 +2,7 @@
 // mimic a real architecture firm: Intake & Code → Design Review → Closeout.
 import type { AgentMessage, BandRoomMessage, MessageType, Project } from "../types";
 import { outputFresh } from "../band-output";
+import { ensurePlansReady, type PlansPrepResult } from "../plans-prep";
 import {
   BandClient,
   bandAgents,
@@ -67,13 +68,24 @@ New project for FirstPass pre-submission review.
   };
 }
 
-function phase2Kickoff(planner: BandAgentDef): { content: string; mentions: BandMention[] } {
+function phase2Kickoff(
+  planner: BandAgentDef,
+  planFiles: string[],
+  project?: Project
+): { content: string; mentions: BandMention[] } {
+  const type = (project?.projectType || "detached_adu").replace(/_/g, " ");
+  const planLine =
+    planFiles.length > 0
+      ? `Plan sheets ready in \`plans/\`: ${planFiles.slice(0, 8).join(", ")}${planFiles.length > 8 ? ` (+${planFiles.length - 8} more)` : ""}.`
+      : "No readable sheets in `plans/` yet — Visual will report empty.";
   return {
     content: `**Chat 2 — Design Review**
 
 Code research is complete (\`output/final_summary.txt\`).
+${planLine}
+**Project type:** ${type}
 
-@${planner.bandHandle} — Open the design review phase. @mention @varbtw/vis-agent to read \`plans/\` and write \`output/plan_facts.txt\`, then @mention @varbtw/compare-codes for plan vs code.`,
+@${planner.bandHandle} — Open design review. @mention @varbtw/vis-agent **once** to read \`plans/\` (PDF/PNG from upload or DWG plot) and write \`output/plan_facts.txt\`. After Visual confirms, @mention @varbtw/compare-codes **once** to compare plan facts vs code.`,
     mentions: [mentionOf(planner)],
   };
 }
@@ -100,10 +112,16 @@ Comparison saved (\`output/plan_vs_code.txt\`).
 export class BandChannel {
   private sinks: Sink[] = [];
   private room: LiveRoom | null = null;
+  private project?: Project;
+  private plansPrepPromise: Promise<PlansPrepResult> | null = null;
   readonly buffer: AgentMessage[] = [];
   readonly ready: Promise<void>;
 
   constructor(public readonly projectId: string, project?: Project) {
+    this.project = project;
+    if (project?.apsUrn || project?.planMime) {
+      this.plansPrepPromise = ensurePlansReady(project);
+    }
     this.ready = this.bootstrapRoom(project).catch(() => undefined);
   }
 
@@ -119,10 +137,21 @@ export class BandChannel {
     return this.room?.phases.map((p) => p.id) ?? [];
   }
 
+  /** Prepare plans/ from PDF upload or DWG plot (runs during Chat 1 when possible). */
+  async preparePlans(): Promise<PlansPrepResult> {
+    if (!this.project) {
+      return { ok: false, files: [], message: "Project context missing for plan prep." };
+    }
+    if (!this.plansPrepPromise) {
+      this.plansPrepPromise = ensurePlansReady(this.project);
+    }
+    return this.plansPrepPromise;
+  }
+
   /** Open chat 2/3 when prior phase deliverables land on disk. */
-  async advancePhases(runStartedMs: number): Promise<void> {
+  async advancePhases(runStartedMs: number): Promise<{ plansPrep?: PlansPrepResult }> {
     const room = this.room;
-    if (!room) return;
+    if (!room) return {};
 
     const roster = room.roster;
     const planner = byRole(roster, "planner");
@@ -139,6 +168,7 @@ export class BandChannel {
       compare &&
       (await outputFresh("final_summary.txt", runStartedMs))
     ) {
+      const plansPrep = await this.preparePlans();
       const chat = await room.client.createChat();
       if (chat.id) {
         await room.client.addOwner(chat.id).catch(() => null);
@@ -146,10 +176,11 @@ export class BandChannel {
           if (a.id === room.selfId) continue;
           await room.client.addParticipant(chat.id!, a.id).catch(() => null);
         }
-        const kick = phase2Kickoff(planner);
+        const kick = phase2Kickoff(planner, plansPrep.files, this.project);
         await room.client.sendMessage(chat.id, kick.content, kick.mentions).catch(() => null);
         room.phases.push({ id: chat.id, label: "Chat 2 · Design Review" });
         room.designOpened = true;
+        return { plansPrep };
       }
     }
 
@@ -172,6 +203,7 @@ export class BandChannel {
         room.closeoutOpened = true;
       }
     }
+    return {};
   }
 
   private async bootstrapRoom(project?: Project): Promise<void> {

@@ -30,6 +30,7 @@ AgentRole = Literal[
 # Keep completions short — full code text lives in output/*.txt, not chat/tool payloads
 RESEARCHER_MAX_TOKENS = 1024
 SYNTHESIZER_MAX_TOKENS = 2048
+VISUAL_MAX_TOKENS = 4096
 
 
 def _tools_for_role(role: AgentRole) -> list:
@@ -57,7 +58,13 @@ def create_band_agent(
 ) -> Agent:
     init_environment()
 
-    max_tokens = SYNTHESIZER_MAX_TOKENS if role == "synthesizer" else RESEARCHER_MAX_TOKENS
+    max_tokens = (
+        SYNTHESIZER_MAX_TOKENS
+        if role == "synthesizer"
+        else VISUAL_MAX_TOKENS
+        if role == "visual"
+        else RESEARCHER_MAX_TOKENS
+    )
 
     adapter = AnthropicAdapter(
         model=os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL),

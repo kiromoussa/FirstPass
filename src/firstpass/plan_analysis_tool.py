@@ -18,16 +18,45 @@ NUMERIC_KEYS = [
 
 PLANS_DIR = Path(__file__).resolve().parents[2] / "plans"
 OUTPUT_DIR = Path(__file__).resolve().parents[2] / "output"
+PLAN_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+
+
+def _discover_plan_files() -> list[Path]:
+    """All readable plan sheets in plans/ (PDF/PNG/JPEG)."""
+    if not PLANS_DIR.is_dir():
+        return []
+    return sorted(
+        p
+        for p in PLANS_DIR.iterdir()
+        if p.is_file() and p.suffix.lower() in PLAN_EXTENSIONS
+    )
+
+
+class ListPlansInFolderInput(BaseModel):
+    """List PDF/PNG plan files available in the plans/ folder."""
+
+
+def list_plans_in_folder(_input: ListPlansInFolderInput) -> str:
+    paths = _discover_plan_files()
+    return json.dumps(
+        {
+            "plans_dir": str(PLANS_DIR),
+            "files": [p.name for p in paths],
+            "count": len(paths),
+            "hint": "Upload PDF/PNG via the FirstPass UI or copy files into plans/.",
+        },
+        indent=2,
+    )
 
 
 class AnalyzePlanInput(BaseModel):
     """Run the FirstPass Claude plan-reader on uploaded plan files (PDF/PNG)."""
 
     filenames: list[str] = Field(
-        ...,
+        default_factory=list,
         description=(
-            "Plan filenames in the plans/ folder (e.g. ['A1.0.pdf', 'A2.0.pdf']) "
-            "or absolute paths to PDF/PNG plan sheets."
+            "Plan filenames in the plans/ folder (e.g. ['A1.0.pdf']). "
+            "Leave empty to analyze ALL PDF/PNG files in plans/."
         ),
     )
     project_type: str = Field(
@@ -41,6 +70,11 @@ class AnalyzePlanInput(BaseModel):
 
 
 def _resolve_plan_path(name: str) -> Path:
+    name = name.strip().rstrip("/")
+    if name in ("plans", "", "."):
+        raise FileNotFoundError(
+            f"Invalid plan path: {name!r}. Pass a filename like 'A1.0.pdf' or leave filenames empty."
+        )
     path = Path(name)
     if path.is_file():
         return path
@@ -48,6 +82,20 @@ def _resolve_plan_path(name: str) -> Path:
     if candidate.is_file():
         return candidate
     raise FileNotFoundError(f"Plan file not found: {name} (looked in plans/ and as absolute path)")
+
+
+def _resolve_plan_paths(filenames: list[str]) -> list[Path]:
+    """Resolve explicit filenames, or auto-discover all plans in plans/."""
+    cleaned = [n.strip().rstrip("/") for n in filenames if n.strip().rstrip("/") not in ("plans", "", ".")]
+    if cleaned:
+        return [_resolve_plan_path(n) for n in cleaned]
+    paths = _discover_plan_files()
+    if not paths:
+        raise FileNotFoundError(
+            f"No plan files in {PLANS_DIR}. Upload a PDF/PNG via the FirstPass UI "
+            "or copy sheets into plans/ before running visual analysis."
+        )
+    return paths
 
 
 def _media_block(path: Path) -> dict:
@@ -125,7 +173,7 @@ def analyze_plan(input: AnalyzePlanInput) -> str:
     if not api_key:
         return json.dumps({"error": "ANTHROPIC_API_KEY not configured", "facts": _null_facts([])["facts"]})
 
-    paths = [_resolve_plan_path(name) for name in input.filenames]
+    paths = _resolve_plan_paths(input.filenames)
     sheet_names = [p.stem for p in paths]
 
     schema = {
@@ -179,7 +227,7 @@ def analyze_plan(input: AnalyzePlanInput) -> str:
     try:
         resp = client.messages.create(
             model=model,
-            max_tokens=4000,
+            max_tokens=16000,
             messages=[{"role": "user", "content": content}],
             output_config={"format": {"type": "json_schema", "schema": schema}},
         )
@@ -248,4 +296,7 @@ def analyze_plan(input: AnalyzePlanInput) -> str:
     return json.dumps(payload, indent=2)
 
 
-PLAN_ANALYSIS_TOOLS = [(AnalyzePlanInput, analyze_plan)]
+PLAN_ANALYSIS_TOOLS = [
+    (ListPlansInFolderInput, list_plans_in_folder),
+    (AnalyzePlanInput, analyze_plan),
+]

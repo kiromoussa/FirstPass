@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import fs from "fs/promises";
+import path from "path";
 import { kvGet, kvSet } from "@/lib/store";
 import type { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+const PLANS_DIR = path.join(process.cwd(), "plans");
 
 // Accepts a plan set (PDF or image) for native Claude-vision reading. Stores the
 // bytes under `plan:<projectId>` and flags the project so the pipeline reads it.
@@ -25,11 +29,17 @@ export async function POST(req: NextRequest) {
     const mediaType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/png");
     await kvSet(`plan:${projectId}`, { mediaType, data: bytes.toString("base64") });
 
+    // Band visual agent reads from plans/ on disk — mirror UI uploads there.
+    await fs.mkdir(PLANS_DIR, { recursive: true });
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_") || "plan.pdf";
+    const diskPath = path.join(PLANS_DIR, safeName);
+    await fs.writeFile(diskPath, bytes);
+
     const project = await kvGet<Project>(`proj:${projectId}`);
     if (project) {
       await kvSet(`proj:${projectId}`, { ...project, planMime: mediaType, pdfName: file.name });
     }
-    return NextResponse.json({ ok: true, mediaType });
+    return NextResponse.json({ ok: true, mediaType, diskPath: `plans/${safeName}` });
   } catch (e) {
     return NextResponse.json({ ok: false, reason: (e as Error).message }, { status: 500 });
   }

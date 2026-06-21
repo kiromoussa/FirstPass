@@ -128,6 +128,26 @@ export async function* runBandPipeline(
     sponsor: "band",
   });
 
+  if (project.apsUrn) {
+    state.messages.push({
+      id: `dwg_prep_${Date.now()}`,
+      ts: Date.now(),
+      from: "orchestrator",
+      type: "info",
+      text: "DWG uploaded — plotting sheets to plans/ in the background (Autodesk). Visual will read them when Chat 2 opens.",
+      sponsor: "claude",
+    });
+  } else if (project.planMime) {
+    state.messages.push({
+      id: `pdf_prep_${Date.now()}`,
+      ts: Date.now(),
+      from: "orchestrator",
+      type: "info",
+      text: "Plan PDF/image on file — mirrored to plans/ for the Visual agent at design review.",
+      sponsor: "claude",
+    });
+  }
+
   const anthropicIssue = await checkAnthropic();
   if (anthropicIssue) {
     state.messages.push({
@@ -142,8 +162,25 @@ export async function* runBandPipeline(
 
   yield snapshot();
 
+  let plansPrepNotified = false;
+
   while (Date.now() - started < MAX_RUN_MS) {
-    await channel.advancePhases(runStartedMs);
+    const { plansPrep } = await channel.advancePhases(runStartedMs);
+    if (plansPrep && !plansPrepNotified) {
+      plansPrepNotified = true;
+      const detail =
+        plansPrep.ok && plansPrep.files.length
+          ? `${plansPrep.message ?? "Plan sheets ready"} — Visual agent will read ${plansPrep.files.length} file(s) and write plan_facts.txt for Compare Codes.`
+          : plansPrep.message ?? "No plan sheets in plans/ — upload PDF or DWG before starting.";
+      state.messages.push({
+        id: `plans_prep_${Date.now()}`,
+        ts: Date.now(),
+        from: "orchestrator",
+        type: plansPrep.ok ? "info" : "finding",
+        text: detail,
+        sponsor: "claude",
+      });
+    }
     state.bandTranscript = await channel.roomTranscript();
     for (const m of state.bandTranscript) {
       if (m.kind === "agent") lastAuthor = m.author;
