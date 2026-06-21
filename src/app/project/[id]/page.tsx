@@ -10,7 +10,7 @@ import { SponsorRail } from "@/components/SponsorRail";
 import { AgentFeed } from "@/components/AgentFeed";
 import { BandConversation } from "@/components/BandConversation";
 import { BlueprintViewer } from "@/components/BlueprintViewer";
-import { ApsViewer } from "@/components/ApsViewer";
+import { PlanSheetViewer } from "@/components/PlanSheetViewer";
 import { FindingsList } from "@/components/FindingsList";
 import { FactsList } from "@/components/FactsList";
 import { FindingInspector } from "@/components/FindingInspector";
@@ -159,7 +159,7 @@ export default function ProjectDashboard() {
         {/* Center: blueprint + findings/facts tabs */}
         <section className="overflow-y-auto scrollbar-thin p-6 space-y-5">
           {state?.project.apsUrn ? (
-            <ApsViewer urn={state.project.apsUrn} />
+            <PlanSheetViewer projectId={id} />
           ) : (
             <BlueprintViewer
               findings={state?.findings ?? []}

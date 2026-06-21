@@ -160,6 +160,34 @@ export async function tilesFromPdf(
   }
 }
 
+// Render a plotted sheet PDF to a single display PNG (page 0), scaled so its long
+// edge is <= maxPx. This feeds the in-app sheet viewer: it shows the user the
+// exact AutoCAD plot Claude reads. We render here (not via the Model Derivative
+// SVF2 viewer) because SVF2 cannot reliably display DWG plan sets — it throws the
+// "we can't display this item" page. Returns base64 PNG, or null if unreadable.
+export async function renderSheetPng(pdfBase64: string, maxPx = 2000): Promise<string | null> {
+  const mupdf = await import("mupdf");
+  let doc: import("mupdf").Document | undefined;
+  let page: import("mupdf").Page | undefined;
+  try {
+    doc = mupdf.Document.openDocument(Buffer.from(pdfBase64, "base64"), "application/pdf");
+    page = doc.loadPage(0); // each plotted PDF is one sheet
+    const b = page.getBounds(); // [x0,y0,x1,y1] in points
+    const longEdge = Math.max(b[2] - b[0], b[3] - b[1]);
+    if (!longEdge) return null;
+    const zoom = Math.min(maxPx / longEdge, 4); // cap so tiny sheets don't balloon
+    const pix = page.toPixmap(mupdf.Matrix.scale(zoom, zoom), mupdf.ColorSpace.DeviceRGB, false);
+    const png = Buffer.from(pix.asPNG()).toString("base64");
+    pix.destroy();
+    return png;
+  } catch {
+    return null;
+  } finally {
+    try { page?.destroy(); } catch { /* best-effort */ }
+    try { doc?.destroy(); } catch { /* best-effort */ }
+  }
+}
+
 // Fetch the tail of an AutoCAD workitem report (the accoreconsole log) — by far
 // the most useful diagnostic when a plot fails: it names the exact LISP/-PLOT
 // step that errored. Best-effort; returns "" if the report can't be read.

@@ -333,12 +333,19 @@ export function listCityCorpora(): CitySummary[] {
 }
 
 // Best-effort map an address string to an available city slug (matches the
-// city name in meta.json), falling back to the default demo city.
-export function resolveCitySlug(address?: string): string {
+// city name against the address), falling back to the default demo city.
+// Checks committed on-disk cities first, then the durable store — on serverless
+// the filesystem is ephemeral, so a runtime-ingested city (e.g. Los Angeles)
+// only exists in Redis and would otherwise never match.
+export async function resolveCitySlug(address?: string): Promise<string> {
   if (!address) return DEFAULT_CITY;
   const a = address.toLowerCase();
   for (const slug of listCities()) {
     const m = loadCityMeta(slug);
+    if (m?.city && a.includes(m.city.toLowerCase())) return slug;
+  }
+  for (const slug of await listStoredCities()) {
+    const m = await loadStoredMeta(slug);
     if (m?.city && a.includes(m.city.toLowerCase())) return slug;
   }
   return DEFAULT_CITY;

@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     : "detached_adu";
   // Resolve the jurisdiction: explicit citySlug wins, else infer from address.
   // Falls back to the default demo city when nothing matches a researched city.
-  const citySlug = body.citySlug || resolveCitySlug(body.address);
+  const citySlug = body.citySlug || (await resolveCitySlug(body.address));
   const meta = loadCityMeta(citySlug);
   const project: Project = {
     id,

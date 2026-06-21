@@ -3,7 +3,12 @@
   "city": "Los Angeles",
   "state": "CA",
   "jurisdictionId": "los-angeles-ca",
-  "projectTypes": ["detached_adu", "attached_adu", "single_family", "multi_family"],
+  "projectTypes": [
+    "detached_adu",
+    "attached_adu",
+    "single_family",
+    "multi_family"
+  ],
   "generatedAt": "2026-06-20",
   "note": "Representative excerpts across code layers, cited to the governing code. Replace raw/*.txt with full official scrapes via POST /api/cities/ingest; chunks.json regenerates from whatever raw text is present.",
   "rawSources": {
@@ -13,7 +18,8 @@
     "building_code_cbc.txt": "S5",
     "residential_code_crc.txt": "S6",
     "plumbing_code_cpc.txt": "S7",
-    "green_code_calgreen.txt": "S8"
+    "green_code_calgreen.txt": "S8",
+    "state_codes.txt": "B1"
   },
   "sources": [
     {
@@ -55,6 +61,11 @@
       "id": "S8",
       "url": "https://up.codes/viewer/california/ca-green-building-standards-code-2022",
       "title": "California Green Building Standards Code (CALGreen), Title 24 Part 11"
+    },
+    {
+      "id": "B1",
+      "url": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=GOV&sectionNum=66314",
+      "title": "California Gov. Code §66310 et seq. — ADU State Standards (leginfo, verbatim)"
     }
   ]
 }

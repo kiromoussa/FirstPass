@@ -1,17 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DISCLAIMER, PROJECT_TYPES, type ProjectType } from "@/lib/types";
+
+type CityOption = { slug: string; label: string };
 
 export default function Home() {
   const router = useRouter();
   const [name, setName] = useState("Maple St. Detached ADU");
   const [address, setAddress] = useState("1421 Maple St, Alameda, CA 94501");
   const [projectType, setProjectType] = useState<ProjectType>("detached_adu");
+  const [cities, setCities] = useState<CityOption[]>([]);
+  const [citySlug, setCitySlug] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [statusText, setStatusText] = useState("");
+
+  // Load the available jurisdictions (committed on-disk corpora + any ingested
+  // at runtime into the durable store) so the user can pick one explicitly
+  // rather than relying on the address text to infer it.
+  useEffect(() => {
+    fetch("/api/cities")
+      .then((r) => r.json())
+      .then((j) => {
+        const list: CityOption[] = (j.cities ?? []).map((c: { slug: string; label: string }) => ({
+          slug: c.slug,
+          label: c.label,
+        }));
+        setCities(list);
+        setCitySlug((prev) => prev || list[0]?.slug || "");
+      })
+      .catch(() => {});
+  }, []);
 
   async function start() {
     setBusy(true);
@@ -38,7 +59,7 @@ export default function Home() {
     const res = await fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, address, projectType, dwgName: isDwg ? file?.name : undefined, apsUrn }),
+      body: JSON.stringify({ name, address, citySlug: citySlug || undefined, projectType, dwgName: isDwg ? file?.name : undefined, apsUrn }),
     });
     const { id } = await res.json();
 
@@ -99,6 +120,20 @@ export default function Home() {
               onChange={(e) => setName(e.target.value)}
               className="w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2.5 mb-4 text-sm focus:border-accent outline-none"
             />
+
+            <label className="block text-sm text-slate-300 mb-1">Jurisdiction</label>
+            <select
+              value={citySlug}
+              onChange={(e) => setCitySlug(e.target.value)}
+              className="w-full bg-ink-800 border border-ink-700 rounded-lg px-3 py-2.5 mb-4 text-sm focus:border-accent outline-none"
+            >
+              {cities.length === 0 && <option value="">Loading jurisdictions…</option>}
+              {cities.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
 
             <label className="block text-sm text-slate-300 mb-1">Project address</label>
             <input
