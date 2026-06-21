@@ -1,5 +1,7 @@
 # FirstPass
 
+![FirstPass landing page — permit-readiness pipeline](docs/images/landing-hero.png)
+
 **AI-powered pre-submission permit-readiness assistant** for residential ADU projects.
 
 Upload a plan set (PDF or DWG), and FirstPass runs a multi-agent pipeline: it resolves the jurisdiction, researches the governing building codes, reads your plans, runs compliance checks, audits the findings, and produces a **cited permit-readiness report** with a score, flagged issues, and a missing-documents checklist.
