@@ -15,6 +15,10 @@ dependencies = [
 [project.scripts]
 firstpass-municipal = "firstpass.agents.municipal:main"
 firstpass-state = "firstpass.agents.state:main"
+firstpass-building = "firstpass.agents.building:main"
+firstpass-residential = "firstpass.agents.residential:main"
+firstpass-plumbing = "firstpass.agents.plumbing:main"
+firstpass-green = "firstpass.agents.green:main"
 firstpass-synthesizer = "firstpass.agents.synthesizer:main"
 firstpass-compare = "firstpass.agents.compare:main"
 firstpass-ceo = "firstpass.agents.ceo:main"
