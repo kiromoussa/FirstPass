@@ -79,9 +79,10 @@ export function PlanSheetViewer({ projectId }: { projectId: string }) {
               src={`/api/plans/render?projectId=${encodeURIComponent(projectId)}&i=${Math.min(
                 active,
                 meta!.sheets.length - 1
-              )}`}
+              )}&v=2`}
               alt={sheet?.name ?? "Plan sheet"}
-              className="aps-sheet-dark w-full h-full object-contain"
+              className="w-full h-full object-contain"
+              draggable={false}
             />
             {meta!.sheets.length > 1 && (
               <>

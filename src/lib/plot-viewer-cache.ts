@@ -1,14 +1,22 @@
 import fs from "fs/promises";
 import path from "path";
-import { renderSheetPng } from "./integrations/autocad-da";
+import {
+  convertPngToDarkViewer,
+  renderSheetPng,
+  VIEWER_SHEET_MAX_PX,
+} from "./integrations/autocad-da";
 import type { PlottedSheet } from "./integrations/autocad-da";
 import { kvGet, kvSet } from "./store";
 import { projectDir } from "./project-files";
+
+/** Bump when viewer PNG format/resolution changes (triggers lazy re-render). */
+export const VIEWER_CACHE_VERSION = 2;
 
 export interface PlotViewerMeta {
   status: "ready" | "failed" | "pending";
   sheets: { name: string }[];
   reason?: string;
+  viewerVersion?: number;
 }
 
 const metaKey = (projectId: string) => `plot:${projectId}`;
@@ -75,6 +83,55 @@ export async function setPlotViewerFailed(projectId: string, reason?: string): P
   } satisfies PlotViewerMeta);
 }
 
+async function renderViewerPngFromPdf(pdfBase64: string): Promise<string | null> {
+  return renderSheetPng(pdfBase64, VIEWER_SHEET_MAX_PX, true);
+}
+
+async function findPlanPdf(projectId: string, sheetName: string): Promise<string | null> {
+  const plansDir = path.join(projectDir(projectId), "plans");
+  const candidates = [
+    `${sheetName}.pdf`,
+    `${sheetName.replace(/\s+/g, "_")}.pdf`,
+  ];
+  for (const file of candidates) {
+    try {
+      return (await fs.readFile(path.join(plansDir, file))).toString("base64");
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
+/** Upgrade legacy 2000px light PNGs to 4000px dark viewer tiles (lazy, on first view). */
+async function upgradeViewerCacheIfNeeded(projectId: string, meta: PlotViewerMeta): Promise<void> {
+  if (meta.viewerVersion === VIEWER_CACHE_VERSION || meta.status !== "ready") return;
+
+  for (let i = 0; i < meta.sheets.length; i++) {
+    const pdf = await findPlanPdf(projectId, meta.sheets[i].name);
+    const png = pdf ? await renderViewerPngFromPdf(pdf) : null;
+    const upgraded =
+      png ??
+      (await (async () => {
+        const legacy = await kvGet<string>(pngKey(projectId, i));
+        if (legacy) return convertPngToDarkViewer(legacy);
+        try {
+          const fromDisk = (
+            await fs.readFile(path.join(viewerDir(projectId), `${i}.png`))
+          ).toString("base64");
+          return convertPngToDarkViewer(fromDisk);
+        } catch {
+          return null;
+        }
+      })());
+    if (upgraded) await kvSet(pngKey(projectId, i), upgraded);
+  }
+
+  const next: PlotViewerMeta = { ...meta, viewerVersion: VIEWER_CACHE_VERSION };
+  await kvSet(metaKey(projectId), next);
+  await saveViewerToDiskCache(projectId, next);
+}
+
 /** Write PNG tiles + metadata for PlanSheetViewer from plotted PDF sheets. */
 export async function persistPlotViewerFromSheets(
   projectId: string,
@@ -82,7 +139,7 @@ export async function persistPlotViewerFromSheets(
 ): Promise<PlotViewerMeta> {
   const names: { name: string }[] = [];
   for (let si = 0; si < sheets.length && si < 12; si++) {
-    const png = await renderSheetPng(sheets[si].data);
+    const png = await renderViewerPngFromPdf(sheets[si].data);
     if (png) {
       await kvSet(pngKey(projectId, names.length), png);
       names.push({ name: sheets[si].name });
@@ -92,6 +149,7 @@ export async function persistPlotViewerFromSheets(
     status: names.length ? "ready" : "failed",
     sheets: names,
     reason: names.length ? undefined : "Plotted PDFs could not be rendered for preview",
+    viewerVersion: VIEWER_CACHE_VERSION,
   };
   await kvSet(metaKey(projectId), meta);
   if (names.length) await saveViewerToDiskCache(projectId, meta);
@@ -120,7 +178,9 @@ export async function hydratePlotViewerFromDisk(projectId: string): Promise<Plot
     const buf = await fs.readFile(path.join(plansDir, file));
     const png =
       ext === ".pdf"
-        ? await renderSheetPng(buf.toString("base64"))
+        ? await renderViewerPngFromPdf(buf.toString("base64"))
+        : ext === ".png"
+        ? await convertPngToDarkViewer(buf.toString("base64"))
         : buf.toString("base64");
     if (png) {
       await kvSet(pngKey(projectId, names.length), png);
@@ -131,6 +191,7 @@ export async function hydratePlotViewerFromDisk(projectId: string): Promise<Plot
     status: names.length ? "ready" : "failed",
     sheets: names,
     reason: names.length ? undefined : "Could not render plan sheets for preview",
+    viewerVersion: VIEWER_CACHE_VERSION,
   };
   await kvSet(metaKey(projectId), meta);
   if (names.length) await saveViewerToDiskCache(projectId, meta);
@@ -138,6 +199,11 @@ export async function hydratePlotViewerFromDisk(projectId: string): Promise<Plot
 }
 
 export async function getPlotViewerPng(projectId: string, index: number): Promise<string | null> {
+  const meta = await getPlotViewerMeta(projectId);
+  if (meta && meta.viewerVersion !== VIEWER_CACHE_VERSION) {
+    await upgradeViewerCacheIfNeeded(projectId, meta);
+  }
+
   const fromKv = await kvGet<string>(pngKey(projectId, index));
   if (fromKv) return fromKv;
   try {

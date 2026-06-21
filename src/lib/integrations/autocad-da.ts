@@ -160,31 +160,95 @@ export async function tilesFromPdf(
   }
 }
 
+// Long edge for the in-app sheet viewer — higher than the old 2000px cap so linework
+// stays crisp when the panel is large. CSS invert filters destroy anti-aliasing;
+// dark mode is applied at the pixel level in applyViewerDarkTheme instead.
+export const VIEWER_SHEET_MAX_PX = 4000;
+
+const VIEWER_BG = [13, 34, 53] as const; // matches .blueprint-grid
+
+/** Invert a white plotted sheet onto the blueprint background with bold linework. */
+function applyViewerDarkTheme(pix: import("mupdf").Pixmap): void {
+  const pixels = pix.getPixels();
+  const stride = pix.getNumberOfComponents();
+  for (let i = 0; i < pixels.length; i += stride) {
+    const r = pixels[i];
+    const g = pixels[i + 1];
+    const b = pixels[i + 2];
+    let nr = 255 - r;
+    let ng = 255 - g;
+    let nb = 255 - b;
+    const nlum = 0.299 * nr + 0.587 * ng + 0.114 * nb;
+    // Crush pale anti-alias halos (were light gray on white) into the background.
+    if (nlum < 40) {
+      pixels[i] = VIEWER_BG[0];
+      pixels[i + 1] = VIEWER_BG[1];
+      pixels[i + 2] = VIEWER_BG[2];
+      continue;
+    }
+    // Stretch each pixel toward full brightness so lines read bold on dark paper.
+    const max = Math.max(nr, ng, nb);
+    if (max > 0 && max < 255) {
+      const scale = 255 / max;
+      nr = Math.min(255, nr * scale);
+      ng = Math.min(255, ng * scale);
+      nb = Math.min(255, nb * scale);
+    }
+    pixels[i] = nr;
+    pixels[i + 1] = ng;
+    pixels[i + 2] = nb;
+  }
+}
+
 // Render a plotted sheet PDF to a single display PNG (page 0), scaled so its long
 // edge is <= maxPx. This feeds the in-app sheet viewer: it shows the user the
 // exact AutoCAD plot Claude reads. We render here (not via the Model Derivative
 // SVF2 viewer) because SVF2 cannot reliably display DWG plan sets — it throws the
 // "we can't display this item" page. Returns base64 PNG, or null if unreadable.
-export async function renderSheetPng(pdfBase64: string, maxPx = 2000): Promise<string | null> {
+export async function renderSheetPng(
+  pdfBase64: string,
+  maxPx = 2000,
+  dark = false
+): Promise<string | null> {
   const mupdf = await import("mupdf");
   let doc: import("mupdf").Document | undefined;
   let page: import("mupdf").Page | undefined;
+  let pix: import("mupdf").Pixmap | undefined;
   try {
     doc = mupdf.Document.openDocument(Buffer.from(pdfBase64, "base64"), "application/pdf");
     page = doc.loadPage(0); // each plotted PDF is one sheet
     const b = page.getBounds(); // [x0,y0,x1,y1] in points
     const longEdge = Math.max(b[2] - b[0], b[3] - b[1]);
     if (!longEdge) return null;
-    const zoom = Math.min(maxPx / longEdge, 4); // cap so tiny sheets don't balloon
-    const pix = page.toPixmap(mupdf.Matrix.scale(zoom, zoom), mupdf.ColorSpace.DeviceRGB, false);
+    const zoom = Math.min(maxPx / longEdge, 6);
+    pix = page.toPixmap(mupdf.Matrix.scale(zoom, zoom), mupdf.ColorSpace.DeviceRGB, false);
+    if (dark) applyViewerDarkTheme(pix);
     const png = Buffer.from(pix.asPNG()).toString("base64");
-    pix.destroy();
     return png;
   } catch {
     return null;
   } finally {
+    try { pix?.destroy(); } catch { /* best-effort */ }
     try { page?.destroy(); } catch { /* best-effort */ }
     try { doc?.destroy(); } catch { /* best-effort */ }
+  }
+}
+
+/** Re-theme an existing light viewer PNG (legacy cache) for dark display. */
+export async function convertPngToDarkViewer(pngBase64: string): Promise<string | null> {
+  const mupdf = await import("mupdf");
+  let img: import("mupdf").Image | undefined;
+  let pix: import("mupdf").Pixmap | undefined;
+  try {
+    img = new mupdf.Image(Buffer.from(pngBase64, "base64"));
+    pix = img.toPixmap();
+    applyViewerDarkTheme(pix);
+    return Buffer.from(pix.asPNG()).toString("base64");
+  } catch {
+    return null;
+  } finally {
+    try { pix?.destroy(); } catch { /* best-effort */ }
+    try { img?.destroy(); } catch { /* best-effort */ }
   }
 }
 
