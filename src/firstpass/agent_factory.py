@@ -21,6 +21,7 @@ AgentRole = Literal[
     "municipal_researcher",
     "permit_agent",
     "comparator",
+    "ceo",
     "planner",
     "solutions",
     "visual",
@@ -40,7 +41,7 @@ def _tools_for_role(role: AgentRole) -> list:
         return ARCHIVE_SCRAPE_TOOLS + BROWSERBASE_TOOLS + REPORT_TOOLS
     if role == "comparator":
         return REPORT_TOOLS + ARCHIVE_SCRAPE_TOOLS
-    if role == "planner":
+    if role in ("ceo", "planner"):
         return REPORT_TOOLS
     if role == "solutions":
         return REPORT_TOOLS
@@ -76,6 +77,8 @@ def create_band_agent(
     if ws_url := os.getenv("BAND_WS_URL"):
         kwargs["ws_url"] = ws_url
     if rest_url := os.getenv("BAND_REST_URL"):
+        # Band SDK expects the host root; TS/httpx clients use .../api/v1/agent.
+        rest_url = rest_url.removesuffix("/api/v1/agent").rstrip("/") or "https://app.band.ai"
         kwargs["rest_url"] = rest_url
 
     return Agent.create(**kwargs)

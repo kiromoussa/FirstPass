@@ -1,4 +1,4 @@
-"""Kick off a Band room where agents scrape Internet Archive and write .txt reports."""
+"""Kick off Band Chat 1 — CEO-led intake (Chats 2–3 open from the app)."""
 
 from __future__ import annotations
 
@@ -9,35 +9,46 @@ from firstpass.band_client import BandClient
 from firstpass.config import init_environment, load_agent_config
 from firstpass.code_sources import DEFAULT_ADDRESS
 
-AGENT_NAMES = {
-    "municipal_researcher": "Municipal Code Researcher",
-    "state_researcher": "State Code Researcher",
-    "code_synthesizer": "Code Synthesizer",
-}
+# Config key → display name for room participants (orchestrator excluded if same id).
+AGENT_CONFIG = [
+    ("ceo", "CEO Boss", "varbtw/ceo-boss"),
+    ("project_property_manager", "Project and Property Manager", "varbtw/project-property-intake"),
+    ("code_synthesizer", "Code Synthesizer", "varbtw/code-synthesizer"),
+    ("municipal_researcher", "Municipal Code Researcher", "varbtw/municipal-researcher"),
+    ("state_researcher", "State Code Researcher", "varbtw/state-code-researcher"),
+    ("visual_analysis", "Visual Analysis", "varbtw/vis-agent"),
+    ("compare_codes", "Compare Codes", "varbtw/compare-codes"),
+]
 
 
 def build_kickoff_message(address: str, project_type: str) -> str:
-    return f"""Research building codes for this pre-submission permit review.
+    return f"""@varbtw/ceo-boss → @varbtw/project-property-intake
+
+**Chat 1 — Intake & Code Research**
+
+New project for FirstPass pre-submission review.
 
 **Address:** {address}
 **Project type:** {project_type}
 
-Scrape codes from **Internet Archive** (archive.org) — not paywalled ICC sites.
-Each researcher must save a `.txt` report to the `output/` folder.
+@varbtw/project-property-intake — The CEO has approved scope. Write `output/planner_brief.txt`, then @mention @varbtw/code-synthesizer **once**. One handoff at a time."""
 
-@Municipal Code Researcher — Scrape Oakland municipal ADU/planning code from Internet Archive. Write `output/municipal_codes.txt`. Post summary when done.
 
-@State Code Researcher — Scrape California Title 24 / Gov Code ADU sections from Internet Archive (e.g. gov.ca.bsc.residential.2025). Write `output/state_codes.txt`. Post summary when done.
-
-@Code Synthesizer — After both researchers finish, merge findings into `output/final_summary.txt`. Post the file path and executive summary in chat.
-
-Deliverable: three `.txt` files in `output/` — municipal_codes.txt, state_codes.txt, final_summary.txt."""
+def build_kickoff_mentions() -> list[dict[str, str]]:
+    """Band only delivers to agents in `mentions`; route kickoff to PPM."""
+    ppm_id, _ = load_agent_config("project_property_manager")
+    return [
+        {
+            "id": ppm_id,
+            "name": "Project and Property Manager",
+            "handle": "project-property-intake",
+        }
+    ]
 
 
 def build_mentions(exclude_agent_id: str | None = None) -> list[dict[str, str]]:
-    """Build mention list from agent config for all three researchers."""
     mentions: list[dict[str, str]] = []
-    for config_name, display_name in AGENT_NAMES.items():
+    for config_name, display_name, handle in AGENT_CONFIG:
         agent_id, _ = load_agent_config(config_name)
         if exclude_agent_id and agent_id == exclude_agent_id:
             continue
@@ -45,7 +56,7 @@ def build_mentions(exclude_agent_id: str | None = None) -> list[dict[str, str]]:
             {
                 "id": agent_id,
                 "name": display_name,
-                "handle": display_name.lower().replace(" ", "-"),
+                "handle": handle.split("/")[-1],
             }
         )
     return mentions
@@ -54,25 +65,22 @@ def build_mentions(exclude_agent_id: str | None = None) -> list[dict[str, str]]:
 def main() -> None:
     init_environment()
 
-    parser = argparse.ArgumentParser(description="Kick off multi-agent code research in a Band room")
-    parser.add_argument(
-        "--address",
-        default=DEFAULT_ADDRESS,
-        help="Project address to research",
-    )
-    parser.add_argument(
-        "--project-type",
-        default="Detached ADU",
-        help="Project type (default: Detached ADU)",
-    )
+    parser = argparse.ArgumentParser(description="Kick off CEO-led Band workflow")
+    parser.add_argument("--address", default=DEFAULT_ADDRESS, help="Project address")
+    parser.add_argument("--project-type", default="Detached ADU", help="Project type")
     args = parser.parse_args()
 
-    orchestrator_id, orchestrator_key = load_agent_config("orchestrator")
+    # Prefer CEO as orchestrator; fall back to orchestrator key in config.
+    try:
+        orchestrator_id, orchestrator_key = load_agent_config("ceo")
+    except ValueError:
+        orchestrator_id, orchestrator_key = load_agent_config("orchestrator")
+
     client = BandClient(orchestrator_key)
 
     print("Validating orchestrator connection...")
     me = client.me()
-    print(f"  Connected as: {me.get('name', me.get('id', 'unknown'))}")
+    print(f"  Connected as: {me.get('handle') or me.get('name') or me.get('id')}")
 
     print("Creating Band chat room...")
     chat = client.create_chat()
@@ -82,39 +90,28 @@ def main() -> None:
         sys.exit(1)
     print(f"  Room ID: {chat_id}")
 
-    print("Adding you (room owner) as a participant...")
+    print("Adding you (room owner)...")
     owner = client.add_owner(chat_id)
-    if owner:
-        print("  You can now send messages in this room from app.band.ai")
-    else:
-        print("  Warning: could not add human owner — you may need to create the room from the Band UI")
+    print("  OK" if owner else "  Warning: could not add human owner")
 
-    print("Adding agents to room...")
-    orchestrator_agent_id, _ = load_agent_config("orchestrator")
-    for config_name in AGENT_NAMES:
+    print("Adding agents...")
+    for config_name, display_name, _ in AGENT_CONFIG:
         agent_id, _ = load_agent_config(config_name)
-        if agent_id == orchestrator_agent_id:
-            print(f"  Skipped {AGENT_NAMES[config_name]} (already in room as owner)")
+        if agent_id == orchestrator_id:
+            print(f"  Skipped {display_name} (orchestrator already in room)")
             continue
         client.add_participant(chat_id, agent_id)
-        print(f"  Added {AGENT_NAMES[config_name]}")
+        print(f"  Added {display_name}")
 
-    mentions = build_mentions(exclude_agent_id=orchestrator_agent_id)
-
+    mentions = build_kickoff_mentions()
     message = build_kickoff_message(args.address, args.project_type)
-    print("Sending kickoff message...")
+    print("Sending kickoff...")
     client.send_message(chat_id, message, mentions)
 
     print()
-    print("Research started! Open the Band chat room to watch agents collaborate.")
-    print(f"  Room ID: {chat_id}")
-    print()
-    print("Reports will be written to: output/municipal_codes.txt, state_codes.txt, final_summary.txt")
-    print()
-    print("Make sure all three agents are running:")
-    print("  uv run firstpass-municipal")
-    print("  uv run firstpass-state")
-    print("  uv run firstpass-synthesizer")
+    print("Workflow started. Keep local listeners running:")
+    print("  ./scripts/run_workflow_agents.sh")
+    print(f"  Room: {chat_id}")
 
 
 if __name__ == "__main__":

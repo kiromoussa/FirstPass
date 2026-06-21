@@ -1,0 +1,182 @@
+// Band-first orchestrator — streams phased firm-style Band conversations (3 chats max).
+import type { Phase, Project, ProjectState } from "./types";
+import type { BandChannel } from "./integrations/band";
+import { outputFresh } from "./band-output";
+import { ANTHROPIC_AGENT_MODEL } from "./anthropic-model";
+
+const POLL_MS = 4_000;
+const MAX_RUN_MS = 45 * 60_000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const AUTHOR_PHASE: Record<string, Phase> = {
+  "CEO Boss": "jurisdiction",
+  "Project and Property Manager": "jurisdiction",
+  "Project & Property Intake Agent": "jurisdiction",
+  "Municipal Code Researcher": "research",
+  "State Code Researcher": "research",
+  "Code Synthesizer": "research",
+  "Visual Analysis": "read",
+  "Compare Codes": "comply",
+  "Solutions Agent": "review",
+  "Permit Report Agent": "report",
+};
+
+async function checkAnthropic(): Promise<string | null> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return "ANTHROPIC_API_KEY is not set in .env.local";
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_AGENT_MODEL,
+        max_tokens: 8,
+        messages: [{ role: "user", content: "ping" }],
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.ok) return null;
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: { message?: string };
+    };
+    return body.error?.message ?? `Anthropic API returned ${res.status}`;
+  } catch (e) {
+    return (e as Error).message;
+  }
+}
+
+async function inferPhase(latestAuthor: string | undefined, runStartedMs: number): Promise<Phase> {
+  // Deliverables drive the UI forward — not the last chat author (CEO/PPM map to jurisdiction).
+  if (await outputFresh("permit_report.txt", runStartedMs)) return "done";
+  if (await outputFresh("solutions_report.txt", runStartedMs)) return "report";
+  if (await outputFresh("plan_vs_code.txt", runStartedMs)) return "review";
+  if (await outputFresh("plan_facts.txt", runStartedMs)) return "comply";
+  if (await outputFresh("final_summary.txt", runStartedMs)) return "read";
+  if (
+    (await outputFresh("municipal_codes.txt", runStartedMs)) ||
+    (await outputFresh("state_codes.txt", runStartedMs))
+  )
+    return "research";
+  if (await outputFresh("planner_brief.txt", runStartedMs)) return "research";
+  if (latestAuthor && AUTHOR_PHASE[latestAuthor]) return AUTHOR_PHASE[latestAuthor];
+  return "jurisdiction";
+}
+
+async function isWorkflowDone(runStartedMs: number): Promise<boolean> {
+  if (await outputFresh("permit_report.txt", runStartedMs)) return true;
+  if (await outputFresh("solutions_report.txt", runStartedMs)) return true;
+  const hasCloseout =
+    !!process.env.BAND_AGENT_SOLUTIONS_ID || !!process.env.BAND_AGENT_PERMIT_ID;
+  if (!hasCloseout && (await outputFresh("plan_vs_code.txt", runStartedMs))) return true;
+  return false;
+}
+
+export async function* runBandPipeline(
+  project: Project,
+  channel: BandChannel
+): AsyncGenerator<ProjectState> {
+  await channel.ready;
+
+  const state: ProjectState = {
+    project: { ...project, status: "jurisdiction" },
+    sources: [],
+    rules: [],
+    facts: [],
+    findings: [],
+    checklist: [],
+    messages: [],
+    report: undefined,
+    bandRoomId: channel.roomId,
+    bandTranscript: [],
+  };
+
+  const runStartedMs = project.createdAt ?? Date.now();
+  const started = Date.now();
+  let lastAuthor = "";
+
+  const snapshot = (): ProjectState => ({
+    ...state,
+    messages: [...state.messages],
+    findings: [...state.findings],
+    bandTranscript: state.bandTranscript ? [...state.bandTranscript] : [],
+  });
+
+  if (!channel.roomId) {
+    state.messages.push({
+      id: `band_err_${Date.now()}`,
+      ts: Date.now(),
+      from: "orchestrator",
+      type: "info",
+      text: "Band could not open Chat 1 — check BAND_API_KEY and run ./scripts/run_workflow_agents.sh",
+      sponsor: "band",
+    });
+    yield snapshot();
+    return;
+  }
+
+  state.messages.push({
+    id: `band_open_${Date.now()}`,
+    ts: Date.now(),
+    from: "orchestrator",
+    type: "info",
+    text: `Firm workflow started — Chat 1 (CEO intake). Chats 2–3 open automatically as each phase completes. Run ./scripts/run_workflow_agents.sh`,
+    sponsor: "band",
+  });
+
+  const anthropicIssue = await checkAnthropic();
+  if (anthropicIssue) {
+    state.messages.push({
+      id: `anthropic_err_${Date.now()}`,
+      ts: Date.now(),
+      from: "orchestrator",
+      type: "info",
+      text: `Anthropic API: ${anthropicIssue}`,
+      sponsor: "band",
+    });
+  }
+
+  yield snapshot();
+
+  while (Date.now() - started < MAX_RUN_MS) {
+    await channel.advancePhases(runStartedMs);
+    state.bandTranscript = await channel.roomTranscript();
+    for (const m of state.bandTranscript) {
+      if (m.kind === "agent") lastAuthor = m.author;
+    }
+
+    state.project.status = await inferPhase(lastAuthor, runStartedMs);
+    state.project.bandRoomId = channel.roomId ?? undefined;
+    yield snapshot();
+
+    if (await isWorkflowDone(runStartedMs)) {
+      state.project.status = "done";
+      state.messages.push({
+        id: `band_complete_${Date.now()}`,
+        ts: Date.now(),
+        from: "orchestrator",
+        type: "done",
+        text: "Workflow complete — see output/ reports and the Band conversation across all chats.",
+        sponsor: "band",
+      });
+      yield snapshot();
+      return;
+    }
+
+    await sleep(POLL_MS);
+  }
+
+  state.messages.push({
+    id: `band_timeout_${Date.now()}`,
+    ts: Date.now(),
+    from: "orchestrator",
+    type: "info",
+    text: "Still in progress — agents continue in Band. Keep local listeners running.",
+    sponsor: "band",
+  });
+  yield snapshot();
+}

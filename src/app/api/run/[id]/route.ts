@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
-import { kvGet } from "@/lib/store";
+import { kvGet, kvSet } from "@/lib/store";
 import { runPipeline } from "@/lib/pipeline";
-import { BandChannel } from "@/lib/integrations/band";
+import { runBandPipeline } from "@/lib/band-pipeline";
+import { BandChannel, BAND_LIVE } from "@/lib/integrations/band";
 import type { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -45,7 +46,7 @@ export async function GET(
         closed = true;
       });
       if (!project) {
-        send("error", { message: "Project not found" });
+        send("run-error", { message: "Project not found" });
         controller.close();
         return;
       }
@@ -55,17 +56,20 @@ export async function GET(
       // background so a slow/throttled Band never stalls the run. The local feed
       // streams immediately; the room/transcript fill in when ready.
       const channel = BandChannel.open(id, project);
-      // Announce the room id as soon as bootstrap finishes (success or not).
-      void channel.ready.then(() => {
-        if (!closed && channel.roomId) send("band", { roomId: channel.roomId });
+      void channel.ready.then(async () => {
+        if (closed) return;
+        if (channel.roomId) {
+          send("band", { roomId: channel.roomId });
+          try {
+            await kvSet(`proj:${id}`, { ...project, bandRoomId: channel.roomId });
+          } catch {
+            /* best-effort */
+          }
+          await pollRoom();
+        }
       });
 
-      // Poll the room transcript and stream the actual agent-to-agent
-      // conversation as `band-room` events — the live view used to double-check
-      // what the agents are really saying. Each poll unions several mention-
-      // scoped agent views, so we poll gently (6s) to stay under Band's rate
-      // limit, and only emit when the transcript changes. roomTranscript() never
-      // throws, so this can't break a run.
+      // Poll Band transcript for live agent-to-agent conversation in the UI.
       let lastSig = "";
       const pollRoom = async () => {
         if (closed || !channel.roomId) return;
@@ -73,13 +77,14 @@ export async function GET(
         const sig = `${msgs.length}:${msgs[msgs.length - 1]?.id ?? ""}`;
         if (sig !== lastSig) {
           lastSig = sig;
-          if (!closed) send("band-room", { messages: msgs });
+          if (!closed) send("band-room", { messages: msgs, roomId: channel.roomId });
         }
       };
-      const roomTimer = setInterval(() => void pollRoom(), 6000);
+      const roomTimer = setInterval(() => void pollRoom(), 3000);
 
       try {
-        for await (const state of runPipeline(project, channel)) {
+        const pipeline = BAND_LIVE ? runBandPipeline : runPipeline;
+        for await (const state of pipeline(project, channel)) {
           if (closed) return; // client gone — stop the orphaned run
           send("state", state);
         }
@@ -92,7 +97,7 @@ export async function GET(
         }
         send("complete", { ok: true });
       } catch (err) {
-        send("error", { message: (err as Error).message });
+        send("run-error", { message: (err as Error).message });
       } finally {
         closed = true;
         clearInterval(roomTimer);

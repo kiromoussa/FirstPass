@@ -40,6 +40,7 @@ export interface BandAgentDef extends BandMention {
   role: BandRole;
   ask: string; // workflow goal — what this agent should produce
   report: string; // output/<file> the agent must write (drives ingest_band_output)
+  bandHandle: string; // @varbtw/... handle used in kickoff @mentions
 }
 
 const DEFAULT_BASE = "https://app.band.ai/api/v1/agent";
@@ -55,72 +56,79 @@ const AGENT_DEFS = [
   {
     envId: "BAND_AGENT_CEO_ID",
     name: "CEO Boss",
+    bandHandle: "varbtw/ceo-boss",
     fallbackId: "c684bd1c-36f1-462c-8bd4-f3ea1bc039bf",
     role: "ceo",
-    ask: "own orchestration end-to-end and deliver the final permit-readiness sign-off",
+    ask: "acknowledge the address, delegate to the Project and Property Manager, monitor phases, and summarize when compare-codes finishes",
     report: "",
   },
   {
-    envId: "BAND_AGENT_PLANNER_ID",
-    name: "CEO Planner / VP",
+    envId: "BAND_AGENT_PROJECT_PROPERTY_MANAGER_ID",
+    name: "Project and Property Manager",
+    bandHandle: "varbtw/project-property-intake",
     fallbackId: "58eb4a6e-e34f-49fe-97ce-eb51c3113266",
     role: "planner",
-    ask: "intake the property and produce the project brief that scopes the review",
-    report: "project_brief.txt",
+    ask: "intake the property, write the project brief, and @mention each specialist in order through compare-codes",
+    report: "planner_brief.txt",
   },
   {
     envId: "BAND_AGENT_SYNTHESIZER_ID",
     name: "Code Synthesizer",
+    bandHandle: "varbtw/code-synthesizer",
     fallbackId: "94d50391-87a6-4285-a8b7-03faf165722e",
     role: "synthesizer",
-    ask: "turn the brief into the code questions to research, then merge the researchers' findings into the governing code set",
+    ask: "scope code research questions, then merge municipal + state reports into the governing code set",
     report: "final_summary.txt",
   },
   {
     envId: "BAND_AGENT_MUNICIPAL_ID",
     name: "Municipal Code Researcher",
+    bandHandle: "varbtw/municipal-researcher",
     fallbackId: "28e83f6c-4362-4539-8e53-0f31477d99c1",
     role: "researcher",
-    ask: "Municipal ADU / zoning codes (size, setbacks, parking, submittal)",
+    ask: "scrape municipal ADU/zoning code from Internet Archive only — size, setbacks, parking, submittal",
     report: "municipal_codes.txt",
   },
   {
     envId: "BAND_AGENT_STATE_ID",
     name: "State Code Researcher",
+    bandHandle: "varbtw/state-code-researcher",
     fallbackId: "0d05ac9f-7998-4030-86d2-72381854ebd3",
     role: "researcher",
-    ask: "California state ADU standards that preempt local limits (Gov. Code 65852 / 66310, Title 24)",
+    ask: "scrape California Gov Code + Title 24 ADU standards from Internet Archive only",
     report: "state_codes.txt",
   },
   {
     envId: "BAND_AGENT_VISUAL_ID",
     name: "Visual Analysis",
+    bandHandle: "varbtw/vis-agent",
     fallbackId: "4a985a13-5b35-4092-84a4-240a94a5f8b8",
     role: "visual",
-    ask: "read the plan set and measure the dimensions (unit size, height, setbacks) the code comparison needs",
-    report: "visual_analysis.txt",
+    ask: "read the plan set with Claude vision and extract unit size, height, and setbacks",
+    report: "plan_facts.txt",
   },
   {
-    // Compares the project's plan set against the codes the researchers found,
-    // flagging where the design violates them — a compliance comparison.
     envId: "BAND_AGENT_COMPARE_ID",
     name: "Compare Codes",
+    bandHandle: "varbtw/compare-codes",
     fallbackId: "50d5fafe-b84a-49a7-b902-1558d4deeee3",
     role: "comparator",
-    ask: "compare the plan set against the governing codes and flag where the design violates them, with the governing citation",
+    ask: "compare plan facts against the governing codes and flag likely violations with citations",
     report: "plan_vs_code.txt",
   },
   {
     envId: "BAND_AGENT_SOLUTIONS_ID",
     name: "Solutions Agent",
+    bandHandle: "varbtw/solutions-agent",
     fallbackId: "",
     role: "solutions",
     ask: "propose a concrete correction for each flagged violation so the design can comply",
-    report: "solutions.txt",
+    report: "solutions_report.txt",
   },
   {
     envId: "BAND_AGENT_PERMIT_ID",
     name: "Permit Report Agent",
+    bandHandle: "varbtw/permit-report-agent",
     fallbackId: "",
     role: "permit",
     ask: "compile the cited, pre-submission permit-readiness report from the findings and solutions",
@@ -139,10 +147,11 @@ export function bandAgents(): BandAgentDef[] {
     out.push({
       id,
       name: a.name,
-      handle: a.name.toLowerCase().replace(/\s+/g, "-"),
+      handle: a.bandHandle.split("/").pop() ?? a.name.toLowerCase().replace(/\s+/g, "-"),
       role: a.role,
       ask: a.ask,
       report: a.report,
+      bandHandle: a.bandHandle,
     });
   }
   return out;
@@ -160,7 +169,7 @@ function base(): string {
 const VIEWER_KEY_ENVS = [
   "BAND_API_KEY",
   "BAND_AGENT_CEO_KEY",
-  "BAND_AGENT_PLANNER_KEY",
+  "BAND_AGENT_PROJECT_PROPERTY_MANAGER_KEY",
   "BAND_AGENT_SYNTHESIZER_KEY",
   "BAND_AGENT_MUNICIPAL_KEY",
   "BAND_AGENT_STATE_KEY",

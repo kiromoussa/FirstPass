@@ -1,16 +1,13 @@
 // Claude adapter (PLAN.md §5 Anthropic). Live with ANTHROPIC_API_KEY, else
 // returns deterministic cached results so the pipeline always completes.
 import Anthropic from "@anthropic-ai/sdk";
+import { ANTHROPIC_AGENT_MODEL } from "../anthropic-model";
 import { CACHED_FACTS } from "../fixtures";
 import type { PlanFact } from "../types";
 
 export const CLAUDE_LIVE = !!process.env.ANTHROPIC_API_KEY;
-// Default to Haiku for cost/latency; escalate to Sonnet only when a Haiku call
-// refuses, errors, or comes back empty (never beyond Sonnet). Both support the
-// output_config.format structured outputs used below; neither call uses adaptive
-// thinking or effort (Haiku 4.5 rejects both).
-const MODEL = "claude-haiku-4-5";
-const FALLBACK_MODEL = "claude-sonnet-4-6";
+// Haiku only — no Sonnet/Opus escalation (cost control for agent workloads).
+const MODEL = ANTHROPIC_AGENT_MODEL;
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic | null {
@@ -19,36 +16,28 @@ function getClient(): Anthropic | null {
   return client;
 }
 
-// Run a non-streaming request on Haiku; on refusal, API error, or no text block,
-// retry the same request once on Sonnet. Returns the first text block, or null if
-// both models fail. Truncation (max_tokens) is the caller's concern, not here.
+// Run a non-streaming request on Haiku. Returns the first text block, or null on failure.
 async function createTextWithFallback(
   c: Anthropic,
   params: Record<string, unknown>,
   label: string
 ): Promise<string | null> {
-  const attempt = async (model: string): Promise<{ text: string | null; retry: boolean }> => {
-    try {
-      const resp = await c.messages.create({ ...params, model } as any);
-      if (resp.stop_reason === "refusal") {
-        console.error(`[claude:${label}:${model}] refused — ${JSON.stringify((resp as any).stop_details ?? {})}`);
-        return { text: null, retry: true };
-      }
-      const text = resp.content.find((b) => b.type === "text");
-      if (!text || text.type !== "text") {
-        console.error(`[claude:${label}:${model}] no text block (stop_reason=${resp.stop_reason}).`);
-        return { text: null, retry: true };
-      }
-      return { text: text.text, retry: false };
-    } catch (e) {
-      console.error(`[claude:${label}:${model}] API call failed:`, (e as Error)?.message ?? e);
-      return { text: null, retry: true };
+  try {
+    const resp = await c.messages.create({ ...params, model: MODEL } as any);
+    if (resp.stop_reason === "refusal") {
+      console.error(`[claude:${label}:${MODEL}] refused — ${JSON.stringify((resp as any).stop_details ?? {})}`);
+      return null;
     }
-  };
-  const primary = await attempt(MODEL);
-  if (primary.text != null) return primary.text;
-  console.warn(`[claude:${label}] Haiku attempt failed — retrying on ${FALLBACK_MODEL}.`);
-  return (await attempt(FALLBACK_MODEL)).text;
+    const text = resp.content.find((b) => b.type === "text");
+    if (!text || text.type !== "text") {
+      console.error(`[claude:${label}:${MODEL}] no text block (stop_reason=${resp.stop_reason}).`);
+      return null;
+    }
+    return text.text;
+  } catch (e) {
+    console.error(`[claude:${label}:${MODEL}] API call failed:`, (e as Error)?.message ?? e);
+    return null;
+  }
 }
 
 // Run a structured-output extraction and return the model's JSON text, or null
@@ -69,9 +58,7 @@ async function extractJson(
   label: string,
   maxTokens = 16000
 ): Promise<ExtractResult> {
-  // One attempt against a given model. `retryable` flags failures worth escalating
-  // to Sonnet (refusal / no-text / API error). max_tokens truncation is NOT
-  // retryable — a different model at the same budget truncates the same way.
+  // One attempt on Haiku (cheapest). max_tokens truncation is not retried with a larger model.
   const attempt = async (
     model: string
   ): Promise<ExtractResult & { retryable: boolean }> => {
@@ -110,12 +97,7 @@ async function extractJson(
   };
 
   const primary = await attempt(MODEL);
-  if (primary.text != null || !primary.retryable) {
-    return { text: primary.text, error: primary.error } as ExtractResult;
-  }
-  console.warn(`[claude:${label}] Haiku attempt failed (${primary.error}) — retrying on ${FALLBACK_MODEL}.`);
-  const fb = await attempt(FALLBACK_MODEL);
-  return { text: fb.text, error: fb.error } as ExtractResult;
+  return { text: primary.text, error: primary.error } as ExtractResult;
 }
 
 // Structured extraction of plan facts from blueprint page images.

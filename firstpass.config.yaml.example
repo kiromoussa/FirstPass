@@ -1,41 +1,44 @@
-# Copy this file to firstpass.config.yaml and fill in your credentials.
-# firstpass.config.yaml is gitignored — never commit real API keys.
+# Copy to firstpass.config.yaml and fill in credentials.
+# Full key reference: BAND_AGENTS.md (gitignored)
 
 anthropic:
   api_key: ""
-  model: "claude-haiku-4-5-20251001"  # cheapest Claude model for tool-calling agents
+  model: "claude-haiku-4-5-20251001"
 
 browserbase:
   api_key: ""
   project_id: ""
 
-# Register External Agents at app.band.ai with these exact names for @mention routing:
-#   - Municipal Code Researcher
-#   - State Code Researcher
-#   - Code Synthesizer
-#   - Permit Agent
+band_rest_url: "https://app.band.ai/api/v1/agent"
+
 band:
-  municipal_researcher:
-    agent_id: "28e83f6c-4362-4539-8e53-0f31477d99c1"
+  ceo:
+    agent_id: ""   # @varbtw/ceo-boss
     api_key: ""
-
-  state_researcher:
-    agent_id: "0d05ac9f-7998-4030-86d2-72381854ebd3"
+  project_property_manager:
+    agent_id: ""   # @varbtw/project-property-intake (Project and Property Manager)
     api_key: ""
-
   code_synthesizer:
-    agent_id: "94d50391-87a6-4285-a8b7-03faf165722e"
+    agent_id: ""   # @varbtw/code-synthesizer
     api_key: ""
-
-  permit_agent:
+  municipal_researcher:
+    agent_id: ""   # @varbtw/municipal-researcher
+    api_key: ""
+  state_researcher:
+    agent_id: ""   # @varbtw/state-code-researcher
+    api_key: ""
+  visual_analysis:
+    agent_id: ""   # @varbtw/vis-agent
+    api_key: ""
+  compare_codes:
+    agent_id: ""   # @varbtw/compare-codes
+    api_key: ""
+  solutions_agent:
     agent_id: ""
     api_key: ""
-
-  # Used by firstpass-kickoff to create rooms and send messages
-  orchestrator:
-    agent_id: "28e83f6c-4362-4539-8e53-0f31477d99c1"
+  permit_report:
+    agent_id: ""   # @varbtw/permit-report-agent
     api_key: ""
-
-# Optional: override Band endpoints for self-hosted deployments
-# band_rest_url: "https://app.band.ai/api/v1/agent"
-# band_ws_url: "wss://app.band.ai/api/v1/socket/websocket"
+  orchestrator:
+    agent_id: ""
+    api_key: ""

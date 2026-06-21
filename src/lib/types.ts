@@ -59,10 +59,12 @@ export interface AgentMessage {
 // double-checked against what the agents truly said.
 export interface BandRoomMessage {
   id: string;
-  author: string; // display name resolved from the room participants
+  author: string;
   content: string;
-  ts: number; // epoch ms (0 if Band gave no parseable timestamp)
-  kind: "agent" | "human" | "orchestrator"; // who posted it, for styling
+  ts: number;
+  kind: "agent" | "human" | "orchestrator";
+  /** Which firm chat this message belongs to (1–3). */
+  chatLabel?: string;
 }
 
 // Residential project subtype. The applicability eval (Arize) keys off this — a
@@ -93,6 +95,8 @@ export interface Project {
   pdfName?: string;
   dwgName?: string;
   apsUrn?: string; // Autodesk Model Derivative URN for the translated DWG
+  /** Band chat room id when a run opened a collaboration room. */
+  bandRoomId?: string;
   // A plan set (PDF/image) was uploaded for native Claude-vision reading; bytes
   // live in the store under `plan:<id>`. This is the accurate fact source.
   planMime?: string;
@@ -199,6 +203,10 @@ export interface ProjectState {
   checklist: ChecklistItem[];
   messages: AgentMessage[];
   report?: Report;
+  /** Real Band collaboration room opened for this run. */
+  bandRoomId?: string | null;
+  /** Live transcript — actual agent-to-agent posts from Band. */
+  bandTranscript?: BandRoomMessage[];
 }
 
 export const DISCLAIMER =

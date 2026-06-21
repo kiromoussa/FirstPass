@@ -3,11 +3,21 @@
 import Link from "next/link";
 import { PHASES, type ProjectState, type Phase, type Sponsor, type Finding, type BandRoomMessage } from "@/lib/types";
 import { AGENT_META, MSG_META, SPONSOR_META, STATUS_META } from "@/lib/ui";
+import { BandConversation } from "@/components/BandConversation";
 
 const ORDER: Phase[] = ["jurisdiction", "research", "read", "comply", "review", "report", "done"];
 
 // One-line description of what each phase is actually doing — gives the step
 // flow some substance while the agents work.
+const BAND_PHASE_DETAIL: Record<string, string> = {
+  jurisdiction: "CEO Boss delegates; Project and Property Manager writes the project brief.",
+  research: "Municipal + State researchers scrape codes; Synthesizer merges.",
+  read: "Visual Analysis reads the plan set with Claude vision.",
+  comply: "Compare Codes flags plan vs code violations.",
+  review: "—",
+  report: "—",
+};
+
 const PHASE_DETAIL: Record<string, string> = {
   jurisdiction: "Resolving the jurisdiction and responsible agencies.",
   research: "Navigating official city sources and indexing the code.",
@@ -67,7 +77,11 @@ export function RunProgress({
   const pct = Math.round((completed / PHASES.length) * 100);
 
   const messages = state?.messages ?? [];
-  const recent = messages.slice(-6);
+  const transcript = state?.bandTranscript?.length ? state.bandTranscript : bandRoom;
+  const roomId = state?.bandRoomId ?? bandRoomId;
+  const bandMode = !!roomId || transcript.length > 0;
+  const phaseDetail = bandMode ? BAND_PHASE_DETAIL : PHASE_DETAIL;
+  const recent = messages.slice(-4);
   const latest = messages[messages.length - 1];
 
   // Which tool is active right now = the sponsor on the most recent message
@@ -127,6 +141,8 @@ export function RunProgress({
                 ? error
                 : done
                 ? `Found ${violations.length} item${violations.length === 1 ? "" : "s"} to address. Review the violations on the right, then open the dashboard or the full report.`
+                : bandMode
+                ? "Agents are collaborating live in Band — the conversation stream is on the right. Keep ./scripts/run_workflow_agents.sh running locally."
                 : "Live tool activity and the code being retrieved are on the right. Violations appear as the checks run."}
             </p>
 
@@ -212,7 +228,7 @@ export function RunProgress({
                         )}
                       </div>
                       <div className={`text-xs leading-relaxed ${phaseState === "todo" ? "text-slate-700" : "text-slate-400"}`}>
-                        {PHASE_DETAIL[p.key]}
+                        {phaseDetail[p.key] ?? PHASE_DETAIL[p.key]}
                       </div>
                     </div>
                   </li>
@@ -220,8 +236,11 @@ export function RunProgress({
               })}
             </ol>
 
-            {/* Right rail: tools · violations · retrieved code · activity */}
+            {/* Right rail: Band conversation (primary) · tools · violations */}
             <div className="space-y-4">
+              <Panel title="Live agent conversation">
+                <BandConversation messages={transcript} roomId={roomId} />
+              </Panel>
               {/* Tools in use — the active one lights up in its own color */}
               <Panel title="Tools in use">
                 <div className="space-y-1.5">
@@ -338,59 +357,32 @@ export function RunProgress({
                 </Panel>
               )}
 
-              {/* The REAL Band room transcript — the actual conversation
-                  between the registered research agents, polled live from
-                  Band. Shown whenever a room is open so the run can be
-                  double-checked against what the agents truly said. */}
-              {bandRoomId && (
-                <Panel
-                  title={`Band room · live${bandRoom.length ? ` · ${bandRoom.length}` : ""}`}
-                >
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto scrollbar-thin">
-                    {bandRoom.length === 0 ? (
-                      <p className="text-xs text-slate-600 py-1">
-                        Room open — waiting for the agents to reply…
-                      </p>
-                    ) : (
-                      bandRoom.map((m) => <RoomMessage key={m.id} m={m} />)
-                    )}
+              {/* Pipeline status (short) */}
+              {recent.length > 0 && (
+                <Panel title={`Run status · ${messages.length} updates`}>
+                  <div className="space-y-2 max-h-[160px] overflow-y-auto scrollbar-thin">
+                    {recent.map((m) => {
+                      const agent = AGENT_META[m.from];
+                      const mt = MSG_META[m.type];
+                      return (
+                        <div key={m.id} className="rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-2">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm">{agent.emoji}</span>
+                            <span className="text-xs font-medium text-slate-200">{agent.label}</span>
+                            <span
+                              className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                              style={{ color: mt.color, background: `${mt.color}1a` }}
+                            >
+                              {mt.label}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 leading-relaxed line-clamp-3">{m.text}</p>
+                        </div>
+                      );
+                    })}
                   </div>
                 </Panel>
               )}
-
-              {/* Live agent activity (local pipeline narration) */}
-              <Panel title={`Agent activity · Band${messages.length ? ` · ${messages.length}` : ""}`}>
-                <div className="space-y-2 max-h-[260px] overflow-y-auto scrollbar-thin">
-                  {recent.length === 0 && <div className="text-xs text-slate-600 py-1">Waiting for agents…</div>}
-                  {recent.map((m) => {
-                    const agent = AGENT_META[m.from];
-                    const mt = MSG_META[m.type];
-                    return (
-                      <div key={m.id} className="rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-2">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm">{agent.emoji}</span>
-                          <span className="text-xs font-medium text-slate-200">{agent.label}</span>
-                          <span
-                            className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wide"
-                            style={{ color: mt.color, background: `${mt.color}1a` }}
-                          >
-                            {mt.label}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 leading-relaxed">{m.text}</p>
-                        {m.sponsor && (
-                          <span
-                            className="inline-block mt-1.5 text-[9px] px-1.5 py-0.5 rounded"
-                            style={{ color: SPONSOR_META[m.sponsor].color, background: `${SPONSOR_META[m.sponsor].color}1a` }}
-                          >
-                            {SPONSOR_META[m.sponsor].label}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </Panel>
             </div>
           </div>
         </div>
@@ -407,37 +399,6 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
       </div>
       <div className="p-3">{children}</div>
     </section>
-  );
-}
-
-// One message from the real Band room. Color-coded by who posted it: the
-// research agents (purple/Band), the human owner, or the FirstPass orchestrator.
-function RoomMessage({ m }: { m: BandRoomMessage }) {
-  const band = SPONSOR_META.band.color;
-  const accent =
-    m.kind === "agent" ? band : m.kind === "human" ? "#3ddc97" : "#8aa0b6";
-  const role =
-    m.kind === "agent" ? "agent" : m.kind === "human" ? "you" : "orchestrator";
-  return (
-    <div
-      className="rounded-lg border bg-ink-800/60 px-3 py-2"
-      style={{ borderColor: `${accent}55` }}
-    >
-      <div className="flex items-center gap-2 mb-1">
-        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: accent }} />
-        <span className="text-xs font-medium text-slate-200 truncate">{m.author}</span>
-        <span
-          className="text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
-          style={{ color: accent, background: `${accent}1a` }}
-        >
-          {role}
-        </span>
-        {m.ts > 0 && (
-          <span className="ml-auto text-[9px] text-slate-600 flex-shrink-0">{timeOf(m.ts)}</span>
-        )}
-      </div>
-      <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap break-words">{m.content}</p>
-    </div>
   );
 }
 

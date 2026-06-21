@@ -119,6 +119,8 @@ def analyze_plan(input: AnalyzePlanInput) -> str:
     """Extract plan facts with Claude vision — same contract as the FirstPass web app."""
     import anthropic
 
+    from firstpass.config import DEFAULT_MODEL
+
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         return json.dumps({"error": "ANTHROPIC_API_KEY not configured", "facts": _null_facts([])["facts"]})
@@ -171,7 +173,7 @@ def analyze_plan(input: AnalyzePlanInput) -> str:
         content.append({"type": "text", "text": f"--- Sheet {path.stem} ---"})
         content.append(_media_block(path))
 
-    model = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
+    model = os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL)
     client = anthropic.Anthropic(api_key=api_key)
 
     try:
@@ -179,7 +181,6 @@ def analyze_plan(input: AnalyzePlanInput) -> str:
             model=model,
             max_tokens=4000,
             messages=[{"role": "user", "content": content}],
-            thinking={"type": "adaptive"},
             output_config={"format": {"type": "json_schema", "schema": schema}},
         )
         text = next((b.text for b in resp.content if b.type == "text"), None)

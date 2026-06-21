@@ -8,7 +8,7 @@
 
 - **Next.js** — dashboard, SSE pipeline, APS viewer
 - **Python Band agents** — Municipal / State / Synthesizer scrape codes via Browserbase + Internet Archive
-- **Band** — multi-agent chat orchestration (CEO → Planner → researchers → visual → compare → …)
+- **Band** — multi-agent chat orchestration (CEO → Project and Property Manager → researchers → visual → compare → …)
 - **Claude** — plan reading, agent reasoning, report writing
 
 ## Setup

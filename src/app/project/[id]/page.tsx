@@ -8,6 +8,7 @@ import { ScoreGauge } from "@/components/ScoreGauge";
 import { PhaseRail } from "@/components/PhaseRail";
 import { SponsorRail } from "@/components/SponsorRail";
 import { AgentFeed } from "@/components/AgentFeed";
+import { BandConversation } from "@/components/BandConversation";
 import { BlueprintViewer } from "@/components/BlueprintViewer";
 import { ApsViewer } from "@/components/ApsViewer";
 import { FindingsList } from "@/components/FindingsList";
@@ -35,7 +36,10 @@ export default function ProjectDashboard() {
     // correct, Strict-Mode-safe pattern.
     const es = new EventSource(`/api/run/${id}`);
     es.addEventListener("state", (e) => {
-      setState(JSON.parse((e as MessageEvent).data));
+      const next = JSON.parse((e as MessageEvent).data) as ProjectState;
+      setState(next);
+      if (next.bandRoomId) setBandRoomId(next.bandRoomId);
+      if (next.bandTranscript?.length) setBandRoom(next.bandTranscript);
     });
     // A real Band collaboration room was opened for this run.
     es.addEventListener("band", (e) => {
@@ -48,23 +52,19 @@ export default function ProjectDashboard() {
     // Live transcript of the real Band room (the actual agent conversation).
     es.addEventListener("band-room", (e) => {
       try {
-        setBandRoom(JSON.parse((e as MessageEvent).data).messages ?? []);
+        const data = JSON.parse((e as MessageEvent).data);
+        setBandRoom(data.messages ?? []);
+        if (data.roomId) setBandRoomId(data.roomId);
       } catch {
         /* ignore */
       }
     });
     es.addEventListener("complete", () => es.close());
-    // The server emits a custom `error` event (with a message payload) when the
-    // pipeline throws; native connection errors arrive without data. Surface the
-    // former so the run screen never sits on a blank dashboard.
-    es.addEventListener("error", (e) => {
-      const data = (e as MessageEvent).data;
-      if (data) {
-        try {
-          setError(JSON.parse(data).message ?? "The run failed.");
-        } catch {
-          setError("The run failed.");
-        }
+    es.addEventListener("run-error", (e) => {
+      try {
+        setError(JSON.parse((e as MessageEvent).data).message ?? "The run failed.");
+      } catch {
+        setError("The run failed.");
       }
       es.close();
     });
@@ -86,6 +86,8 @@ export default function ProjectDashboard() {
   }, [state?.findings]);
 
   const done = state?.project.status === "done";
+  const transcript = state?.bandTranscript?.length ? state.bandTranscript : bandRoom;
+  const roomId = state?.bandRoomId ?? bandRoomId ?? state?.project.bandRoomId;
 
   // Show the step-by-step run flow until the pipeline finishes (or fails), then
   // a completion summary with the code violations — rather than dropping the
@@ -190,9 +192,16 @@ export default function ProjectDashboard() {
           )}
         </section>
 
-        {/* Right: agent feed */}
-        <aside className="border-l border-ink-700 overflow-hidden">
-          <AgentFeed messages={state?.messages ?? []} />
+        {/* Right: Band agent conversation + pipeline feed */}
+        <aside className="border-l border-ink-700 overflow-hidden flex flex-col">
+          {(roomId || transcript.length > 0) && (
+            <div className="border-b border-ink-700 p-3 flex-shrink-0 max-h-[45%] overflow-hidden">
+              <BandConversation messages={transcript} roomId={roomId} compact />
+            </div>
+          )}
+          <div className="flex-1 min-h-0">
+            <AgentFeed messages={state?.messages ?? []} />
+          </div>
         </aside>
       </div>
 
