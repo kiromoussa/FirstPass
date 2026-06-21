@@ -10,6 +10,18 @@ dependencies = [
     "playwright>=1.49.0",
     "pydantic>=2.0.0",
     "pyyaml>=6.0.0",
+    "redis>=5.0.0",
+]
+
+[project.optional-dependencies]
+# RedisVL hybrid (vector + BM25) code retrieval. Pulls in sentence-transformers
+# (torch) for local, zero-cost embeddings — heavy, so it's opt-in:
+#   uv sync --extra vector
+# Required only to (re)build the firstpass:codes index; the app's query path
+# degrades to lexical retrieval when the index is absent. See docs/REDIS_PLAN.md.
+vector = [
+    "redisvl>=0.3.0",
+    "sentence-transformers>=2.2.0",
 ]
 
 [project.scripts]

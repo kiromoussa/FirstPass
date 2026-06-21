@@ -12,9 +12,12 @@
 // CODE_CHUNKS below remain the fallback when a city has no committed corpus.
 import fs from "node:fs";
 import path from "node:path";
-import { kvGet, kvSet } from "./store";
+import { kvGet, kvSet, redisCommand } from "./store";
 import { RULES } from "./fixtures";
 import type { Rule } from "./types";
+
+// Name of the RedisVL hybrid-search index built by scripts/index_codes_redisvl.py.
+const VL_INDEX = "firstpass:codes";
 
 export const DEFAULT_CITY = "alameda-ca";
 
@@ -244,6 +247,81 @@ function scoreChunk(c: CodeChunk, ruleKey: string, appliesTo?: string): number {
   if (appliesTo === "attached_adu") score += c.topics.includes("attached") ? 4 : -4;
   else if (appliesTo === "detached_adu") score += c.topics.includes("attached") ? -4 : 1;
   return score;
+}
+
+// RediSearch TAG values treat -, ., space, etc. as separators, so a slug like
+// "los-angeles-ca" must be escaped to match as one token.
+function escapeTag(v: string): string {
+  return v.replace(/[-.\s:|{}()[\]"~*?\\/@$<>=]/g, "\\$&");
+}
+
+// Parse one FT.SEARCH ...WITHSCORES hit's flat [field, value, …] array into a
+// CodeChunk. ioredis returns nested arrays of strings.
+function chunkFromFields(fields: string[]): CodeChunk | null {
+  const m: Record<string, string> = {};
+  for (let i = 0; i + 1 < fields.length; i += 2) m[fields[i]] = fields[i + 1];
+  if (!m.chunk_id) return null;
+  const topics = (m.topics ?? "").split("|").filter((t) => t && t !== "none");
+  return {
+    id: m.chunk_id,
+    section: m.section ?? "",
+    topics,
+    text: m.text ?? "",
+    sourceId: m.source_id ?? "",
+    category: m.category,
+    citation: m.section,
+  };
+}
+
+// Query the RedisVL index (firstpass:codes) via FT.SEARCH: full-text BM25 over
+// the chunk body + context, narrowed by city / code-layer / applicability TAG
+// filters. This is the "hybrid" retrieval the demo leans on — crucially the
+// applies_to filter is what flips the attached/detached height check. Returns
+// null when the index is absent or the Search module isn't installed (redisCommand
+// swallows the error), so callers fall back to lexical retrieval.
+export async function searchCodeIndex(
+  ruleKey: string,
+  appliesTo?: string,
+  slug: string = DEFAULT_CITY,
+  category?: string
+): Promise<CodeChunk | null> {
+  const filters = [`@city:{${escapeTag(slug)}}`];
+  if (category) filters.push(`@category:{${escapeTag(category)}}`);
+  if (appliesTo === "attached_adu") filters.push(`@applies_to:{attached_adu}`);
+  else if (appliesTo === "detached_adu") filters.push(`@applies_to:{detached_adu}`);
+
+  const terms = (RULE_TERMS[ruleKey] ?? [ruleKey.toLowerCase()]).map((t) =>
+    t.includes(" ") ? `"${t}"` : t
+  );
+  const query = `${filters.join(" ")} @text:(${terms.join("|")})`;
+
+  const res = (await redisCommand(
+    "FT.SEARCH", VL_INDEX, query,
+    "SCORER", "BM25", "WITHSCORES",
+    "LIMIT", "0", "1",
+    "RETURN", "6", "chunk_id", "section", "text", "source_id", "category", "topics",
+    "DIALECT", "2"
+  )) as unknown[] | null;
+
+  // Shape with WITHSCORES: [total, docId, score, [f,v,…], …]. total === 0 → miss.
+  if (!Array.isArray(res) || typeof res[0] !== "number" || res[0] === 0) return null;
+  const fields = res[3];
+  if (!Array.isArray(fields)) return null;
+  return chunkFromFields(fields.map(String));
+}
+
+// Preferred retrieval: try the RedisVL hybrid index first, fall back to the
+// deterministic lexical scorer when the index isn't built (local dev, no Search
+// module, or a city that hasn't been indexed). Same signature as retrieveCode.
+export async function retrieveCodeHybrid(
+  ruleKey: string,
+  appliesTo?: string,
+  slug: string = DEFAULT_CITY,
+  category?: string
+): Promise<CodeChunk | null> {
+  const viaIndex = await searchCodeIndex(ruleKey, appliesTo, slug, category);
+  if (viaIndex) return viaIndex;
+  return retrieveCode(ruleKey, appliesTo, slug, category);
 }
 
 export interface CityMeta {

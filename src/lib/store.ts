@@ -75,6 +75,55 @@ export async function kvGet<T>(key: string): Promise<T | null> {
   return m ? (JSON.parse(m) as T) : null;
 }
 
+// Read a Redis HASH (all field/value pairs). Used for the multi-agent blackboard
+// (project:{id}:blackboard), which the Python Band agents write with HSET — see
+// src/firstpass/redis_store.py and docs/REDIS_PLAN.md. Returns {} when Redis is
+// absent (the in-memory fallback Map is string-only and never holds hashes) or
+// the key doesn't exist, so callers can treat empty as "no artifacts yet".
+export async function hgetAll(key: string): Promise<Record<string, string>> {
+  const r = await client();
+  if (r) {
+    try {
+      return (await r.hgetall(key)) ?? {};
+    } catch (e) {
+      warnMemoryFallback(`hgetall failed: ${(e as Error).message}`);
+    }
+  }
+  return {};
+}
+
+// Read a single Redis string key without JSON-parsing (project:active is a bare
+// id string, not a JSON blob). Returns null when absent or in fallback mode.
+export async function getRaw(key: string): Promise<string | null> {
+  const r = await client();
+  if (r) {
+    try {
+      return await r.get(key);
+    } catch (e) {
+      warnMemoryFallback(`get failed: ${(e as Error).message}`);
+    }
+  }
+  return null;
+}
+
+// Issue a raw Redis command (e.g. FT.SEARCH on the RedisVL index built by
+// scripts/index_codes_redisvl.py). Returns null when Redis is unavailable OR the
+// command errors — notably FT.* on a Redis without the Search module — so the
+// caller can cleanly fall back to lexical retrieval. We intentionally do NOT
+// route this through warnMemoryFallback: a missing Search module is an expected,
+// recoverable condition, not a persistence failure.
+export async function redisCommand(
+  ...args: (string | number)[]
+): Promise<unknown | null> {
+  const r = await client();
+  if (!r) return null;
+  try {
+    return await r.call(args[0] as string, ...(args.slice(1) as string[]));
+  } catch {
+    return null;
+  }
+}
+
 const stateKey = (id: string) => `state:${id}`;
 
 export async function saveState(state: ProjectState): Promise<void> {

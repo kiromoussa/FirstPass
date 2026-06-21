@@ -15,6 +15,7 @@ import { FindingsList } from "@/components/FindingsList";
 import { FactsList } from "@/components/FactsList";
 import { FindingInspector } from "@/components/FindingInspector";
 import { RunProgress } from "@/components/RunProgress";
+import { BlackboardPanel } from "@/components/BlackboardPanel";
 
 export default function ProjectDashboard() {
   const params = useParams<{ id: string }>();
@@ -153,6 +154,12 @@ export default function ProjectDashboard() {
           <div>
             <h3 className="text-[10px] uppercase tracking-widest text-slate-500 mb-3">Extracted facts</h3>
             <FactsList facts={state?.facts ?? []} />
+          </div>
+          <div>
+            <h3 className="text-[10px] uppercase tracking-widest text-slate-500 mb-3">
+              Redis blackboard
+            </h3>
+            <BlackboardPanel projectId={id} />
           </div>
         </aside>
 

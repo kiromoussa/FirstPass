@@ -141,6 +141,25 @@ def git_commit_city(slug: str) -> None:
         print(f"  git: could not commit ({exc}) — commit {rel} manually", file=sys.stderr)
 
 
+def index_city_redisvl(slug: str) -> None:
+    """Run scripts/index_codes_redisvl.py for one slug so the freshly-ingested
+    corpus is immediately searchable via RedisVL. Best-effort: a missing vector
+    extra / Search module just prints the failure; the app's lexical retrieval
+    still works."""
+    import subprocess
+
+    script = Path(__file__).resolve().parent / "index_codes_redisvl.py"
+    print(f"Indexing {slug} into RedisVL …")
+    try:
+        subprocess.run([sys.executable, str(script), "--slug", slug], check=True)
+    except Exception as exc:  # noqa: BLE001
+        print(
+            f"  RedisVL index skipped ({exc}). Install vectors: `uv sync --extra vector` "
+            "and ensure REDIS_URL points at a Redis with Search.",
+            file=sys.stderr,
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ingest Band research output into a chunkable city corpus")
     parser.add_argument("--slug", required=True, help="target city slug under data/cities")
@@ -153,12 +172,20 @@ def main() -> None:
         action="store_true",
         help="git-commit data/cities/<slug>/ after chunking so it's permanent in the repo",
     )
+    parser.add_argument(
+        "--index",
+        action="store_true",
+        help="also (re)build the RedisVL hybrid-search index for this slug "
+        "(needs `uv sync --extra vector` + a Redis with Search). See REDIS_PLAN.md.",
+    )
     args = parser.parse_args()
 
     count = ingest(args.slug, Path(args.output_dir), args.city, args.state, args.include_summary)
     if count == 0:
         sys.exit(1)
     print(f"Done. {count} chunk(s) for {args.slug}.")
+    if args.index:
+        index_city_redisvl(args.slug)
     if args.commit:
         git_commit_city(args.slug)
     else:

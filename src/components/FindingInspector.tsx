@@ -52,7 +52,7 @@ export function FindingInspector({
           {finding.codeText && (
             <div className="rounded-lg border border-ink-700 bg-ink-800/50 p-3">
               <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">
-                Retrieved code · RAG from Redis
+                Retrieved code · Hybrid RAG · RedisVL
               </div>
               {finding.codeSection && (
                 <div className="text-xs font-medium text-slate-300 mb-1">{finding.codeSection}</div>

@@ -30,7 +30,7 @@ import {
   languageLint,
 } from "./compliance";
 import { saveState, kvGet, kvSet } from "./store";
-import { seedCodeChunks, retrieveCode, cityLabel, rulesFor } from "./code-db";
+import { seedCodeChunks, retrieveCodeHybrid, cityLabel, rulesFor } from "./code-db";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -307,7 +307,7 @@ export async function* runPipeline(
     const fact = factForRuleKey(key);
     if (!rule || !fact) continue;
     const res = compareNumeric(fact, rule);
-    const chunk = await retrieveCode(key, rule.appliesTo, citySlug); // RAG: only the relevant chunk
+    const chunk = await retrieveCodeHybrid(key, rule.appliesTo, citySlug); // RAG: RedisVL hybrid, lexical fallback
     // When the value is missing, distinguish a READER failure (truncation /
     // refusal / API error — re-running may fix it) from a value that's simply
     // not drawn on the legible sheets. Either way, cite the applicable limit so
@@ -345,7 +345,7 @@ export async function* runPipeline(
   const checklist = deriveChecklist(facts);
   state.checklist = checklist;
   const missing = checklist.filter((c) => c.required && c.present === false);
-  const docsChunk = await retrieveCode("requiredDocs", undefined, citySlug);
+  const docsChunk = await retrieveCodeHybrid("requiredDocs", undefined, citySlug);
   const docsFinding: Finding = {
     id: "f_requiredDocs",
     ruleKey: "requiredDocs",
@@ -395,7 +395,7 @@ export async function* runPipeline(
         f.message = res.detail;
         f.ruleRef = correctRule.key;
         f.sourceRef = correctRule.sourceId;
-        const correctChunk = await retrieveCode(f.ruleKey, correctRule.appliesTo, citySlug);
+        const correctChunk = await retrieveCodeHybrid(f.ruleKey, correctRule.appliesTo, citySlug);
         f.codeSection = correctChunk?.section ?? f.codeSection;
         f.codeText = correctChunk?.text ?? f.codeText;
         f.corrected = true;

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from firstpass import redis_store
 from firstpass.synthesis import format_compliance_text, synthesize_from_files
 
 OUTPUT_DIR = Path(__file__).resolve().parents[2] / "output"
@@ -144,11 +145,18 @@ def write_text_report(input: WriteTextReportInput) -> str:
 
     path.write_text(full_content, encoding="utf-8")
 
+    # Mirror the report onto the Redis blackboard so downstream agents and the
+    # dashboard read it from shared memory instead of re-opening output/*.txt
+    # (see docs/REDIS_PLAN.md §3.1). Best-effort: no-op when Redis is unset.
+    field = redis_store.field_for(input.report_type if input.report_type != "research" else filename)
+    persisted = redis_store.hset_artifact(field, body)
+
     payload: dict = {
         "status": "written",
         "path": str(path),
         "filename": filename,
         "bytes": path.stat().st_size,
+        "blackboard": field if persisted else None,
     }
     if input.report_type == "final_summary":
         payload["instruction"] = (
@@ -236,6 +244,10 @@ def merge_research_reports(input: MergeResearchReportsInput) -> str:
         )
 
     path.write_text(full_content, encoding="utf-8")
+
+    # Publish the synthesized summary to the blackboard (best-effort; no-op
+    # without Redis) so the dashboard shows the firm's final answer live.
+    redis_store.hset_artifact("final_summary", body)
 
     return json.dumps(
         {

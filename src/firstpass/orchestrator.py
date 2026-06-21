@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from firstpass import redis_store
 from firstpass.band_client import BandClient
 from firstpass.config import init_environment, load_agent_config
 from firstpass.code_sources import DEFAULT_ADDRESS
@@ -68,7 +69,25 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Kick off CEO-led Band workflow")
     parser.add_argument("--address", default=DEFAULT_ADDRESS, help="Project address")
     parser.add_argument("--project-type", default="Detached ADU", help="Project type")
+    parser.add_argument(
+        "--project-id",
+        default=None,
+        help="Next.js project id to bind this run to (sets Redis project:active so "
+        "agents publish to project:{id}:blackboard and the dashboard reads it).",
+    )
     args = parser.parse_args()
+
+    # Bind this Band run to a project on the shared Redis blackboard. The agents
+    # are long-running listeners, so we advertise the active project in Redis
+    # (project:active) rather than threading the id through every message.
+    if args.project_id:
+        if redis_store.set_active_project(
+            args.project_id,
+            {"address": args.address, "project_type": args.project_type},
+        ):
+            print(f"Bound run to project {args.project_id} (Redis blackboard).")
+        else:
+            print("Note: REDIS_URL unset/unreachable — blackboard disabled, files only.")
 
     # Prefer CEO as orchestrator; fall back to orchestrator key in config.
     try:
