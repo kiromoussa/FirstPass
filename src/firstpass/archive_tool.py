@@ -15,8 +15,14 @@ from pydantic import BaseModel, Field
 
 from firstpass.code_sources import ARCHIVE_ITEMS, OAKLAND_MUNICIPAL_URLS, search_archive_text
 
-TEXT_LIMIT = 20_000
+# OCR text cap for web/Browserbase page fallbacks. The primary Internet Archive
+# djvu OCR text is NOT capped here — it's windowed by search_archive_text, or
+# captured whole when full_text=True.
+TEXT_LIMIT = 200_000
 NAV_TIMEOUT_MS = 90_000
+# How many excerpt windows to pull per OCR document (was 15 — far too few for a
+# real code). Raise to capture most relevant provisions, not just the first hits.
+MAX_EXCERPTS = 200
 
 
 class ArchiveCodeScrapeInput(BaseModel):
@@ -39,6 +45,10 @@ class ArchiveCodeScrapeInput(BaseModel):
     use_browserbase: bool = Field(
         default=True,
         description="If false, only fetch Internet Archive OCR text (faster, no Browserbase session)",
+    )
+    full_text: bool = Field(
+        default=False,
+        description="Capture the ENTIRE OCR document, not just excerpt windows. Use to ingest a whole code (hundreds of pages) for chunking.",
     )
 
 
@@ -211,7 +221,11 @@ def archive_code_scrape(input: ArchiveCodeScrapeInput) -> str:
     for try_id in item_ids_to_try:
         full_text, djvu_url = _fetch_djvu_text(try_id)
         if full_text:
-            excerpts = search_archive_text(full_text, input.search_terms, max_excerpts=15)
+            if input.full_text:
+                # Capture the whole document — chunking handles the volume.
+                excerpts = [{"match": "full OCR document", "text": full_text}]
+            else:
+                excerpts = search_archive_text(full_text, input.search_terms, max_excerpts=MAX_EXCERPTS)
             sources_used.append(
                 {
                     "type": "internet_archive_ocr",
@@ -233,7 +247,7 @@ def archive_code_scrape(input: ArchiveCodeScrapeInput) -> str:
             page_text = _fetch_web_page_text(url)
             if page_text:
                 sources_used.append({"type": "municipal_web", "url": url, "text_length": len(page_text)})
-                all_excerpts.extend(search_archive_text(page_text, input.search_terms, max_excerpts=10))
+                all_excerpts.extend(search_archive_text(page_text, input.search_terms, max_excerpts=MAX_EXCERPTS))
                 if all_excerpts:
                     break
 
@@ -269,7 +283,7 @@ def archive_code_scrape(input: ArchiveCodeScrapeInput) -> str:
             "jurisdiction": input.jurisdiction,
             "session_recording_url": session_recording,
             "sources": sources_used,
-            "excerpts": all_excerpts[:20],
+            "excerpts": all_excerpts[:50],  # preview for the agent; full text is in formatted_report
             "excerpt_count": len(all_excerpts),
             "errors": errors,
             "formatted_report": report_body,
@@ -301,7 +315,9 @@ def _format_scrape_report(
     lines.extend(["", "CODE EXCERPTS", "-------------"])
     if not excerpts:
         lines.append("(No matching excerpts found — try broader search terms.)")
-    for i, ex in enumerate(excerpts[:15], 1):
+    # Write EVERY captured excerpt (or the full document) — this report is what
+    # the chunker ingests, so it must contain all of the text, not a preview.
+    for i, ex in enumerate(excerpts, 1):
         lines.append(f"\n--- Excerpt {i} (match: {ex.get('match', '')}) ---")
         lines.append(ex.get("text", ""))
     if errors:

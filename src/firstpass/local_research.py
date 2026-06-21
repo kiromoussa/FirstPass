@@ -65,6 +65,11 @@ def main() -> None:
         default="",
         help="comma-separated subset of layers to scrape (default: all). e.g. municipal,state,green",
     )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="capture the ENTIRE code document per layer (hundreds of pages), not just relevant excerpts",
+    )
     args = parser.parse_args()
 
     ocr_only = not args.with_browserbase
@@ -74,7 +79,7 @@ def main() -> None:
     # Scrape one report per code layer — this is what makes the output "all of it".
     layer_paths: list[tuple[str, Path]] = []
     for layer in layers:
-        print(f"Scraping {layer['layer']} codes...")
+        print(f"Scraping {layer['layer']} codes{' (full document)' if args.full else ''}...")
         path = _scrape_and_write(
             layer["filename"],
             layer["layer"],
@@ -85,6 +90,7 @@ def main() -> None:
                 archive_url=layer["archive_url"],
                 search_terms=layer["search_terms"],
                 use_browserbase=not ocr_only,
+                full_text=args.full,
             ),
         )
         layer_paths.append((layer["layer"], path))
