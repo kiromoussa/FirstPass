@@ -4,12 +4,18 @@
 import fs from "fs/promises";
 import type Redis from "ioredis";
 import type { ProjectState } from "./types";
-import { ensureProjectDir, projectStatePath } from "./project-files";
+import { ensureProjectDir, projectStatePath, listDiskProjects } from "./project-files";
 
 let redis: Redis | null = null;
 let redisTried = false;
+let redisDisabled = false;
 let warnedFallback = false;
 const mem = new Map<string, string>();
+
+const REDIS_CONNECT_MS = 2_500;
+const REDIS_COMMAND_MS = 2_500;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export const REDIS_LIVE = !!process.env.REDIS_URL;
 
@@ -30,21 +36,45 @@ if (process.env.NODE_ENV === "production" && !process.env.REDIS_URL) {
   warnMemoryFallback("REDIS_URL is not set");
 }
 
+function disableRedis(reason: string): null {
+  redisDisabled = true;
+  if (redis) {
+    try {
+      redis.disconnect(false);
+    } catch {
+      /* ignore */
+    }
+  }
+  redis = null;
+  warnMemoryFallback(reason);
+  return null;
+}
+
 async function client(): Promise<Redis | null> {
-  if (!process.env.REDIS_URL) return null;
-  if (redis || redisTried) return redis;
+  if (!process.env.REDIS_URL || redisDisabled) return null;
+  if (redis) return redis;
+  if (redisTried) return null;
   redisTried = true;
   try {
     const { default: IORedis } = await import("ioredis");
-    redis = new IORedis(process.env.REDIS_URL, {
-      maxRetriesPerRequest: 2,
-      lazyConnect: false,
+    const candidate = new IORedis(process.env.REDIS_URL, {
+      maxRetriesPerRequest: 1,
+      connectTimeout: REDIS_CONNECT_MS,
+      commandTimeout: REDIS_COMMAND_MS,
+      lazyConnect: true,
+      enableOfflineQueue: false,
+      retryStrategy: () => null,
     });
-    // Never crash on a Redis blip, but don't swallow it silently either — a
-    // persistent connection error in production means data isn't persisting.
-    redis.on("error", (err: Error) => warnMemoryFallback(`Redis error: ${err.message}`));
-  } catch {
-    redis = null;
+    candidate.on("error", (err: Error) => disableRedis(`Redis error: ${err.message}`));
+    await Promise.race([
+      candidate.connect(),
+      sleep(REDIS_CONNECT_MS).then(() => {
+        throw new Error("connect timeout");
+      }),
+    ]);
+    redis = candidate;
+  } catch (e) {
+    return disableRedis(`unreachable: ${(e as Error).message}`);
   }
   return redis;
 }
@@ -147,19 +177,20 @@ export async function saveState(state: ProjectState): Promise<void> {
 }
 
 export async function loadState(id: string): Promise<ProjectState | null> {
-  const fromKv = await kvGet<ProjectState>(stateKey(id));
-  if (fromKv?.project.status === "done") return fromKv;
-
+  // Disk first — replay must not block on a slow/unreachable Redis URL.
   try {
     const raw = await fs.readFile(projectStatePath(id), "utf-8");
     const fromDisk = parseJson<ProjectState>(raw);
     if (fromDisk?.project.status === "done") return fromDisk;
-    if (fromDisk && !fromKv) return fromDisk;
+    if (fromDisk) {
+      const fromKv = await kvGet<ProjectState>(stateKey(id));
+      return fromKv ?? fromDisk;
+    }
   } catch {
     /* no disk snapshot yet */
   }
 
-  return fromKv;
+  return kvGet<ProjectState>(stateKey(id));
 }
 
 const PROJECT_INDEX = "projects:index";
@@ -182,11 +213,21 @@ export async function addToProjectIndex(id: string, createdAt: number): Promise<
   }
 }
 
-/** All project ids, newest first. Also picks up projects missing from the index. */
+/** All project ids, newest first. Merges Redis/index, kv scan, and disk project.json. */
 export async function listProjectIds(): Promise<string[]> {
   const fromIndex = await listProjectIdsFromIndex();
-  if (fromIndex.length > 0) return fromIndex;
-  return scanProjectIds();
+  const fromKv = fromIndex.length > 0 ? fromIndex : await scanProjectIds();
+  const fromDisk = await listDiskProjects();
+
+  const byId = new Map<string, number>();
+  for (const id of fromKv) byId.set(id, byId.get(id) ?? 0);
+  for (const { id, createdAt } of fromDisk) {
+    byId.set(id, Math.max(byId.get(id) ?? 0, createdAt));
+  }
+
+  return [...byId.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([id]) => id);
 }
 
 async function listProjectIdsFromIndex(): Promise<string[]> {

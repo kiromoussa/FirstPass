@@ -19,21 +19,25 @@ export async function GET() {
   const seen = new Set(onDisk.map((c) => c.slug));
 
   const storeOnly: CitySummary[] = [];
-  for (const slug of await listStoredCities()) {
-    if (seen.has(slug)) continue; // disk copy already covers it
-    const meta = await loadStoredMeta(slug);
-    storeOnly.push({
-      slug,
-      label: meta ? [meta.city, meta.state].filter(Boolean).join(", ") || slug : cityLabel(slug),
-      city: meta?.city,
-      state: meta?.state,
-      chunks: await storedChunkCount(slug),
-      categories: [],
-      source: "store",
-    });
+  try {
+    for (const slug of await listStoredCities()) {
+      if (seen.has(slug)) continue; // disk copy already covers it
+      const meta = await loadStoredMeta(slug);
+      storeOnly.push({
+        slug,
+        label: meta ? [meta.city, meta.state].filter(Boolean).join(", ") || slug : cityLabel(slug),
+        city: meta?.city,
+        state: meta?.state,
+        chunks: await storedChunkCount(slug),
+        categories: [],
+        source: "store",
+      });
+    }
+  } catch {
+    /* Redis unavailable — on-disk corpora are enough for the picker */
   }
 
   return NextResponse.json({
-    cities: [...onDisk.map((c) => ({ ...c, source: "committed" })), ...storeOnly],
+    cities: [...onDisk.map((c) => ({ ...c, source: "committed" as const })), ...storeOnly],
   });
 }

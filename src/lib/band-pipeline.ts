@@ -108,7 +108,7 @@ export async function* runBandPipeline(
   project: Project,
   channel: BandChannel
 ): AsyncGenerator<ProjectState> {
-  await channel.ready;
+  const bandReady = channel.ready;
 
   const citySlug = project.citySlug ?? JURISDICTION_ID;
   const state: ProjectState = {
@@ -118,11 +118,31 @@ export async function* runBandPipeline(
     facts: [],
     findings: [],
     checklist: [],
-    messages: [],
+    messages: [
+      {
+        id: `band_boot_${Date.now()}`,
+        ts: Date.now(),
+        from: "orchestrator",
+        type: "info",
+        text: "Band agents online — opening intake chat…",
+        sponsor: "band",
+      },
+    ],
     report: undefined,
     bandRoomId: channel.roomId,
     bandTranscript: [],
   };
+
+  const snapshot = (): ProjectState => ({
+    ...state,
+    messages: [...state.messages],
+    findings: [...state.findings],
+    bandTranscript: state.bandTranscript ? [...state.bandTranscript] : [],
+  });
+
+  yield snapshot();
+
+  await Promise.race([bandReady, sleep(5_000)]);
 
   const runStartedMs = project.createdAt ?? Date.now();
   const started = Date.now();
@@ -132,13 +152,6 @@ export async function* runBandPipeline(
   // (the files are global on disk; without this a new run can "see" a previous
   // run's final_summary.txt and skip the live agent collaboration entirely).
   await clearStaleDeliverables(runStartedMs);
-
-  const snapshot = (): ProjectState => ({
-    ...state,
-    messages: [...state.messages],
-    findings: [...state.findings],
-    bandTranscript: state.bandTranscript ? [...state.bandTranscript] : [],
-  });
 
   let compareCodesStarted = false;
 
@@ -233,7 +246,7 @@ export async function* runBandPipeline(
   const stageNudge: Record<string, { count: number; last: number }> = {};
 
   const addr = project.address || "the project address";
-  const type = (project.projectType || "detached_adu").replace(/_/g, " ");
+  const type = (project.projectType || "single_family").replace(/_/g, " ");
 
   // Fire a nudge for `id` when `blocking` has held for `graceMs`, throttled by
   // NUDGE_COOLDOWN_MS and capped at MAX_NUDGES. `send` receives the 0-based
@@ -314,7 +327,7 @@ export async function* runBandPipeline(
       if (!stateCodes) targets.push("varbtw/state-code-researcher");
       return channel.nudge(
         targets,
-        `${targets.map((t) => `@${t}`).join(" ")} — research the ADU/zoning code for ${addr} (${type}). Municipal: write \`output/municipal_codes.txt\`. State (California Gov Code + Title 24): write \`output/state_codes.txt\`. Then @mention @varbtw/code-synthesizer **once**.`,
+        `${targets.map((t) => `@${t}`).join(" ")} — research the zoning and building code for ${addr} (${type}). Municipal: write \`output/municipal_codes.txt\`. State (California Gov Code + Title 24): write \`output/state_codes.txt\`. Then @mention @varbtw/code-synthesizer **once**.`,
         0
       );
     });

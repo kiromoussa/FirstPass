@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import type { ProjectState } from "@/lib/types";
+import { projectTypeLabel } from "@/lib/types";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { StatusPill } from "@/components/FindingsList";
 
@@ -46,7 +47,7 @@ export default function ReportPage() {
               <div>
                 <h1 className="text-2xl font-semibold text-ink">Permit-Readiness Report</h1>
                 <p className="text-sm text-body mt-1">
-                  {state?.project.name} · {state?.project.address} · Detached ADU
+                  {state?.project.name} · {state?.project.address} · {projectTypeLabel(state?.project.projectType)}
                 </p>
                 <p className="text-[11px] text-faint mt-1">
                   Generated {new Date(report.generatedAt).toLocaleString()}

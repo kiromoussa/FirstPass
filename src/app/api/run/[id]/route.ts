@@ -38,7 +38,6 @@ async function runStream(
   params: Promise<{ id: string }>
 ) {
   const { id } = await params;
-  const project = await loadProject(id);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -61,11 +60,33 @@ async function runStream(
       req.signal.addEventListener("abort", () => {
         closed = true;
       });
+
+      const project = await loadProject(id);
       if (!project) {
         send("run-error", { message: "Project not found" });
         controller.close();
         return;
       }
+
+      // First byte to the browser — never block the SSE on Redis/Band boot.
+      send("state", {
+        project: { ...project, status: "created" },
+        sources: [],
+        rules: [],
+        facts: [],
+        findings: [],
+        checklist: [],
+        messages: [
+          {
+            id: `bootstrap_${Date.now()}`,
+            ts: Date.now(),
+            from: "orchestrator",
+            type: "info",
+            text: "Starting pre-submission checks…",
+            sponsor: "band",
+          },
+        ],
+      });
 
       await persistProject(project).catch(() => null);
 

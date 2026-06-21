@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvSet, kvGet, addToProjectIndex, listProjectIds, loadState } from "@/lib/store";
+import { loadProject } from "@/lib/project-persistence";
 import { resolveCitySlug, loadCityMeta, cityLabel, DEFAULT_CITY } from "@/lib/code-db";
 import type { Project, ProjectType } from "@/lib/types";
-import { PROJECT_TYPES } from "@/lib/types";
+import { PROJECT_TYPES, DEFAULT_PROJECT_TYPE } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function GET() {
       projects.push(state.project);
       continue;
     }
-    const project = await kvGet<Project>(`proj:${id}`);
+    const project = (await kvGet<Project>(`proj:${id}`)) ?? (await loadProject(id));
     if (project) projects.push(project);
   }
   projects.sort((a, b) => b.createdAt - a.createdAt);
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
   // Validate the requested subtype against the known set; default to detached.
   const projectType: ProjectType = PROJECT_TYPES.some((t) => t.value === body.projectType)
     ? (body.projectType as ProjectType)
-    : "detached_adu";
+    : DEFAULT_PROJECT_TYPE;
   // Resolve the jurisdiction: infer from address when it names a researched city;
   // explicit citySlug only applies when the address doesn't resolve (empty/generic).
   const inferred = await resolveCitySlug(body.address);
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
   const meta = loadCityMeta(citySlug);
   const project: Project = {
     id,
-    name: body.name?.trim() || "Untitled ADU Project",
+    name: body.name?.trim() || "Untitled Project",
     address: body.address?.trim() || cityLabel(citySlug),
     projectType,
     jurisdictionId: meta?.jurisdictionId || citySlug,

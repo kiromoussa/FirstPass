@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 const STAGES = [
   { num: "01", name: "Jurisdiction", detail: "Resolves city & responsible agencies" },
-  { num: "02", name: "Code research", detail: "Browses municipal & state ADU codes" },
+  { num: "02", name: "Code research", detail: "Browses municipal & state building codes" },
   { num: "03", name: "Plan reading", detail: "Extracts setbacks, heights, coverage" },
   { num: "04", name: "Compliance", detail: "Compares facts to jurisdiction rules" },
   { num: "05", name: "Audit", detail: "Reviewer challenges & corrects findings" },
@@ -12,12 +12,12 @@ const STAGES = [
 ];
 
 const FEED = [
-  "Resolved jurisdiction: City of Oakland · CA HCD",
-  "Fetched OakMC §17.103 ADU standards · retrieved today",
-  "Read 14 sheets · extracted 9 structured facts",
-  "Max unit size: 1,200 sf allowed vs 850 sf · PASS",
-  "Auditor re-checked height on sheet A-301 · WARNING",
-  "Report composed · 4 findings · 1 missing document",
+  "Resolved jurisdiction: City of Los Angeles · CA HCD",
+  "Indexed municipal & state building code · cached corpus",
+  "Read 10 sheets · extracted setbacks, height & floor area",
+  "Rear setback: 9.83 ft vs 15 ft min · FAIL",
+  "Auditor verified side setback on sheet A1.0 · PASS",
+  "Report composed · score 40/100 · 7 items need review",
 ];
 
 export function HowItWorks() {
@@ -50,8 +50,8 @@ export function HowItWorks() {
           </h2>
           <p className="text-[17.5px] leading-[1.55] text-body">
             Every run flows through a multi-agent pipeline that resolves your
-            jurisdiction, researches live code, reads the drawings, and audits
-            each other before a report is composed.
+            jurisdiction, researches live building code, reads the drawings, and
+            audits each other before a report is composed.
           </p>
         </div>
 

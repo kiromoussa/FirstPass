@@ -86,7 +86,7 @@ const AGENT_DEFS = [
     bandHandle: "varbtw/municipal-researcher",
     fallbackId: "28e83f6c-4362-4539-8e53-0f31477d99c1",
     role: "researcher",
-    ask: "scrape municipal ADU/zoning code from Internet Archive only — size, setbacks, parking, submittal",
+    ask: "scrape municipal zoning and building code from Internet Archive only — setbacks, height, occupancy, submittal",
     report: "municipal_codes.txt",
   },
   {
@@ -95,7 +95,7 @@ const AGENT_DEFS = [
     bandHandle: "varbtw/state-code-researcher",
     fallbackId: "0d05ac9f-7998-4030-86d2-72381854ebd3",
     role: "researcher",
-    ask: "scrape California Gov Code + Title 24 ADU standards from Internet Archive only",
+    ask: "scrape California Gov Code + Title 24 building standards from Internet Archive only",
     report: "state_codes.txt",
   },
   {

@@ -50,7 +50,7 @@ function phase1Kickoff(
   ppm: BandAgentDef
 ): { content: string; mentions: BandMention[] } {
   const address = project?.address || "the project address";
-  const type = (project?.projectType || "detached_adu").replace(/_/g, " ");
+  const type = (project?.projectType || "single_family").replace(/_/g, " ");
   return {
     content: `@${ceo.bandHandle} → @${ppm.bandHandle}
 
@@ -73,7 +73,7 @@ function phase2Kickoff(
   planFiles: string[],
   project?: Project
 ): { content: string; mentions: BandMention[] } {
-  const type = (project?.projectType || "detached_adu").replace(/_/g, " ");
+  const type = (project?.projectType || "single_family").replace(/_/g, " ");
   const planLine =
     planFiles.length > 0
       ? `Plan sheets ready in \`plans/\`: ${planFiles.slice(0, 8).join(", ")}${planFiles.length > 8 ? ` (+${planFiles.length - 8} more)` : ""}.`

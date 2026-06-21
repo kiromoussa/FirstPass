@@ -17,7 +17,7 @@ export function BlueprintViewer({
     <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-ink-700 blueprint-grid">
       {/* faux sheet title block */}
       <div className="absolute top-3 left-3 text-[10px] text-blue-200/70 font-mono">
-        ADU PLAN SET · ALAMEDA, CA · SHEETS A-1…A-3
+        PLAN SET · ALAMEDA, CA · SHEETS A-1…A-3
       </div>
       <div className="absolute bottom-3 right-3 text-[10px] text-blue-200/50 font-mono">
         FirstPass overlay · click a region

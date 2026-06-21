@@ -14,7 +14,7 @@ import type {
   Report,
   ReportSection,
 } from "./types";
-import { DISCLAIMER } from "./types";
+import { DISCLAIMER, projectTypeLabel } from "./types";
 import { JURISDICTION_ID, deriveChecklist } from "./fixtures";
 import { researchSources } from "./integrations/browserbase";
 import { extractPlanFacts, explain, interpretDwgText, extractPlanFactsFromDoc, extractPlanFactsFromDocs, extractPlanFactsFromImages } from "./integrations/claude";
@@ -444,7 +444,7 @@ export async function* runPipeline(
     {} as Record<string, number>
   );
   const summary = languageLint(
-    `Permit-readiness score ${score}/100 for this detached ADU in Alameda, CA. ` +
+    `Permit-readiness score ${score}/100 for ${project.name} (${projectTypeLabel(project.projectType)}, ${cityLabel(citySlug)}). ` +
       `${counts.FAIL || 0} likely violation(s), ${counts.WARNING || 0} warning(s), ${counts.NEEDS_REVIEW || 0} item(s) needing review. ` +
       `All findings are pre-submission and require professional confirmation.`
   );

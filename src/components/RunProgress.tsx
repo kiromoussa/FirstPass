@@ -87,6 +87,10 @@ export function RunProgress({
   // Band is the message bus every agent message flows through, so it counts as
   // in-use the moment any message exists; a live room makes that explicit.
   if (messages.length > 0 || bandRoomId) usedTools.add("band");
+  // Browserbase fetches the official city code at the very start of every run
+  // and that retrieval underpins the whole pipeline, so it reads as engaged
+  // (checked off) from start to finish, never as a transient "active" blip.
+  usedTools.add("browserbase");
 
   // Real code retrieved this run: the official sources (Browserbase) plus the
   // distinct code sections pulled per check (RAG). Deduped by section.
@@ -118,7 +122,7 @@ export function RunProgress({
     ? `Found ${violations.length} item${violations.length === 1 ? "" : "s"} to address. Review the violations on the right, then open the dashboard or the full report.`
     : bandMode
     ? ""
-    : "The live agent conversation is in the center; tool activity, violations, and retrieved code are on the right.";
+    : "The live agent conversation is in the center; compliance findings and retrieved code spread below in a grid.";
 
   return (
     <main className="min-h-screen flex flex-col">
@@ -145,8 +149,8 @@ export function RunProgress({
         </div>
       </header>
 
-      <div className="flex-1 flex items-start justify-center px-6 py-10">
-        <div className="w-full max-w-6xl">
+      <div className="flex-1 px-6 py-10">
+        <div className="w-full max-w-7xl mx-auto">
           <div className="mb-8">
             <h1 className="text-2xl font-semibold tracking-tight">
               {error
@@ -211,7 +215,8 @@ export function RunProgress({
             )}
           </div>
 
-          <div className="grid lg:grid-cols-[200px_minmax(0,1fr)_320px] gap-5 items-start">
+          {/* Row 1: pipeline steps · agent feed · tools + status */}
+          <div className="grid lg:grid-cols-[200px_minmax(0,1fr)_260px] gap-5 items-start">
             {/* Left: compressed step flow */}
             <ol className="space-y-1.5">
               {PHASES.map((p) => {
@@ -253,24 +258,25 @@ export function RunProgress({
 
             {/* Center: pipeline agent activity feed */}
             <Panel title="Agent activity">
-              <div className="max-h-[420px] overflow-hidden rounded-lg border border-ink-700">
+              <div className="max-h-[min(520px,50vh)] overflow-hidden rounded-lg border border-ink-700">
                 <AgentFeed messages={messages} />
               </div>
             </Panel>
 
-            {/* Right rail: tools · violations · code · run status + log */}
+            {/* Right: tools + run status (compact) */}
             <div className="space-y-4">
-              {/* Tools in use, the active one lights up in its own color */}
               <Panel title="Tools in use">
                 <div className="space-y-1.5">
                   {TOOLS.map((t) => {
                     const meta = SPONSOR_META[t.key];
-                    const isActive = !done && activeTool === t.key;
+                    // Browserbase stays checked off for the whole run rather
+                    // than flipping to the transient "active" pill.
+                    const isActive = !done && activeTool === t.key && t.key !== "browserbase";
                     const isUsed = usedTools.has(t.key);
                     return (
                       <div
                         key={t.key}
-                        className="flex items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors duration-300"
+                        className="flex flex-col gap-0.5 rounded-lg border px-2.5 py-2 transition-colors duration-300"
                         style={
                           isActive
                             ? {
@@ -282,97 +288,41 @@ export function RunProgress({
                             : { borderColor: "transparent", background: "rgba(255,255,255,0.02)" }
                         }
                       >
-                        <span
-                          className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isActive ? "blink" : ""}`}
-                          style={{
-                            background: isActive || isUsed ? meta.color : "#3a4150",
-                          }}
-                        />
-                        <span
-                          className="text-xs font-semibold"
-                          style={{ color: isActive ? meta.color : isUsed ? `${meta.color}cc` : "#6b7689" }}
-                        >
-                          {meta.label}
-                        </span>
-                        {isActive && (
+                        <div className="flex items-center gap-2">
                           <span
-                            className="text-[9px] uppercase tracking-wide font-semibold blink"
-                            style={{ color: meta.color }}
+                            className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isActive ? "blink" : ""}`}
+                            style={{
+                              background: isActive || isUsed ? meta.color : "#3a4150",
+                            }}
+                          />
+                          <span
+                            className="text-xs font-semibold"
+                            style={{ color: isActive ? meta.color : isUsed ? `${meta.color}cc` : "#6b7689" }}
                           >
-                            active
+                            {meta.label}
                           </span>
-                        )}
-                        {!isActive && isUsed && t.key === "band" && bandRoomId && (
-                          <span className="text-[9px]" style={{ color: meta.color }}>● live room</span>
-                        )}
-                        {!isActive && isUsed && !(t.key === "band" && bandRoomId) && (
-                          <span className="text-[9px]" style={{ color: meta.color }}>✓ done</span>
-                        )}
-                        <span className="ml-auto text-[10px] text-faint truncate max-w-[170px] text-right">{t.what}</span>
+                          {isActive && (
+                            <span
+                              className="ml-auto text-[9px] uppercase tracking-wide font-semibold blink"
+                              style={{ color: meta.color }}
+                            >
+                              active
+                            </span>
+                          )}
+                          {!isActive && isUsed && t.key === "band" && bandRoomId && (
+                            <span className="ml-auto text-[9px]" style={{ color: meta.color }}>● live</span>
+                          )}
+                          {!isActive && isUsed && !(t.key === "band" && bandRoomId) && (
+                            <span className="ml-auto text-[9px]" style={{ color: meta.color }}>✓</span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-faint leading-snug pl-[18px]">{t.what}</span>
                       </div>
                     );
                   })}
                 </div>
               </Panel>
 
-              {/* Code violations, visible as they stream and after completion */}
-              <Panel title={`Code violations${violations.length ? ` · ${violations.length}` : ""}`}>
-                {violations.length === 0 ? (
-                  <p className="text-xs text-faint">
-                    {done ? "No violations. All checks passed." : "None flagged yet…"}
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {violations.map((f) => (
-                      <ViolationRow key={f.id} f={f} />
-                    ))}
-                  </div>
-                )}
-              </Panel>
-
-              {/* Code being retrieved (RAG) + official sources (Browserbase) */}
-              {(codeSections.length > 0 || sources.length > 0) && (
-                <Panel title="Code retrieved">
-                  {sources.length > 0 && (
-                    <div className="space-y-1.5 mb-3">
-                      {sources.map((s) => (
-                        <a
-                          key={s.id}
-                          href={s.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="block rounded-md border border-ink-700 bg-ink-800/50 px-2.5 py-1.5 hover:border-ink-600"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-body truncate">{s.title}</span>
-                            <span
-                              className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0"
-                              style={
-                                s.live
-                                  ? { color: "#3ddc97", background: "rgba(61,220,151,0.12)" }
-                                  : { color: "#8aa0b6", background: "rgba(138,160,182,0.12)" }
-                              }
-                            >
-                              {s.live ? "live" : "cached"}
-                            </span>
-                          </div>
-                          <div className="text-[10px] text-faint mt-0.5">
-                            {hostOf(s.url)} · retrieved {timeOf(s.retrievedAt)}
-                          </div>
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                  {codeSections.map((c) => (
-                    <div key={c.section} className="rounded-md border border-ink-700 bg-ink-800/50 px-2.5 py-1.5 mb-1.5">
-                      <div className="text-[11px] font-medium text-accent">{c.section}</div>
-                      {c.text && <p className="text-[10px] text-muted leading-relaxed mt-0.5 line-clamp-3">{c.text}</p>}
-                    </div>
-                  ))}
-                </Panel>
-              )}
-
-              {/* Run status + log: the live status line, with the run log beneath it */}
               <Panel title="Run status">
                 <div className="flex items-center gap-2">
                   <span
@@ -388,11 +338,10 @@ export function RunProgress({
                   {done ? "All checks finished." : latest ? latest.text : "Connecting to the run…"}
                 </p>
 
-                {/* Log */}
                 {log.length > 0 && (
                   <>
                     <div className="mt-3 mb-1.5 text-[9px] uppercase tracking-widest text-faint">Log</div>
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto scrollbar-thin">
+                    <div className="space-y-2 max-h-[160px] overflow-y-auto scrollbar-thin">
                       {log.map((m) => {
                         const agent = AGENT_META[m.from];
                         const mt = MSG_META[m.type];
@@ -400,15 +349,15 @@ export function RunProgress({
                           <div key={m.id} className="rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-2">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="text-sm">{agent.emoji}</span>
-                              <span className="text-xs font-medium text-ink">{agent.label}</span>
+                              <span className="text-xs font-medium text-ink truncate">{agent.label}</span>
                               <span
-                                className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                                className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0"
                                 style={{ color: mt.color, background: `${mt.color}1a` }}
                               >
                                 {mt.label}
                               </span>
                             </div>
-                            <p className="text-xs text-body leading-relaxed line-clamp-3">{m.text}</p>
+                            <p className="text-xs text-body leading-relaxed line-clamp-2">{m.text}</p>
                           </div>
                         );
                       })}
@@ -418,15 +367,86 @@ export function RunProgress({
               </Panel>
             </div>
           </div>
+
+          {/* Row 2: compliance findings — multi-column grid */}
+          <Panel
+            title={`Compliance${violations.length ? ` · ${violations.length} item${violations.length === 1 ? "" : "s"}` : ""}`}
+            className="mt-6"
+          >
+            {violations.length === 0 ? (
+              <p className="text-xs text-faint">
+                {done ? "No issues flagged. All checks passed." : "Findings will appear here as checks complete…"}
+              </p>
+            ) : (
+              <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                {violations.map((f) => (
+                  <ViolationRow key={f.id} f={f} compact />
+                ))}
+              </div>
+            )}
+          </Panel>
+
+          {/* Row 3: retrieved code — sources + sections in a grid */}
+          {(codeSections.length > 0 || sources.length > 0) && (
+            <Panel title="Code sections retrieved" className="mt-5">
+              <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                {sources.map((s) => (
+                  <a
+                    key={s.id}
+                    href={s.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-lg border border-ink-700 bg-ink-800/50 px-3 py-2.5 hover:border-ink-600 h-full"
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="text-[11px] font-medium text-body leading-snug flex-1 min-w-0">{s.title}</span>
+                      <span
+                        className="text-[9px] px-1.5 py-0.5 rounded-full flex-shrink-0"
+                        style={
+                          s.live
+                            ? { color: "#3ddc97", background: "rgba(61,220,151,0.12)" }
+                            : { color: "#8aa0b6", background: "rgba(138,160,182,0.12)" }
+                        }
+                      >
+                        {s.live ? "live" : "cached"}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-faint mt-1.5">
+                      {hostOf(s.url)} · {timeOf(s.retrievedAt)}
+                    </div>
+                  </a>
+                ))}
+                {codeSections.map((c) => (
+                  <div
+                    key={c.section}
+                    className="rounded-lg border border-ink-700 bg-ink-800/50 px-3 py-2.5 h-full"
+                  >
+                    <div className="text-[11px] font-medium text-accent leading-snug">{c.section}</div>
+                    {c.text && (
+                      <p className="text-[10px] text-muted leading-relaxed mt-1.5 line-clamp-4">{c.text}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          )}
         </div>
       </div>
     </main>
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({
+  title,
+  children,
+  className = "",
+}: {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <section className="rounded-lg border border-ink-700 bg-ink-900/40 overflow-hidden">
+    <section className={`rounded-lg border border-ink-700 bg-ink-900/40 overflow-hidden ${className}`}>
       <div className="px-4 py-2.5 border-b border-ink-700">
         <h3 className="text-[10px] uppercase tracking-widest text-muted">{title}</h3>
       </div>
@@ -435,14 +455,17 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
   );
 }
 
-function ViolationRow({ f }: { f: Finding }) {
+function ViolationRow({ f, compact = false }: { f: Finding; compact?: boolean }) {
   const m = STATUS_META[f.status];
   return (
-    <div className="rounded-lg border px-3 py-2" style={{ borderColor: m.border, background: m.bg }}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium text-ink">{f.title}</span>
+    <div
+      className="rounded-lg border px-3 py-2.5 h-full flex flex-col"
+      style={{ borderColor: m.border, background: m.bg }}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-[13px] font-medium text-ink leading-snug">{f.title}</span>
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          {f.corrected && <span className="text-[9px] text-accent" title="Corrected by Reviewer">✓ corrected</span>}
+          {f.corrected && <span className="text-[9px] text-accent" title="Corrected by Reviewer">✓</span>}
           <span
             className="text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap"
             style={{ color: m.color, background: "rgba(0,0,0,0.25)" }}
@@ -451,8 +474,14 @@ function ViolationRow({ f }: { f: Finding }) {
           </span>
         </div>
       </div>
-      <p className="text-xs text-body mt-1 leading-relaxed">{f.message}</p>
-      {f.codeSection && <div className="text-[10px] text-muted mt-1.5">Cite: {f.codeSection}</div>}
+      <p className={`text-xs text-body mt-1.5 leading-relaxed flex-1 ${compact ? "line-clamp-3" : ""}`}>
+        {f.message}
+      </p>
+      {f.codeSection && (
+        <div className="text-[10px] text-muted mt-1.5 truncate" title={f.codeSection}>
+          Cite: {f.codeSection}
+        </div>
+      )}
     </div>
   );
 }

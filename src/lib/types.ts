@@ -67,20 +67,34 @@ export interface BandRoomMessage {
   chatLabel?: string;
 }
 
-// Residential project subtype. The applicability eval (Arize) keys off this — a
-// rule whose `appliesTo` doesn't match the project's subtype scores low and fails.
+// Project subtype — drives rule applicability and agent prompts. ADU is one
+// supported type among residential, commercial, and renovation work.
 export type ProjectType =
-  | "detached_adu"
-  | "attached_adu"
   | "single_family"
-  | "multi_family";
+  | "multi_family"
+  | "commercial"
+  | "tenant_improvement"
+  | "renovation"
+  | "mixed_use"
+  | "detached_adu"
+  | "attached_adu";
+
+export const DEFAULT_PROJECT_TYPE: ProjectType = "single_family";
 
 export const PROJECT_TYPES: { value: ProjectType; label: string }[] = [
+  { value: "single_family", label: "Single-family residential" },
+  { value: "multi_family", label: "Multi-family / apartments" },
+  { value: "commercial", label: "Commercial" },
+  { value: "tenant_improvement", label: "Tenant improvement" },
+  { value: "renovation", label: "Renovation / addition" },
+  { value: "mixed_use", label: "Mixed-use" },
   { value: "detached_adu", label: "Detached ADU" },
   { value: "attached_adu", label: "Attached ADU" },
-  { value: "single_family", label: "Single-family dwelling" },
-  { value: "multi_family", label: "Multi-family / units" },
 ];
+
+export function projectTypeLabel(type: ProjectType | string | undefined): string {
+  return PROJECT_TYPES.find((t) => t.value === type)?.label ?? "Architecture project";
+}
 
 export interface Project {
   id: string;

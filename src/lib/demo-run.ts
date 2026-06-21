@@ -60,7 +60,7 @@ export async function* runDemoPipeline(
   project: Project,
   channel: BandChannel
 ): AsyncGenerator<ProjectState> {
-  await channel.ready;
+  const bandReady = channel.ready;
   const citySlug =
     /los\s*angeles\s*\(?1\)?/i.test(project.dwgName ?? "")
       ? "los-angeles-ca"
@@ -106,6 +106,7 @@ export async function* runDemoPipeline(
   // ---- Warm-up: immediate motion on the phase rail ----
   push("orchestrator", "Firm workflow started — agents collaborating on your pre-submission review.", "info", "band");
   yield snapshot();
+  await Promise.race([bandReady, sleep(3_000)]);
   await sleep(500);
 
   // Stage bundled plan sheets immediately so the viewer is ready when the run finishes.
@@ -125,7 +126,7 @@ export async function* runDemoPipeline(
   await sleep(400);
 
   state.project.status = "research";
-  push("research", "Code Synthesizer: Scoping municipal + state ADU requirements…", "info", "band");
+  push("research", "Code Synthesizer: Scoping municipal + state building code requirements…", "info", "band");
   yield snapshot();
 
   const { sources } = await researchSources(citySlug);
@@ -143,7 +144,7 @@ export async function* runDemoPipeline(
   state.project.status = "read";
   push(
     "orchestrator",
-    `Analyzing ${project.dwgName ?? "plan set"} against ${cityLabel(citySlug)} ADU code — APS plot → vision → compare…`,
+    `Analyzing ${project.dwgName ?? "plan set"} against ${cityLabel(citySlug)} building code — APS plot → vision → compare…`,
     "info",
     "claude"
   );

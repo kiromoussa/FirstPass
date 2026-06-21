@@ -40,6 +40,29 @@ export async function ensureProjectDir(projectId: string): Promise<string> {
   return dir;
 }
 
+/** All projects with a project.json on disk (newest first). */
+export async function listDiskProjects(): Promise<{ id: string; createdAt: number }[]> {
+  try {
+    const entries = await fs.readdir(PROJECTS_ROOT, { withFileTypes: true });
+    const out: { id: string; createdAt: number }[] = [];
+    for (const ent of entries) {
+      if (!ent.isDirectory() || ent.name.startsWith("_") || ent.name.startsWith(".")) continue;
+      const metaPath = projectMetaPath(ent.name);
+      try {
+        const raw = await fs.readFile(metaPath, "utf-8");
+        const meta = JSON.parse(raw) as { id?: string; createdAt?: number };
+        out.push({ id: meta.id ?? ent.name, createdAt: meta.createdAt ?? 0 });
+      } catch {
+        /* skip dirs without readable project.json */
+      }
+    }
+    out.sort((a, b) => b.createdAt - a.createdAt);
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 /** Write a DWG into projects/{id}/plan.dwg (+ original safe filename). */
 export async function writeProjectDwg(
   projectId: string,

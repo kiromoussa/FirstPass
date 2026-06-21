@@ -1,18 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PROJECT_TYPES, type ProjectType } from "@/lib/types";
+import { PROJECT_TYPES, DEFAULT_PROJECT_TYPE, type ProjectType } from "@/lib/types";
 
 type CityOption = { slug: string; label: string };
+
+const FALLBACK_CITIES: CityOption[] = [
+  { slug: "los-angeles-ca", label: "Los Angeles, CA" },
+  { slug: "alameda-ca", label: "Alameda, CA" },
+];
 
 type Props = {
   onCreated?: () => void;
 };
 
 export function NewProjectForm({ onCreated }: Props) {
-  const [name, setName] = useState("92nd St. Detached ADU");
+  const [name, setName] = useState("Oak St. Residential Addition");
   const [address, setAddress] = useState("1216 E 92nd St, Los Angeles, CA 90002");
-  const [projectType, setProjectType] = useState<ProjectType>("detached_adu");
+  const [projectType, setProjectType] = useState<ProjectType>(DEFAULT_PROJECT_TYPE);
   const [cities, setCities] = useState<CityOption[]>([]);
   const [citySlug, setCitySlug] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -21,16 +26,32 @@ export function NewProjectForm({ onCreated }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/cities")
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      if (!cancelled) {
+        setCities((prev) => (prev.length ? prev : FALLBACK_CITIES));
+      }
+    }, 4_000);
+
+    fetch("/api/cities", { signal: AbortSignal.timeout(8_000) })
       .then((r) => r.json())
       .then((j) => {
+        if (cancelled) return;
         const list: CityOption[] = (j.cities ?? []).map((c: { slug: string; label: string }) => ({
           slug: c.slug,
           label: c.label,
         }));
-        setCities(list);
+        setCities(list.length ? list : FALLBACK_CITIES);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setCities(FALLBACK_CITIES);
+      })
+      .finally(() => window.clearTimeout(timeout));
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
   }, []);
 
   // Keep jurisdiction aligned with the address (LA address → los-angeles-ca).
@@ -162,7 +183,7 @@ export function NewProjectForm({ onCreated }: Props) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="input-field"
-            placeholder="e.g. Backyard ADU, 92nd St"
+            placeholder="e.g. Oak St. TI, 92nd St Addition"
           />
         </div>
 
@@ -179,6 +200,9 @@ export function NewProjectForm({ onCreated }: Props) {
                 {c.label}
               </option>
             ))}
+            {cities.length > 0 && !citySlug && (
+              <option value="">Select jurisdiction…</option>
+            )}
           </select>
         </div>
 

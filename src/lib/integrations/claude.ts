@@ -274,13 +274,13 @@ const RESIDENTIAL_METRICS_HINT =
   "coverage as a percent of the lot (lotCoverage, pct); floor area ratio " +
   "(far, ratio); number of parking spaces (parking, spaces); number of dwelling " +
   "units (dwellingUnits, units). Single-family and multi-family sheets show the " +
-  "last five; ADU sheets usually only show the first four. Omit any metric not " +
+  "last five; residential sheets usually only show the first four. Omit any metric not " +
   "shown rather than guessing, and set confidence 0..1 honestly.";
 
 export async function extractPlanFactsFromDoc(
   dataBase64: string,
   mediaType: string,
-  projectType = "detached_adu"
+  projectType = "single_family"
 ): Promise<PlanFact[]> {
   const nullFacts = (readError?: string): PlanFact[] => [
     ...NUMERIC_KEYS.map((k) => ({
@@ -385,7 +385,7 @@ export async function extractPlanFactsFromDoc(
 // extractPlanFactsFromDoc: unread metrics come back value=null / confidence=0.
 export async function extractPlanFactsFromDocs(
   sheets: { name: string; data: string }[],
-  projectType = "detached_adu"
+  projectType = "single_family"
 ): Promise<PlanFact[]> {
   const nullFacts = (readError?: string): PlanFact[] => [
     ...NUMERIC_KEYS.map((k) => ({ key: k.key, label: k.label, value: null, unit: k.unit, sheet: "—", bbox: null, confidence: 0, raw: "Not read from the plan set." })),
@@ -460,7 +460,7 @@ export async function extractPlanFactsFromDocs(
 // tiled so fine dimension text is legible). Same honest-confidence contract.
 export async function extractPlanFactsFromImages(
   tiles: { label: string; data: string }[],
-  projectType = "detached_adu"
+  projectType = "single_family"
 ): Promise<PlanFact[]> {
   const sheetNames = [...new Set(tiles.map((t) => t.label.replace(/\s*\(.*$/, "")))];
   const nullFacts = (readError?: string): PlanFact[] => [

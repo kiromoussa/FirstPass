@@ -22,9 +22,7 @@ export async function persistProject(project: Project): Promise<void> {
 }
 
 export async function loadProject(id: string): Promise<Project | null> {
-  const fromKv = await kvGet<Project>(`proj:${id}`);
-  if (fromKv) return fromKv;
-
+  // Disk first so /api/run can open SSE immediately when Redis is down.
   for (const p of [projectMetaPath(id), legacyProjectPath(id)]) {
     try {
       const raw = await fs.readFile(p, "utf-8");
@@ -33,7 +31,7 @@ export async function loadProject(id: string): Promise<Project | null> {
       /* try next */
     }
   }
-  return null;
+  return kvGet<Project>(`proj:${id}`);
 }
 
 /** Resolve project for Band Compare Codes — kv, disk cache, then active_project.json. */

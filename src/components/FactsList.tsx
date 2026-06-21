@@ -5,7 +5,7 @@ import { factsForDisplay } from "@/lib/plan-facts-display";
 
 export function FactsList({
   facts,
-  projectType = "detached_adu",
+  projectType = "single_family",
 }: {
   facts: PlanFact[];
   projectType?: string;

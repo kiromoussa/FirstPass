@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import type { ProjectState, Sponsor } from "@/lib/types";
+import { projectTypeLabel } from "@/lib/types";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { PhaseRail } from "@/components/PhaseRail";
 import { SponsorRail } from "@/components/SponsorRail";
@@ -26,18 +27,23 @@ export default function ProjectDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [viewDashboard, setViewDashboard] = useState(false);
   const [bandRoomId, setBandRoomId] = useState<string | null>(null);
+  const gotStateRef = useRef(false);
 
   useEffect(() => {
     if (!id) return;
+    gotStateRef.current = false;
     // Own the EventSource in the effect (no persistent "started" ref): under
     // React Strict Mode the effect runs mount→cleanup→mount, and a ref guard
     // would close the first stream then refuse to reopen, leaving the run
     // stuck on "Connecting…". Letting cleanup close and remount reopen is the
     // correct, Strict-Mode-safe pattern.
+    let cancelled = false;
     const es = new EventSource(`/api/run/${id}`);
     es.addEventListener("state", (e) => {
+      gotStateRef.current = true;
       const next = JSON.parse((e as MessageEvent).data) as ProjectState;
       setState(next);
+      setError(null);
       if (next.bandRoomId) setBandRoomId(next.bandRoomId);
     });
     es.addEventListener("band", (e) => {
@@ -56,7 +62,16 @@ export default function ProjectDashboard() {
       }
       es.close();
     });
-    return () => es.close();
+    es.onerror = () => {
+      if (cancelled || gotStateRef.current || es.readyState !== EventSource.CLOSED) return;
+      setError(
+        "Lost connection to the run stream. Refresh the page — if this keeps happening, check that the dev server is running and REDIS_URL is reachable (or unset for local demo)."
+      );
+    };
+    return () => {
+      cancelled = true;
+      es.close();
+    };
   }, [id]);
 
   const activeSponsor: Sponsor | undefined = useMemo(() => {
@@ -101,7 +116,7 @@ export default function ProjectDashboard() {
           <div className="h-5 w-px bg-ink-700" />
           <div>
             <div className="text-sm font-medium text-ink">{state?.project.name ?? "Loading…"}</div>
-            <div className="text-[11px] text-muted">{state?.project.address} · Detached ADU</div>
+            <div className="text-[11px] text-muted">{state?.project.address} · {projectTypeLabel(state?.project.projectType)}</div>
           </div>
         </div>
         <div className="flex items-center gap-6">

@@ -453,20 +453,19 @@ export interface CitySummary {
 }
 
 // Summary of every researched city committed to the repo — for a city picker.
+// Intentionally lightweight: never parse chunks.json here (LA alone is ~10MB).
 export function listCityCorpora(): CitySummary[] {
   return listCities().map((slug) => {
     const meta = loadCityMeta(slug);
-    const chunks = loadCityChunks(slug) ?? [];
-    const categories = [
-      ...new Set(chunks.map((c) => c.category).filter((c): c is string => !!c)),
-    ].sort();
+    const chunksFile = path.join(process.cwd(), "data", "cities", slug, "chunks.json");
+    const hasCorpus = fs.existsSync(chunksFile);
     return {
       slug,
       label: cityLabel(slug),
       city: meta?.city,
       state: meta?.state,
-      chunks: chunks.length,
-      categories,
+      chunks: hasCorpus ? 1 : 0,
+      categories: [],
     };
   });
 }

@@ -77,7 +77,7 @@ const STATS = [
     bigColor: "#1f8a4c",
     unit: "days · median permit review",
     head: "It takes months",
-    body: "The median residential permit runs about 90 days before corrections even begin. Miami averages 315; San Francisco's 90th percentile nears two years.",
+    body: "The median building permit runs about 90 days before corrections even begin. Miami averages 315; San Francisco's 90th percentile nears two years.",
   },
   {
     big: "741",
@@ -91,7 +91,7 @@ const STATS = [
     bigColor: "#c2410c",
     unit: "rejected on first submission",
     head: "It's a loop by design",
-    body: "Most residential submissions don't pass the first try. Each correction letter costs 2 to 8 weeks while financing accrues and schedules slip.",
+    body: "Most permit submissions don't pass the first try. Each correction letter costs 2 to 8 weeks while financing accrues and schedules slip.",
   },
 ];
 
@@ -297,7 +297,7 @@ export function TheStack() {
 
 /* ===== COMPLIANCE CHECKS BAND ===== */
 const CHECKS = [
-  { n: "01", title: "Max unit size", detail: "Floor area vs. allowed square footage" },
+  { n: "01", title: "Floor area & size", detail: "Building area vs. jurisdiction limits" },
   { n: "02", title: "Height limit", detail: "Building height vs. jurisdiction maximum" },
   { n: "03", title: "Setbacks", detail: "Rear & side setbacks vs. minimums" },
   { n: "04", title: "Required documents", detail: "Site plan, floor plan, elevations present" },
@@ -311,7 +311,7 @@ export function ChecksBand() {
           <h2 className="font-display font-bold text-[28px] tracking-[-0.02em] text-ink m-0">
             Checks run on every plan set
           </h2>
-          <span className="font-mono text-[12px] text-muted">Residential plan sets · expanding by jurisdiction</span>
+          <span className="font-mono text-[12px] text-muted">Residential, commercial & renovation · expanding by jurisdiction</span>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {CHECKS.map((c) => (
@@ -351,7 +351,7 @@ export function LandingCTA() {
             before the city ever sees your file.
           </p>
           <div className="flex items-center gap-2 bg-[#161e16] border border-[rgba(255,255,255,0.12)] rounded-[14px] p-[7px] pl-[18px] max-w-[480px]">
-            <span className="flex-1 text-[15px] text-[#8b9184] truncate">123 Oak Street, Oakland, CA…</span>
+            <span className="flex-1 text-[15px] text-[#8b9184] truncate">1216 E 92nd St, Los Angeles, CA…</span>
             <Link
               href="/dashboard"
               className="text-[15px] font-semibold text-[#0e1410] bg-[#54e08a] rounded-[10px] px-5 py-2.5 hover:-translate-y-0.5 transition-transform"

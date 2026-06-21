@@ -6,20 +6,20 @@ import { DEMO_VIDEO_URL } from "@/lib/demo-video";
 
 const STAGES = [
   { num: "01", name: "Jurisdiction resolution", detail: "Resolving city & responsible agencies" },
-  { num: "02", name: "Code research", detail: "Browsing municipal & state ADU codes, live" },
-  { num: "03", name: "Plan reading", detail: "Extracting setbacks, heights, coverage" },
+  { num: "02", name: "Code research", detail: "Browsing municipal & state building codes, live" },
+  { num: "03", name: "Plan reading", detail: "Extracting setbacks, heights, occupancy & coverage" },
   { num: "04", name: "Compliance checks", detail: "Comparing plan facts to jurisdiction rules" },
   { num: "05", name: "Finding audit", detail: "Reviewer challenges & corrects findings" },
   { num: "06", name: "Report generation", detail: "Composing the cited readiness report" },
 ];
 
 const FEED = [
-  "Resolved jurisdiction · City of Oakland · CA HCD",
-  "Fetched OakMC §17.103 zoning standards · retrieved today",
-  "Read 14 sheets · extracted 9 structured facts",
-  "Max unit size: 1,200 sf allowed vs 850 sf built · PASS",
-  "Auditor re-checked height on sheet A-301 · WARNING",
-  "Report composed · 4 findings · 1 missing document",
+  "Resolved jurisdiction · City of Los Angeles · CA HCD",
+  "Indexed municipal & state building code · cached corpus",
+  "Read 10 sheets · extracted setbacks, height & floor area",
+  "Rear setback: 9.83 ft vs 15 ft min · FAIL",
+  "Auditor verified side setback on sheet A1.0 · PASS",
+  "Report composed · score 40/100 · 7 items need review",
 ];
 
 const RING_C = 2 * Math.PI * 52; // 326.73
@@ -97,9 +97,10 @@ export function LandingHero() {
             <span className="text-teal">before the city does.</span>
           </h1>
           <p className="text-[18.5px] leading-[1.55] text-body mb-8 max-w-[460px]">
-            Upload an ADU plan set and get a cited, sheet-by-sheet readiness
-            report with likely violations, official code citations, and a
-            missing-documents checklist, all before you ever submit to the city.
+            Upload a plan set for residential, commercial, tenant improvement, or
+            renovation work and get a cited, sheet-by-sheet readiness report with
+            likely violations, official code citations, and a missing-documents
+            checklist, all before you ever submit to the city.
           </p>
           <div className="flex flex-wrap gap-3 items-center">
             <Link href="/dashboard" className="btn-primary">
@@ -153,7 +154,7 @@ export function LandingHero() {
                 Permit-readiness pipeline
               </div>
               <div className="text-[13px] text-[#82867a]">
-                123 Oak St · Detached ADU · Oakland, CA
+                1216 E 92nd St · Single-family · Los Angeles, CA
               </div>
             </div>
             <div className="relative w-[78px] h-[78px] flex-none">
