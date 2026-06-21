@@ -1,6 +1,52 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Reveal, BrandMark } from "@/components/Reveal";
+import { DEMO_VIDEO_EMBED, DEMO_VIDEO_URL } from "@/lib/demo-video";
+
+/* ===== DEMO VIDEO ===== */
+export function DemoVideo() {
+  return (
+    <Reveal id="demo" className="border-b border-hairline bg-[#fbfcfa]">
+      <div className="max-w-[1180px] mx-auto px-6 lg:px-10 py-16 lg:py-20">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-10 lg:gap-14 items-center">
+          <div>
+            <div className="font-mono text-[12px] tracking-[0.14em] uppercase text-teal mb-3.5">
+              Demo video
+            </div>
+            <h2 className="font-display font-bold text-[36px] sm:text-[42px] leading-[1.06] tracking-[-0.03em] text-ink mb-4">
+              See FirstPass run end to end.
+            </h2>
+            <p className="text-[17px] leading-[1.55] text-body mb-6 max-w-[440px]">
+              Watch the full hackathon walkthrough: live code research, plan reading,
+              compliance checks, the auditor correction, and the cited readiness report.
+            </p>
+            <a
+              href={DEMO_VIDEO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-[15px] font-semibold text-teal hover:text-teal-600 transition-colors"
+            >
+              Open on YouTube
+              <span aria-hidden>↗</span>
+            </a>
+          </div>
+          <div
+            className="relative w-full aspect-video rounded-[16px] overflow-hidden border border-[#e7e9e2] bg-[#15170f]"
+            style={{ boxShadow: "0 20px 50px -28px rgba(20,40,25,0.35)" }}
+          >
+            <iframe
+              src={DEMO_VIDEO_EMBED}
+              title="FirstPass demo video"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              className="absolute inset-0 h-full w-full border-0"
+            />
+          </div>
+        </div>
+      </div>
+    </Reveal>
+  );
+}
 
 /* ===== POWERED BY ===== */
 export function PoweredBy() {

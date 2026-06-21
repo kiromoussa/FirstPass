@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { DEMO_VIDEO_URL } from "@/lib/demo-video";
 
 export function SiteHeader() {
   const pathname = usePathname();
@@ -26,14 +27,20 @@ export function SiteHeader() {
         </Link>
 
         <div className="flex items-center gap-3.5">
-          <Link
-            href="/dashboard"
-            className={`text-[14.5px] font-semibold transition-colors ${
-              onDashboard ? "text-teal" : "text-ink hover:text-teal"
-            }`}
-          >
-            {onDashboard ? "Dashboard" : "Get a demo"}
-          </Link>
+          {onDashboard ? (
+            <Link href="/dashboard" className="text-[14.5px] font-semibold text-teal transition-colors">
+              Dashboard
+            </Link>
+          ) : (
+            <a
+              href={DEMO_VIDEO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[14.5px] font-semibold text-ink hover:text-teal transition-colors"
+            >
+              Get a demo
+            </a>
+          )}
           <Link
             href="/dashboard"
             className="text-[14.5px] font-semibold text-white bg-teal rounded-[10px] px-[17px] py-2.5 hover:bg-teal-600 transition-colors"

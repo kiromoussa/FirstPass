@@ -8,6 +8,8 @@ Upload a plan set (PDF or DWG), and FirstPass runs a multi-agent pipeline: it re
 
 **Built for the [UC Berkeley AI Hackathon 2026](https://berkeley.ai)** by Kiro Moussa, Varun Sanjeev, David Pelazini, and Krishiv Bhatia.
 
+**Demo video:** [youtu.be/xaxAYptLR-M](https://youtu.be/xaxAYptLR-M)
+
 ---
 
 ## The problem

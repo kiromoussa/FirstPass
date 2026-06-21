@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { CSSProperties, useEffect, useState } from "react";
+import { DEMO_VIDEO_URL } from "@/lib/demo-video";
 
 const STAGES = [
   { num: "01", name: "Jurisdiction resolution", detail: "Resolving city & responsible agencies" },
-  { num: "02", name: "Code research", detail: "Browsing municipal & state building codes, live" },
+  { num: "02", name: "Code research", detail: "Browsing municipal & state ADU codes, live" },
   { num: "03", name: "Plan reading", detail: "Extracting setbacks, heights, coverage" },
   { num: "04", name: "Compliance checks", detail: "Comparing plan facts to jurisdiction rules" },
   { num: "05", name: "Finding audit", detail: "Reviewer challenges & corrects findings" },
@@ -96,7 +97,7 @@ export function LandingHero() {
             <span className="text-teal">before the city does.</span>
           </h1>
           <p className="text-[18.5px] leading-[1.55] text-body mb-8 max-w-[460px]">
-            Upload a plan set and get a cited, sheet-by-sheet readiness
+            Upload an ADU plan set and get a cited, sheet-by-sheet readiness
             report with likely violations, official code citations, and a
             missing-documents checklist, all before you ever submit to the city.
           </p>
@@ -107,6 +108,20 @@ export function LandingHero() {
             <Link href="/dashboard" className="btn-ghost px-6 py-3.5 text-[15.5px]">
               See a sample report
             </Link>
+            <a
+              href={DEMO_VIDEO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-[15px] font-semibold text-teal hover:text-teal-600 transition-colors px-1"
+            >
+              <span
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-teal/10 text-teal"
+                aria-hidden
+              >
+                ▶
+              </span>
+              Watch demo
+            </a>
           </div>
           <div className="flex items-center gap-[18px] mt-7 text-[13.5px] text-muted">
             <span className="flex items-center gap-1.5">
@@ -138,7 +153,7 @@ export function LandingHero() {
                 Permit-readiness pipeline
               </div>
               <div className="text-[13px] text-[#82867a]">
-                123 Oak St · Oakland, CA
+                123 Oak St · Detached ADU · Oakland, CA
               </div>
             </div>
             <div className="relative w-[78px] h-[78px] flex-none">

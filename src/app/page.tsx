@@ -2,6 +2,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { LandingHero } from "@/components/LandingHero";
 import { FeaturesGrid } from "@/components/FeaturesGrid";
 import {
+  DemoVideo,
   PoweredBy,
   TheReality,
   TheCost,
@@ -16,6 +17,7 @@ export default function Home() {
     <div className="min-h-screen bg-[#fbfcfa] text-ink overflow-x-hidden">
       <SiteHeader />
       <LandingHero />
+      <DemoVideo />
       <PoweredBy />
       <TheReality />
       <TheCost />
