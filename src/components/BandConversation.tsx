@@ -58,10 +58,12 @@ export function BandConversation({
   compact?: boolean;
   className?: string;
 }) {
-  const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
   }, [messages.length]);
 
   return (
@@ -92,6 +94,7 @@ export function BandConversation({
         </div>
       </div>
       <div
+        ref={scrollRef}
         className={`space-y-2 overflow-y-auto scrollbar-thin ${
           compact ? "max-h-[320px]" : "max-h-[min(520px,55vh)] min-h-[200px]"
         }`}
@@ -105,7 +108,6 @@ export function BandConversation({
         ) : (
           messages.map((m) => <RoomMessage key={m.id} m={m} />)
         )}
-        <div ref={endRef} />
       </div>
     </div>
   );

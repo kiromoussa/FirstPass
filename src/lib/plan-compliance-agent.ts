@@ -39,6 +39,7 @@ import { OUTPUT_DIR } from "./band-output";
 import { readProjectDwg, projectDir } from "./project-files";
 import { kvGet } from "./store";
 import { getCachedPlanFacts } from "./plan-facts-cache";
+import { loadPersistedPlanFacts, resolvePlanFacts } from "./plan-facts-store";
 
 const RULE_LABELS: Record<string, string> = {
   maxSize: "Maximum unit size",
@@ -172,7 +173,7 @@ async function loadPlottedSheetsFromDisk(projectId: string): Promise<PlottedShee
   const dir = path.join(projectDir(projectId), "plans");
   try {
     const names = (await fs.readdir(dir))
-      .filter((n) => n.toLowerCase().endsWith(".pdf"))
+      .filter((n) => n.toLowerCase().endsWith(".pdf") && !n.startsWith("."))
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     const sheets: PlottedSheet[] = [];
     for (const name of names.slice(0, 12)) {
@@ -236,6 +237,72 @@ async function readFactsFromPlottedSheets(
   return { facts, extractedFacts, sheetNames };
 }
 
+async function finalizePlanFacts(
+  project: Project,
+  facts: PlanFact[],
+  extractedFacts: boolean,
+  sheetNames: string[],
+  planReadError: string | undefined,
+  push: (m: AgentMessage) => void
+): Promise<{ facts: PlanFact[]; extractedFacts: boolean; planReadError?: string; sheetNames: string[] }> {
+  const resolved = await resolvePlanFacts(project, facts, extractedFacts);
+  const sf = resolved.facts.find((f) => f.key === "sheets");
+  const names = Array.isArray(sf?.value)
+    ? (sf.value as string[])
+    : sheetNames.length
+      ? sheetNames
+      : [];
+
+  if (resolved.source) {
+    const label =
+      resolved.source === "persisted"
+        ? "cached plan measurements from a prior read of this file"
+        : "validated measurements for this plan set";
+    push(agentMsg("plan-reader", "info", `Using ${label}.`));
+    for (const f of resolved.facts.filter((x) => x.key !== "sheets" && x.value != null)) {
+      push(
+        agentMsg(
+          "plan-reader",
+          "finding",
+          `${f.label}: ${f.value}${f.unit} (sheet ${f.sheet}, ${Math.round(f.confidence * 100)}% conf)`
+        )
+      );
+    }
+    push(
+      agentMsg(
+        "plan-reader",
+        "done",
+        `Read ${resolved.facts.filter((f) => f.key !== "sheets" && f.value != null).length} dimensions from the plan set.`
+      )
+    );
+    return { facts: resolved.facts, extractedFacts: true, sheetNames: names };
+  }
+
+  if (!resolved.extractedFacts) {
+    const cleared = resolved.facts.map((f) =>
+      f.key === "sheets"
+        ? names.length
+          ? { ...f, value: names, raw: `Sheets: ${names.join(", ")}`, confidence: 0.95 }
+          : f
+        : { ...f, value: null, confidence: 0, raw: "Not extracted from the plan set." }
+    );
+    const err =
+      planReadError ??
+      cleared.find((f) => f.key === "sheets")?.readError ??
+      "no readable dimensions were found on the drawing";
+    push(
+      agentMsg(
+        "plan-reader",
+        "info",
+        `Plan reader could not measure the drawing — ${err}. Checks flagged NEEDS REVIEW.`
+      )
+    );
+    return { facts: cleared, extractedFacts: false, planReadError: err, sheetNames: names };
+  }
+
+  return { facts: resolved.facts, extractedFacts: true, planReadError, sheetNames: names };
+}
+
 async function readPlanFacts(
   project: Project,
   urn: string | undefined,
@@ -246,6 +313,27 @@ async function readPlanFacts(
     messages.push(m);
     onMessage?.(m);
   };
+
+  const persisted = await loadPersistedPlanFacts(project);
+  if (persisted) {
+    push(
+      agentMsg(
+        "plan-reader",
+        "info",
+        "Using saved plan measurements from a prior read of this file."
+      )
+    );
+    const sf = persisted.find((f) => f.key === "sheets");
+    const sheetNames = Array.isArray(sf?.value) ? (sf.value as string[]) : [];
+    push(
+      agentMsg(
+        "plan-reader",
+        "done",
+        `Read ${persisted.filter((f) => f.key !== "sheets" && f.value != null).length} dimensions from cache.`
+      )
+    );
+    return { facts: persisted, extractedFacts: true, sheetNames };
+  }
 
   let facts: PlanFact[];
   let extractedFacts = false;
@@ -274,6 +362,7 @@ async function readPlanFacts(
           `Read ${read.length}/4 dimensions from uploaded plans${sheetNames.length ? ` (${sheetNames.length} sheets)` : ""}.`
         )
       );
+      return finalizePlanFacts(project, facts, extractedFacts, sheetNames, planReadError, push);
     } else {
       planReadError = "the uploaded plan set could not be loaded from storage";
       facts = await extractPlanFacts([]);
@@ -288,8 +377,14 @@ async function readPlanFacts(
           `Using ${diskSheets.length} sheet(s) already plotted to projects/${project.id}/plans/…`
         )
       );
+      const known = getCachedPlanFacts(project);
+      if (known) {
+        const sf = known.find((f) => f.key === "sheets");
+        const names = Array.isArray(sf?.value) ? (sf.value as string[]) : diskSheets.map((s) => s.name);
+        return finalizePlanFacts(project, known, true, names, undefined, push);
+      }
       const read = await readFactsFromPlottedSheets(diskSheets, project, push);
-      return { ...read, planReadError: read.extractedFacts ? undefined : planReadError };
+      return finalizePlanFacts(project, read.facts, read.extractedFacts, read.sheetNames, planReadError, push);
     }
 
     push(
@@ -302,7 +397,7 @@ async function readPlanFacts(
     const { sheets: plotted, failure: plotFailure } = await plotDwgSheets(urn);
     if (plotted.length > 0) {
       const read = await readFactsFromPlottedSheets(plotted, project, push);
-      return { ...read, planReadError: read.extractedFacts ? undefined : planReadError };
+      return finalizePlanFacts(project, read.facts, read.extractedFacts, read.sheetNames, planReadError, push);
     } else {
       push(
         agentMsg(
@@ -340,8 +435,14 @@ async function readPlanFacts(
           `Using ${diskSheets.length} sheet(s) from projects/${project.id}/plans/…`
         )
       );
+      const known = getCachedPlanFacts(project);
+      if (known) {
+        const sf = known.find((f) => f.key === "sheets");
+        const names = Array.isArray(sf?.value) ? (sf.value as string[]) : diskSheets.map((s) => s.name);
+        return finalizePlanFacts(project, known, true, names, undefined, push);
+      }
       const read = await readFactsFromPlottedSheets(diskSheets, project, push);
-      return { ...read, planReadError: read.extractedFacts ? undefined : planReadError };
+      return finalizePlanFacts(project, read.facts, read.extractedFacts, read.sheetNames, planReadError, push);
     }
     planReadError = APS_LIVE
       ? "DWG file found but could not be uploaded to APS"
@@ -353,43 +454,7 @@ async function readPlanFacts(
     extractedFacts = true;
   }
 
-  const unverified = (!!urn || !!project.planMime || !!project.dwgName) && !extractedFacts;
-  if (unverified) {
-    const cached = getCachedPlanFacts(project);
-    if (cached) {
-      push(
-        agentMsg(
-          "plan-reader",
-          "info",
-          "Live vision could not read all dimensions — applying validated measurements for this plan set."
-        )
-      );
-      const sf = cached.find((f) => f.key === "sheets");
-      if (Array.isArray(sf?.value)) sheetNames = sf.value as string[];
-      return { facts: cached, extractedFacts: true, sheetNames };
-    }
-
-    facts = facts.map((f) =>
-      f.key === "sheets"
-        ? sheetNames.length
-          ? { ...f, value: sheetNames, raw: `Sheets: ${sheetNames.join(", ")}`, confidence: 0.95 }
-          : f
-        : { ...f, value: null, confidence: 0, raw: "Not extracted from the plan set." }
-    );
-    planReadError =
-      planReadError ??
-      facts.find((f) => f.key === "sheets")?.readError ??
-      "no readable dimensions were found on the drawing";
-    push(
-      agentMsg(
-        "plan-reader",
-        "info",
-        `Plan reader could not measure the drawing — ${planReadError}. Checks flagged NEEDS REVIEW.`
-      )
-    );
-  }
-
-  return { facts, extractedFacts, planReadError, sheetNames };
+  return finalizePlanFacts(project, facts, extractedFacts, sheetNames, planReadError, push);
 }
 
 async function runComplianceChecks(

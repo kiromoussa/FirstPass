@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { loadProject } from "@/lib/project-persistence";
+import { ensureProjectPlansStaged } from "@/lib/plans-prep";
 import {
   getPlotViewerMeta,
   getPlotViewerPng,
@@ -11,6 +13,18 @@ export const dynamic = "force-dynamic";
 // Serves AutoCAD-plotted DWG sheets for the in-app viewer. Without `i`, returns
 // `{ status, sheets }`. With `i=<n>`, returns that sheet's PNG bytes.
 export async function GET(req: NextRequest) {
+  try {
+    return await handleRender(req);
+  } catch (err) {
+    console.error("[api/plans/render]", err);
+    return NextResponse.json(
+      { error: (err as Error).message ?? "Render failed" },
+      { status: 500 }
+    );
+  }
+}
+
+async function handleRender(req: NextRequest) {
   const projectId = req.nextUrl.searchParams.get("projectId");
   if (!projectId) {
     return NextResponse.json({ error: "projectId required" }, { status: 400 });
@@ -30,6 +44,8 @@ export async function GET(req: NextRequest) {
 
   let meta = await getPlotViewerMeta(projectId);
   if (!meta || (meta.status !== "ready" && meta.status !== "failed")) {
+    const project = await loadProject(projectId);
+    if (project) await ensureProjectPlansStaged(project);
     const hydrated = await hydratePlotViewerFromDisk(projectId);
     if (hydrated) meta = hydrated;
   }

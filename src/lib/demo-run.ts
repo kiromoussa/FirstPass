@@ -16,6 +16,7 @@ import { runPlanComplianceAgent, type PlanComplianceResult } from "./plan-compli
 import { scoreFrom, languageLint } from "./compliance";
 import { saveState } from "./store";
 import { persistProject } from "./project-persistence";
+import { ensureProjectPlansStaged, publishViewerSheets } from "./plans-prep";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const TICK_MS = 350;
@@ -106,6 +107,14 @@ export async function* runDemoPipeline(
   push("orchestrator", "Firm workflow started — agents collaborating on your pre-submission review.", "info", "band");
   yield snapshot();
   await sleep(500);
+
+  // Stage bundled plan sheets immediately so the viewer is ready when the run finishes.
+  await ensureProjectPlansStaged(enriched);
+  try {
+    await publishViewerSheets(enriched.id);
+  } catch {
+    /* viewer hydrates on first GET */
+  }
 
   push("orchestrator", "CEO Boss: New review — delegating to Project & Property Manager.", "info", "band");
   yield snapshot();

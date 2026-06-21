@@ -53,40 +53,72 @@ export function NewProjectForm({ onCreated }: Props) {
     const isVision = !!file && !isDwg && /\.(pdf|png|jpe?g)$/.test(name_l);
 
     try {
-      setStatusText("Creating project…");
-      const res = await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          address,
-          citySlug: citySlug || undefined,
-          projectType,
-        }),
-      });
-      const data = (await res.json()) as { id?: string; error?: string };
-      if (!res.ok || !data.id) {
-        throw new Error(data.error ?? "Could not create project");
-      }
-      const id = data.id;
+      let id: string;
 
       if (file && isDwg) {
         setStatusText("Uploading DWG to Autodesk APS…");
         const fd = new FormData();
         fd.append("file", file);
         const up = await fetch("/api/aps/upload", { method: "POST", body: fd });
-        const upj = (await up.json()) as { ok?: boolean; urn?: string; error?: string };
+        const upj = (await up.json()) as {
+          ok?: boolean;
+          urn?: string;
+          error?: string;
+          reason?: string;
+        };
         if (!up.ok || !upj.ok || !upj.urn) {
-          throw new Error(upj.error ?? "DWG upload to Autodesk failed — check APS credentials in .env.local");
+          throw new Error(
+            upj.error ??
+              upj.reason ??
+              "DWG upload to Autodesk failed — check APS credentials in .env.local"
+          );
         }
-        const patch = await fetch(`/api/projects/${id}`, {
-          method: "PATCH",
+
+        setStatusText("Creating project…");
+        const res = await fetch("/api/projects", {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ apsUrn: upj.urn, dwgName: file.name }),
+          body: JSON.stringify({
+            name,
+            address,
+            citySlug: citySlug || undefined,
+            projectType,
+            apsUrn: upj.urn,
+            dwgName: file.name,
+          }),
         });
-        if (!patch.ok) {
-          throw new Error("Could not save DWG metadata to the project");
+        const data = (await res.json()) as { id?: string; error?: string };
+        if (!res.ok || !data.id) {
+          throw new Error(data.error ?? "Could not create project");
         }
+        id = data.id;
+
+        setStatusText("Saving DWG to project…");
+        const stageFd = new FormData();
+        stageFd.append("file", file);
+        stageFd.append("projectId", id);
+        const stage = await fetch("/api/dwg/stage", { method: "POST", body: stageFd });
+        const stageJ = (await stage.json()) as { ok?: boolean; reason?: string };
+        if (!stage.ok || !stageJ.ok) {
+          throw new Error(stageJ.reason ?? "Could not save DWG file to the project workspace");
+        }
+      } else {
+        setStatusText("Creating project…");
+        const res = await fetch("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            address,
+            citySlug: citySlug || undefined,
+            projectType,
+          }),
+        });
+        const data = (await res.json()) as { id?: string; error?: string };
+        if (!res.ok || !data.id) {
+          throw new Error(data.error ?? "Could not create project");
+        }
+        id = data.id;
       }
 
       if (file && isVision) {

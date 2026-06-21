@@ -1,8 +1,10 @@
 // Redis-backed store with in-memory fallback (PLAN.md §Redis).
 // Uses ioredis when REDIS_URL is set; otherwise a process-local Map so the
 // app runs with zero infrastructure. Same interface either way.
+import fs from "fs/promises";
 import type Redis from "ioredis";
 import type { ProjectState } from "./types";
+import { ensureProjectDir, projectStatePath } from "./project-files";
 
 let redis: Redis | null = null;
 let redisTried = false;
@@ -61,18 +63,26 @@ export async function kvSet(key: string, value: unknown): Promise<void> {
   mem.set(key, json);
 }
 
+function parseJson<T>(raw: string): T | null {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
 export async function kvGet<T>(key: string): Promise<T | null> {
   const r = await client();
   if (r) {
     try {
       const v = await r.get(key);
-      if (v != null) return JSON.parse(v) as T;
+      if (v != null) return parseJson<T>(v);
     } catch (e) {
       warnMemoryFallback(`read failed: ${(e as Error).message}`);
     }
   }
   const m = mem.get(key);
-  return m ? (JSON.parse(m) as T) : null;
+  return m ? parseJson<T>(m) : null;
 }
 
 // Read a Redis HASH (all field/value pairs). Used for the multi-agent blackboard
@@ -128,10 +138,28 @@ const stateKey = (id: string) => `state:${id}`;
 
 export async function saveState(state: ProjectState): Promise<void> {
   await kvSet(stateKey(state.project.id), state);
+  try {
+    await ensureProjectDir(state.project.id);
+    await fs.writeFile(projectStatePath(state.project.id), JSON.stringify(state), "utf-8");
+  } catch {
+    /* kv is primary; disk is for dev replay */
+  }
 }
 
 export async function loadState(id: string): Promise<ProjectState | null> {
-  return kvGet<ProjectState>(stateKey(id));
+  const fromKv = await kvGet<ProjectState>(stateKey(id));
+  if (fromKv?.project.status === "done") return fromKv;
+
+  try {
+    const raw = await fs.readFile(projectStatePath(id), "utf-8");
+    const fromDisk = parseJson<ProjectState>(raw);
+    if (fromDisk?.project.status === "done") return fromDisk;
+    if (fromDisk && !fromKv) return fromDisk;
+  } catch {
+    /* no disk snapshot yet */
+  }
+
+  return fromKv;
 }
 
 const PROJECT_INDEX = "projects:index";

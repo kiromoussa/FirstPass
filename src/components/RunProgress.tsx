@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { PHASES, type ProjectState, type Phase, type Sponsor, type Finding, type BandRoomMessage } from "@/lib/types";
+import { PHASES, type ProjectState, type Phase, type Sponsor, type Finding } from "@/lib/types";
 import { AGENT_META, MSG_META, SPONSOR_META, STATUS_META } from "@/lib/ui";
-import { BandConversation } from "@/components/BandConversation";
 import { AgentFeed } from "@/components/AgentFeed";
 
 const ORDER: Phase[] = ["jurisdiction", "research", "read", "comply", "review", "report", "done"];
@@ -61,14 +60,12 @@ export function RunProgress({
   error,
   projectId,
   bandRoomId,
-  bandRoom = [],
   onOpenDashboard,
 }: {
   state: ProjectState | null;
   error: string | null;
   projectId: string;
   bandRoomId?: string | null;
-  bandRoom?: BandRoomMessage[];
   onOpenDashboard: () => void;
 }) {
   const status = state?.project.status ?? "created";
@@ -79,9 +76,7 @@ export function RunProgress({
   const pct = Math.round((completed / PHASES.length) * 100);
 
   const messages = state?.messages ?? [];
-  const transcript = state?.bandTranscript?.length ? state.bandTranscript : bandRoom;
-  const roomId = state?.bandRoomId ?? bandRoomId;
-  const bandMode = !!roomId || transcript.length > 0;
+  const bandMode = !!(state?.bandRoomId ?? bandRoomId);
   const phaseDetail = bandMode ? BAND_PHASE_DETAIL : PHASE_DETAIL;
   const latest = messages[messages.length - 1];
 
@@ -256,15 +251,11 @@ export function RunProgress({
               })}
             </ol>
 
-            {/* Center: live agent conversation — Band room when present, else pipeline feed */}
-            <Panel title={transcript.length > 0 ? "Live agent conversation" : "Agent activity"}>
-              {transcript.length > 0 ? (
-                <BandConversation messages={transcript} roomId={roomId} />
-              ) : (
-                <div className="max-h-[420px] overflow-hidden rounded-lg border border-ink-700">
-                  <AgentFeed messages={messages} />
-                </div>
-              )}
+            {/* Center: pipeline agent activity feed */}
+            <Panel title="Agent activity">
+              <div className="max-h-[420px] overflow-hidden rounded-lg border border-ink-700">
+                <AgentFeed messages={messages} />
+              </div>
             </Panel>
 
             {/* Right rail: tools · violations · code · run status + log */}

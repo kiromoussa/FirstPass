@@ -19,6 +19,8 @@ import {
   setPlotViewerFailed,
   setPlotViewerPending,
 } from "./plot-viewer-cache";
+import { restoreDwgPlotCache, saveDwgPlotCache } from "./dwg-plot-cache";
+import { ensureDemoPlanSheets } from "./demo-plan-cache";
 import type { Project } from "./types";
 
 export const PLANS_DIR = path.join(process.cwd(), "plans");
@@ -82,6 +84,23 @@ export async function publishViewerSheets(projectId: string): Promise<void> {
   await hydratePlotViewerFromDisk(projectId);
 }
 
+/** Stage plan PDFs on disk from bundled demo sheets or prior URN plot cache. */
+export async function ensureProjectPlansStaged(project: Project): Promise<string[]> {
+  const durableDir = projectPlansDir(project.id);
+  let durable = await listIn(durableDir);
+  if (durable.length > 0) return durable;
+
+  const demo = await ensureDemoPlanSheets(project);
+  if (demo.length > 0) return demo;
+
+  if (project.apsUrn) {
+    const restored = await restoreDwgPlotCache(project.apsUrn, project.id);
+    if (restored.length > 0) return restored;
+  }
+
+  return [];
+}
+
 function safePlanName(name: string, fallbackExt: string): string {
   const cleaned = name.replace(/[^a-zA-Z0-9._-]/g, "_").trim();
   if (!cleaned) return `plan${fallbackExt}`;
@@ -136,8 +155,13 @@ async function prepPlans(
 ): Promise<PlansPrepResult> {
   const durableDir = projectPlansDir(project.id);
 
+  // 0. Bundled demo sheets or prior URN plot — no Autodesk wait.
+  let durable = await listIn(durableDir);
+  if (durable.length === 0) {
+    durable = await ensureProjectPlansStaged(project);
+  }
+
   // 1. Durable cache hit — this project was already plotted/staged. Restore it.
-  const durable = await listIn(durableDir);
   if (durable.length > 0) {
     await resetGlobalPlans();
     const files = await mirrorToGlobal(project.id);
@@ -199,6 +223,7 @@ async function prepPlans(
       await fs.writeFile(path.join(durableDir, diskName), buf);
       await fs.writeFile(path.join(PLANS_DIR, diskName), buf);
     }
+    if (project.apsUrn) await saveDwgPlotCache(project.apsUrn, project.id);
     const files = await listPlanFiles();
     return {
       ok: files.length > 0,

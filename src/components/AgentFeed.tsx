@@ -4,11 +4,22 @@ import { useEffect, useRef } from "react";
 import type { AgentMessage } from "@/lib/types";
 import { AGENT_META, MSG_META, SPONSOR_META } from "@/lib/ui";
 
-export function AgentFeed({ messages }: { messages: AgentMessage[] }) {
-  const endRef = useRef<HTMLDivElement>(null);
+export function AgentFeed({
+  messages,
+  autoScroll = false,
+}: {
+  messages: AgentMessage[];
+  /** When true, keeps the feed pinned to the latest message (container only, never the page). */
+  autoScroll?: boolean;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+    if (!autoScroll) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages.length, autoScroll]);
 
   return (
     <div className="flex flex-col h-full">
@@ -16,7 +27,7 @@ export function AgentFeed({ messages }: { messages: AgentMessage[] }) {
         <h3 className="text-xs uppercase tracking-widest text-muted">Agent activity · Band</h3>
         <span className="text-[10px] text-faint">{messages.length} msgs</span>
       </div>
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-3 py-3 space-y-2">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin px-3 py-3 space-y-2">
         {messages.length === 0 && (
           <div className="text-xs text-faint px-2 py-4">Waiting for agents…</div>
         )}
@@ -60,7 +71,6 @@ export function AgentFeed({ messages }: { messages: AgentMessage[] }) {
             </div>
           );
         })}
-        <div ref={endRef} />
       </div>
     </div>
   );

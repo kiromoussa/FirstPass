@@ -16,6 +16,10 @@ export function projectMetaPath(projectId: string): string {
   return path.join(projectDir(projectId), "project.json");
 }
 
+export function projectStatePath(projectId: string): string {
+  return path.join(projectDir(projectId), "state.json");
+}
+
 export function safeFilename(name: string, fallback = "plan.dwg"): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").trim() || fallback;
 }

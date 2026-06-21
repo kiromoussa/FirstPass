@@ -8,59 +8,57 @@ interface Meta {
   reason?: string;
 }
 
-// Shows DWG sheets plotted by Autodesk Design Automation. Kicks off plotting
-// via POST /api/plans/plot (shared with the Band pipeline) then polls metadata.
+// Shows plan sheets from the durable project store (bundled demo cache or prior APS plot).
 export function PlanSheetViewer({ projectId }: { projectId: string }) {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [active, setActive] = useState(0);
-  const [statusLine, setStatusLine] = useState("Starting Autodesk plot…");
+  const [statusLine, setStatusLine] = useState("Loading plan sheets…");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const plotStarted = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
+    let plotKickoff = false;
 
-    async function poll() {
+    async function kickoffPlot() {
+      if (plotKickoff) return;
+      plotKickoff = true;
+      try {
+        await fetch(`/api/plans/plot?projectId=${encodeURIComponent(projectId)}`, {
+          method: "POST",
+        });
+      } catch {
+        /* polling will retry */
+      }
+    }
+
+    async function load() {
       try {
         const m: Meta = await fetch(
           `/api/plans/render?projectId=${encodeURIComponent(projectId)}`
         ).then((r) => r.json());
         if (cancelled) return;
         setMeta(m);
-        if (m.status === "pending") {
-          setStatusLine("Plotting DWG sheets with Autodesk (AutoCAD cloud)…");
-          timer.current = setTimeout(poll, 3000);
-        } else if (m.status === "failed") {
-          setStatusLine(m.reason ?? "Sheet preview unavailable");
-        }
-      } catch {
-        if (!cancelled) timer.current = setTimeout(poll, 4000);
-      }
-    }
 
-    async function kickPlot() {
-      if (plotStarted.current) return;
-      plotStarted.current = true;
-      setStatusLine("Plotting DWG sheets with Autodesk (AutoCAD cloud)…");
-      try {
-        const m: Meta = await fetch(`/api/plans/plot?projectId=${encodeURIComponent(projectId)}`, {
-          method: "POST",
-        }).then((r) => r.json());
-        if (cancelled) return;
-        setMeta(m);
-        if (m.status === "pending") {
-          timer.current = setTimeout(poll, 2000);
-        } else if (m.status === "ready") {
+        if (m.status === "ready" && m.sheets.length > 0) {
           setStatusLine("");
-        } else if (m.status === "failed") {
-          setStatusLine(m.reason ?? "Sheet preview unavailable");
+          return;
         }
+        if (m.status === "failed") {
+          setStatusLine(m.reason ?? "Sheet preview unavailable");
+          return;
+        }
+        setStatusLine("Plotting plan sheets with Autodesk…");
+        void kickoffPlot();
+        timer.current = setTimeout(load, 1500);
       } catch {
-        if (!cancelled) timer.current = setTimeout(poll, 3000);
+        if (!cancelled) timer.current = setTimeout(load, 2000);
       }
     }
 
-    kickPlot();
+    // No persistent "started" ref: under React Strict Mode the effect runs
+    // mount→cleanup→mount, and a ref guard would skip the second load() call,
+    // leaving the viewer stuck on "Loading plan sheets…".
+    void load();
     return () => {
       cancelled = true;
       clearTimeout(timer.current);
@@ -72,10 +70,10 @@ export function PlanSheetViewer({ projectId }: { projectId: string }) {
   const sheet = ready ? meta!.sheets[Math.min(active, meta!.sheets.length - 1)] : null;
 
   return (
-    <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-ink-700 bg-black">
+    <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-ink-700 blueprint-grid">
       {ready ? (
         <div className="absolute inset-0 flex flex-col">
-          <div className="relative flex-1 min-h-0 bg-black">
+          <div className="relative flex-1 min-h-0 blueprint-grid">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`/api/plans/render?projectId=${encodeURIComponent(projectId)}&i=${Math.min(
@@ -83,7 +81,7 @@ export function PlanSheetViewer({ projectId }: { projectId: string }) {
                 meta!.sheets.length - 1
               )}`}
               alt={sheet?.name ?? "Plan sheet"}
-              className="w-full h-full object-contain"
+              className="aps-sheet-dark w-full h-full object-contain"
             />
             {meta!.sheets.length > 1 && (
               <>
@@ -128,22 +126,19 @@ export function PlanSheetViewer({ projectId }: { projectId: string }) {
           )}
         </div>
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black text-sm text-blue-200/80 px-6 text-center gap-2">
+        <div className="absolute inset-0 flex flex-col items-center justify-center blueprint-grid text-sm text-blue-200/80 px-6 text-center gap-2">
           {failed ? (
             <span className="text-flag-warn max-w-md">{statusLine}</span>
           ) : (
             <>
               <span className="pulse w-3 h-3 rounded-full bg-accent mb-1" />
               <span>{statusLine}</span>
-              <span className="text-[11px] text-muted max-w-sm">
-                This can take 2–4 minutes for large DWGs. Findings below still run in parallel.
-              </span>
             </>
           )}
         </div>
       )}
-      <div className="absolute top-3 left-3 text-[10px] text-white/90 font-mono pointer-events-none bg-[#15170f]/70 rounded px-1.5 py-0.5">
-        {ready && sheet ? `AUTODESK · ${sheet.name}` : "AUTODESK APS · DESIGN AUTOMATION"}
+      <div className="absolute top-3 left-3 text-[10px] text-blue-200/70 font-mono pointer-events-none bg-[#0d2235]/80 rounded px-1.5 py-0.5">
+        {ready && sheet ? sheet.name : "PLAN SHEETS"}
       </div>
     </div>
   );

@@ -72,6 +72,11 @@ body {
   background-size: 28px 28px;
 }
 
+/* Invert APS-plotted sheets (white PDF/PNG) for dark-mode viewing */
+.aps-sheet-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(1.06);
+}
+
 /* Dark grid overlay used inside dark panels */
 .dot-grid-dark {
   background-image:

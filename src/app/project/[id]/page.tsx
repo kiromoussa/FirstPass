@@ -4,12 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import type { BandRoomMessage, ProjectState, Sponsor } from "@/lib/types";
+import type { ProjectState, Sponsor } from "@/lib/types";
 import { ScoreGauge } from "@/components/ScoreGauge";
 import { PhaseRail } from "@/components/PhaseRail";
 import { SponsorRail } from "@/components/SponsorRail";
 import { AgentFeed } from "@/components/AgentFeed";
-import { BandConversation } from "@/components/BandConversation";
 import { BlueprintViewer } from "@/components/BlueprintViewer";
 import { PlanSheetViewer } from "@/components/PlanSheetViewer";
 import { FindingsList } from "@/components/FindingsList";
@@ -27,7 +26,6 @@ export default function ProjectDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [viewDashboard, setViewDashboard] = useState(false);
   const [bandRoomId, setBandRoomId] = useState<string | null>(null);
-  const [bandRoom, setBandRoom] = useState<BandRoomMessage[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -41,22 +39,10 @@ export default function ProjectDashboard() {
       const next = JSON.parse((e as MessageEvent).data) as ProjectState;
       setState(next);
       if (next.bandRoomId) setBandRoomId(next.bandRoomId);
-      if (next.bandTranscript?.length) setBandRoom(next.bandTranscript);
     });
-    // A real Band collaboration room was opened for this run.
     es.addEventListener("band", (e) => {
       try {
         setBandRoomId(JSON.parse((e as MessageEvent).data).roomId ?? null);
-      } catch {
-        /* ignore */
-      }
-    });
-    // Live transcript of the real Band room (the actual agent conversation).
-    es.addEventListener("band-room", (e) => {
-      try {
-        const data = JSON.parse((e as MessageEvent).data);
-        setBandRoom(data.messages ?? []);
-        if (data.roomId) setBandRoomId(data.roomId);
       } catch {
         /* ignore */
       }
@@ -88,9 +74,6 @@ export default function ProjectDashboard() {
   }, [state?.findings]);
 
   const done = state?.project.status === "done";
-  const transcript = state?.bandTranscript?.length ? state.bandTranscript : bandRoom;
-  const roomId = state?.bandRoomId ?? bandRoomId ?? state?.project.bandRoomId;
-
   // Show the step-by-step run flow until the pipeline finishes (or fails), then
   // a completion summary with the code violations, rather than dropping the
   // user into an empty dashboard. The dashboard opens on demand (no re-run).
@@ -101,7 +84,6 @@ export default function ProjectDashboard() {
         error={error}
         projectId={id}
         bandRoomId={bandRoomId}
-        bandRoom={bandRoom}
         onOpenDashboard={() => setViewDashboard(true)}
       />
     );
@@ -157,7 +139,7 @@ export default function ProjectDashboard() {
           </div>
           <div>
             <h3 className="text-[10px] uppercase tracking-widest text-muted mb-3">Extracted facts</h3>
-            <FactsList facts={state?.facts ?? []} />
+            <FactsList facts={state?.facts ?? []} projectType={state?.project.projectType} />
           </div>
           <div>
             <h3 className="text-[10px] uppercase tracking-widest text-muted mb-3">
@@ -183,7 +165,7 @@ export default function ProjectDashboard() {
           )}
         </section>
 
-        {/* Right: findings/facts · Band conversation · pipeline feed */}
+        {/* Right: findings/facts · pipeline feed */}
         <aside className="border-l border-ink-700 overflow-hidden flex flex-col">
           {/* Findings / facts — moved here from the center so the viewer owns it */}
           <div className="flex-1 min-h-0 flex flex-col border-b border-ink-700">
@@ -204,18 +186,13 @@ export default function ProjectDashboard() {
               {tab === "findings" ? (
                 <FindingsList findings={state?.findings ?? []} selectedId={selectedId} onSelect={setSelectedId} />
               ) : (
-                <FactsList facts={state?.facts ?? []} />
+                <FactsList facts={state?.facts ?? []} projectType={state?.project.projectType} />
               )}
             </div>
           </div>
 
-          {(roomId || transcript.length > 0) && (
-            <div className="border-b border-ink-700 p-3 flex-shrink-0 max-h-[32%] overflow-hidden">
-              <BandConversation messages={transcript} roomId={roomId} compact />
-            </div>
-          )}
           <div className="flex-1 min-h-0">
-            <AgentFeed messages={state?.messages ?? []} />
+            <AgentFeed messages={state?.messages ?? []} autoScroll />
           </div>
         </aside>
       </div>

@@ -61,5 +61,15 @@ export async function POST(req: NextRequest) {
   await addToProjectIndex(id, project.createdAt);
   const { persistProject } = await import("@/lib/project-persistence");
   await persistProject(project);
+  if (project.dwgName) {
+    try {
+      const { ensureDemoPlanSheets } = await import("@/lib/demo-plan-cache");
+      const { publishViewerSheets } = await import("@/lib/plans-prep");
+      await ensureDemoPlanSheets(project);
+      await publishViewerSheets(id);
+    } catch {
+      /* viewer hydrates on first GET */
+    }
+  }
   return NextResponse.json({ id, citySlug });
 }

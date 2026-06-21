@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadProject } from "@/lib/project-persistence";
-import { ensurePlansReady } from "@/lib/plans-prep";
+import { ensurePlansReady, ensureProjectPlansStaged } from "@/lib/plans-prep";
 import {
   getPlotViewerMeta,
   hydratePlotViewerFromDisk,
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(existing);
   }
 
+  await ensureProjectPlansStaged(project);
   const fromDisk = await hydratePlotViewerFromDisk(projectId);
   if (fromDisk?.status === "ready") {
     return NextResponse.json(fromDisk);

@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { loadProject, persistProject } from "@/lib/project-persistence";
 import { runPipeline } from "@/lib/pipeline";
 import { runBandPipeline } from "@/lib/band-pipeline";
@@ -21,6 +21,21 @@ export const maxDuration = 300;
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    return await runStream(req, params);
+  } catch (err) {
+    console.error("[api/run] failed to start stream:", err);
+    return NextResponse.json(
+      { error: (err as Error).message ?? "Run failed to start" },
+      { status: 500 }
+    );
+  }
+}
+
+async function runStream(
+  req: NextRequest,
+  params: Promise<{ id: string }>
 ) {
   const { id } = await params;
   const project = await loadProject(id);
@@ -89,8 +104,7 @@ export async function GET(
         // Already finished once? Replay the persisted result instead of re-running
         // the entire pipeline. Revisiting a project (or React re-mounting the
         // EventSource) should never re-do minutes of plotting + vision + checks.
-        // Keyed off the saved STATE's status (set by saveState at completion) —
-        // project.json isn't rewritten to "done", so checking it would never fire.
+        // State lives in Redis/kv AND projects/{id}/state.json on disk.
         const saved = await loadState(id);
         const replay = saved?.project.status === "done" ? saved : null;
         if (replay) {
