@@ -102,6 +102,35 @@ codebase** — no re-research, no model, no network. Two ways to ingest a new ci
 - **Over HTTP** — `POST /api/cities/ingest` with `{slug, documents[]}` writes the
   raw docs, runs the chunker, and seeds the result.
 
+## Permanence — what's actually in the codebase
+
+Chunking writes the raw text **and** `chunks.json` to disk, but "permanent" means
+**committed to git**. There are two paths, and they behave differently:
+
+- **Build-time (local) — permanent.** Run the chunker or the Band bridge locally,
+  then commit. `scripts/ingest_band_output.py --slug <slug> --commit` does the
+  commit for you (just `git push` after). The committed `data/cities/<slug>/`
+  ships with the repo and works on every clone and deploy. This is how
+  `alameda-ca` and `los-angeles-ca` are stored today.
+- **Runtime (`POST /api/cities/ingest`) — NOT automatically permanent.** It writes
+  to the server filesystem and seeds Redis, but does not `git commit`. On a
+  serverless host (Vercel) filesystem writes are ephemeral — gone on the next
+  deploy/cold start. The durable copy there is Redis (the seeded `code:<slug>:*`
+  keys), or you commit the generated files from a local run. Treat runtime ingest
+  as a preview; commit (or persist to Redis/Blob) to make a city stick.
+
+So: a city is permanent once `data/cities/<slug>/` is committed — `--commit`
+makes that one step.
+
+## How much text? (it's not the whole code book by default)
+
+The Band scraper extracts excerpt windows around the search terms, not every
+page. Tuned up to `MAX_EXCERPTS = 200` per layer (~50–80 pages) by default, or run
+`firstpass-local --full` (`ArchiveCodeScrapeInput.full_text`) to capture the
+**entire** OCR document per layer — hundreds of pages — which the chunker then
+splits normally. Pick excerpts for a tight, fast corpus; pick `--full` when you
+want the complete code committed.
+
 ## Scale
 
 This is the whole point. A 300-page code chunks into a few hundred small units in

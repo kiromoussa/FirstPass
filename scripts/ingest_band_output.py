@@ -118,6 +118,29 @@ def ingest(slug: str, output_dir: Path, city: str, state: str, include_summary: 
     return chunk_codes.chunk_city(slug)
 
 
+def git_commit_city(slug: str) -> None:
+    """Stage and commit just this city's corpus so it's permanent in the repo."""
+    import subprocess
+
+    rel = f"data/cities/{slug}"
+    try:
+        subprocess.run(["git", "-C", str(ROOT), "add", rel], check=True)
+        # Nothing staged (already committed + unchanged) -> diff --cached is clean.
+        staged = subprocess.run(
+            ["git", "-C", str(ROOT), "diff", "--cached", "--quiet", "--", rel]
+        ).returncode
+        if staged == 0:
+            print(f"  git: no changes to commit for {rel}")
+            return
+        subprocess.run(
+            ["git", "-C", str(ROOT), "commit", "-q", "-m", f"Add/update {slug} code corpus (ingested from Band output)"],
+            check=True,
+        )
+        print(f"  git: committed {rel} (run 'git push' to publish)")
+    except Exception as exc:  # noqa: BLE001
+        print(f"  git: could not commit ({exc}) — commit {rel} manually", file=sys.stderr)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ingest Band research output into a chunkable city corpus")
     parser.add_argument("--slug", required=True, help="target city slug under data/cities")
@@ -125,12 +148,21 @@ def main() -> None:
     parser.add_argument("--city", default="", help="city display name")
     parser.add_argument("--state", default="", help="state abbreviation, e.g. CA")
     parser.add_argument("--include-summary", action="store_true", help="also ingest final_summary.txt")
+    parser.add_argument(
+        "--commit",
+        action="store_true",
+        help="git-commit data/cities/<slug>/ after chunking so it's permanent in the repo",
+    )
     args = parser.parse_args()
 
     count = ingest(args.slug, Path(args.output_dir), args.city, args.state, args.include_summary)
     if count == 0:
         sys.exit(1)
-    print(f"Done. {count} chunk(s) for {args.slug}. Commit data/cities/{args.slug}/ to make it permanent.")
+    print(f"Done. {count} chunk(s) for {args.slug}.")
+    if args.commit:
+        git_commit_city(args.slug)
+    else:
+        print(f"Commit data/cities/{args.slug}/ (or re-run with --commit) to make it permanent.")
 
 
 if __name__ == "__main__":
