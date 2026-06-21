@@ -90,7 +90,11 @@ def init_environment() -> None:
 
 def load_agent_config(agent_key: str) -> tuple[str, str]:
     """Return (agent_id, api_key) for a Band agent from the config file."""
-    aliases = {"ceo_planner": "project_property_manager", "vp": "project_property_manager"}
+    aliases = {
+        "ceo_planner": "project_property_manager",
+        "vp": "project_property_manager",
+        "permit_agent": "permit_report",
+    }
     agent_key = aliases.get(agent_key, agent_key)
     band = load_config().get("band", {})
     agent = band.get(agent_key)

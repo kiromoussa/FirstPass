@@ -31,9 +31,9 @@ start firstpass-state
 start firstpass-visual
 start firstpass-compare
 
-# Uncomment after registering in Band + firstpass.config.yaml:
-# start firstpass-solutions
-# start firstpass-permit
+# Registered in Band as @varbtw/improve-agent:
+start firstpass-solutions
+start firstpass-permit-agent
 
 echo ""
 echo "Started ${#pids[@]} processes. PIDs: ${pids[*]}"

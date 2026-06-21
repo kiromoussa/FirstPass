@@ -29,6 +29,10 @@ dist/
 .ruff_cache/
 
 output/
+uploads/
+projects/*
+!projects/.gitkeep
+.cache/
 plans/*
 !plans/.gitkeep
 .gstack/

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadState, kvGet, kvSet, saveState, deleteProject } from "@/lib/store";
+import { loadProject } from "@/lib/project-persistence";
 import type { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -12,7 +13,7 @@ export async function GET(
   const { id } = await params;
   const state = await loadState(id);
   if (state) return NextResponse.json(state);
-  const project = await kvGet<Project>(`proj:${id}`);
+  const project = await loadProject(id);
   if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json({ project, sources: [], rules: [], facts: [], findings: [], checklist: [], messages: [] });
 }

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
-import { kvGet, kvSet } from "@/lib/store";
-import type { Project } from "@/lib/types";
+import { loadProject, persistProject } from "@/lib/project-persistence";
+import { kvSet } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,9 +35,9 @@ export async function POST(req: NextRequest) {
     const diskPath = path.join(PLANS_DIR, safeName);
     await fs.writeFile(diskPath, bytes);
 
-    const project = await kvGet<Project>(`proj:${projectId}`);
+    const project = await loadProject(projectId);
     if (project) {
-      await kvSet(`proj:${projectId}`, { ...project, planMime: mediaType, pdfName: file.name });
+      await persistProject({ ...project, planMime: mediaType, pdfName: file.name });
     }
     return NextResponse.json({ ok: true, mediaType, diskPath: `plans/${safeName}` });
   } catch (e) {

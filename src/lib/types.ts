@@ -94,6 +94,8 @@ export interface Project {
   score?: number;
   pdfName?: string;
   dwgName?: string;
+  /** Staged DWG on disk, e.g. projects/{id}/plan.dwg */
+  dwgPath?: string;
   apsUrn?: string; // Autodesk Model Derivative URN for the translated DWG
   /** Band chat room id when a run opened a collaboration room. */
   bandRoomId?: string;

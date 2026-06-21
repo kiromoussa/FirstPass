@@ -11,6 +11,9 @@ browserbase:
 
 band_rest_url: "https://app.band.ai/api/v1/agent"
 
+# Register External Agents at app.band.ai with these exact names for @mention routing.
+# Optional code-layer researchers are skipped when agent_id is empty:
+#   Building, Residential, Plumbing, Green Code Researcher
 band:
   ceo:
     agent_id: ""   # @varbtw/ceo-boss
@@ -18,6 +21,23 @@ band:
   project_property_manager:
     agent_id: ""   # @varbtw/project-property-intake (Project and Property Manager)
     api_key: ""
+
+  building_researcher:
+    agent_id: ""
+    api_key: ""
+
+  residential_researcher:
+    agent_id: ""
+    api_key: ""
+
+  plumbing_researcher:
+    agent_id: ""
+    api_key: ""
+
+  green_researcher:
+    agent_id: ""
+    api_key: ""
+
   code_synthesizer:
     agent_id: ""   # @varbtw/code-synthesizer
     api_key: ""
@@ -37,7 +57,7 @@ band:
     agent_id: ""
     api_key: ""
   permit_report:
-    agent_id: ""   # @varbtw/permit-report-agent
+    agent_id: ""   # @varbtw/permit-report-agent (Permit Agent — Browserbase portal research + package review)
     api_key: ""
   orchestrator:
     agent_id: ""

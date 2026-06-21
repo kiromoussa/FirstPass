@@ -12,8 +12,10 @@ from firstpass.archive_tool import ARCHIVE_SCRAPE_TOOLS
 from firstpass.browserbase_tool import BROWSERBASE_TOOLS
 from firstpass.config import DEFAULT_MODEL, init_environment, load_agent_config
 from firstpass.permit.tool import PERMIT_TOOLS
+from firstpass.permit_research_tool import PERMIT_RESEARCH_TOOLS
 from firstpass.plan_analysis_tool import PLAN_ANALYSIS_TOOLS
 from firstpass.report_tool import MERGE_REPORT_TOOLS, REPORT_TOOLS
+from firstpass.solution_research_tool import SOLUTION_RESEARCH_TOOLS
 
 AgentRole = Literal[
     "researcher",
@@ -30,6 +32,7 @@ AgentRole = Literal[
 # Keep completions short — full code text lives in output/*.txt, not chat/tool payloads
 RESEARCHER_MAX_TOKENS = 1024
 SYNTHESIZER_MAX_TOKENS = 2048
+SOLUTIONS_MAX_TOKENS = 2048
 VISUAL_MAX_TOKENS = 4096
 
 
@@ -37,7 +40,7 @@ def _tools_for_role(role: AgentRole) -> list:
     if role == "synthesizer":
         return MERGE_REPORT_TOOLS + REPORT_TOOLS
     if role == "permit_agent":
-        return PERMIT_TOOLS + REPORT_TOOLS
+        return PERMIT_RESEARCH_TOOLS + PERMIT_TOOLS + REPORT_TOOLS
     if role == "municipal_researcher":
         return ARCHIVE_SCRAPE_TOOLS + BROWSERBASE_TOOLS + REPORT_TOOLS
     if role == "comparator":
@@ -45,7 +48,7 @@ def _tools_for_role(role: AgentRole) -> list:
     if role in ("ceo", "planner"):
         return REPORT_TOOLS
     if role == "solutions":
-        return REPORT_TOOLS
+        return REPORT_TOOLS + SOLUTION_RESEARCH_TOOLS
     if role == "visual":
         return REPORT_TOOLS + PLAN_ANALYSIS_TOOLS
     return ARCHIVE_SCRAPE_TOOLS + REPORT_TOOLS
@@ -63,6 +66,8 @@ def create_band_agent(
         if role == "synthesizer"
         else VISUAL_MAX_TOKENS
         if role == "visual"
+        else SOLUTIONS_MAX_TOKENS
+        if role == "solutions"
         else RESEARCHER_MAX_TOKENS
     )
 

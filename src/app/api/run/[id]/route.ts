@@ -1,9 +1,8 @@
 import { NextRequest } from "next/server";
-import { kvGet, kvSet } from "@/lib/store";
+import { loadProject, persistProject } from "@/lib/project-persistence";
 import { runPipeline } from "@/lib/pipeline";
 import { runBandPipeline } from "@/lib/band-pipeline";
 import { BandChannel, BAND_LIVE } from "@/lib/integrations/band";
-import type { Project } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +21,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const project = await kvGet<Project>(`proj:${id}`);
+  const project = await loadProject(id);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -51,7 +50,9 @@ export async function GET(
         return;
       }
 
-      // Open a Band channel. This is NON-BLOCKING — the real room (validate →
+      await persistProject(project).catch(() => null);
+
+      // Open a Band channel.
       // create chat → add agents → kickoff @mentions) bootstraps in the
       // background so a slow/throttled Band never stalls the run. The local feed
       // streams immediately; the room/transcript fill in when ready.
@@ -61,7 +62,7 @@ export async function GET(
         if (channel.roomId) {
           send("band", { roomId: channel.roomId });
           try {
-            await kvSet(`proj:${id}`, { ...project, bandRoomId: channel.roomId });
+            await persistProject({ ...project, bandRoomId: channel.roomId });
           } catch {
             /* best-effort */
           }
