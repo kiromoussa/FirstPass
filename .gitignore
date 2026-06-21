@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+*.log
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads & temp
+backend/uploads/
+backend/tmp/
+*.pdf
+*.dwg
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
