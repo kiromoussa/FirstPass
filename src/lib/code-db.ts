@@ -225,6 +225,34 @@ export function listCities(): string[] {
   }
 }
 
+export interface CitySummary {
+  slug: string;
+  label: string;
+  city?: string;
+  state?: string;
+  chunks: number;
+  categories: string[]; // code layers present (green/plumbing/building/…)
+}
+
+// Summary of every researched city committed to the repo — for a city picker.
+export function listCityCorpora(): CitySummary[] {
+  return listCities().map((slug) => {
+    const meta = loadCityMeta(slug);
+    const chunks = loadCityChunks(slug) ?? [];
+    const categories = [
+      ...new Set(chunks.map((c) => c.category).filter((c): c is string => !!c)),
+    ].sort();
+    return {
+      slug,
+      label: cityLabel(slug),
+      city: meta?.city,
+      state: meta?.state,
+      chunks: chunks.length,
+      categories,
+    };
+  });
+}
+
 // Best-effort map an address string to an available city slug (matches the
 // city name in meta.json), falling back to the default demo city.
 export function resolveCitySlug(address?: string): string {

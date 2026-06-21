@@ -13,6 +13,7 @@ import { ApsViewer } from "@/components/ApsViewer";
 import { FindingsList } from "@/components/FindingsList";
 import { FactsList } from "@/components/FactsList";
 import { FindingInspector } from "@/components/FindingInspector";
+import { RunProgress } from "@/components/RunProgress";
 
 export default function ProjectDashboard() {
   const params = useParams<{ id: string }>();
@@ -20,6 +21,9 @@ export default function ProjectDashboard() {
   const [state, setState] = useState<ProjectState | null>(null);
   const [tab, setTab] = useState<"findings" | "facts">("findings");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [viewDashboard, setViewDashboard] = useState(false);
+  const [bandRoomId, setBandRoomId] = useState<string | null>(null);
   const started = useRef(false);
 
   useEffect(() => {
@@ -29,8 +33,29 @@ export default function ProjectDashboard() {
     es.addEventListener("state", (e) => {
       setState(JSON.parse((e as MessageEvent).data));
     });
+    // A real Band collaboration room was opened for this run.
+    es.addEventListener("band", (e) => {
+      try {
+        setBandRoomId(JSON.parse((e as MessageEvent).data).roomId ?? null);
+      } catch {
+        /* ignore */
+      }
+    });
     es.addEventListener("complete", () => es.close());
-    es.addEventListener("error", () => es.close());
+    // The server emits a custom `error` event (with a message payload) when the
+    // pipeline throws; native connection errors arrive without data. Surface the
+    // former so the run screen never sits on a blank dashboard.
+    es.addEventListener("error", (e) => {
+      const data = (e as MessageEvent).data;
+      if (data) {
+        try {
+          setError(JSON.parse(data).message ?? "The run failed.");
+        } catch {
+          setError("The run failed.");
+        }
+      }
+      es.close();
+    });
     return () => es.close();
   }, [id]);
 
@@ -49,6 +74,21 @@ export default function ProjectDashboard() {
   }, [state?.findings]);
 
   const done = state?.project.status === "done";
+
+  // Show the step-by-step run flow until the pipeline finishes (or fails), then
+  // a completion summary with the code violations — rather than dropping the
+  // user into an empty dashboard. The dashboard opens on demand (no re-run).
+  if (!done || !viewDashboard) {
+    return (
+      <RunProgress
+        state={state}
+        error={error}
+        projectId={id}
+        bandRoomId={bandRoomId}
+        onOpenDashboard={() => setViewDashboard(true)}
+      />
+    );
+  }
 
   return (
     <main className="h-screen flex flex-col overflow-hidden">

@@ -35,5 +35,21 @@ body {
 }
 .pulse { animation: pulse-ring 1.4s ease-out; }
 
+/* A tool "lights up" while active: a breathing glow in the tool's own color.
+   Drive the color per element with `--glow` (e.g. style={{ "--glow": "#ffb547" }}). */
+@keyframes tool-glow {
+  0%, 100% { box-shadow: 0 0 0 1px color-mix(in srgb, var(--glow) 45%, transparent),
+                         0 0 10px 0 color-mix(in srgb, var(--glow) 25%, transparent); }
+  50%      { box-shadow: 0 0 0 1px color-mix(in srgb, var(--glow) 75%, transparent),
+                         0 0 18px 2px color-mix(in srgb, var(--glow) 45%, transparent); }
+}
+.tool-active { animation: tool-glow 1.6s ease-in-out infinite; }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+.blink { animation: blink 1s ease-in-out infinite; }
+
 .scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
 .scrollbar-thin::-webkit-scrollbar-thumb { background: #243042; border-radius: 8px; }

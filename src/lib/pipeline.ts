@@ -18,7 +18,7 @@ import { DISCLAIMER } from "./types";
 import { RULES, JURISDICTION_ID, deriveChecklist } from "./fixtures";
 import { researchSources } from "./integrations/browserbase";
 import { extractPlanFacts, explain, interpretDwgText } from "./integrations/claude";
-import { APS_LIVE, manifest, extractText } from "./integrations/aps";
+import { APS_LIVE, manifest, listViewables, extractSheetText } from "./integrations/aps";
 import { evaluateFinding } from "./integrations/arize";
 import { BandChannel } from "./integrations/band";
 import { flushTraces } from "./integrations/otel";
@@ -100,7 +100,7 @@ export async function* runPipeline(
 
   // ---- Phase 2: Code Research (Browserbase) ----
   state.project.status = "research";
-  emit(msg("research", "info", "Navigating Alameda planning & building sources…", { sponsor: "browserbase" }));
+  emit(msg("research", "info", `Navigating ${cityLabel(citySlug)} planning & building sources…`, { sponsor: "browserbase" }));
   yield snapshot();
   const { sources, live } = await researchSources(citySlug);
   state.sources = sources;
@@ -127,21 +127,33 @@ export async function* runPipeline(
   if (APS_LIVE && urn) {
     emit(msg("plan-reader", "info", "Checking Autodesk translation of the DWG…", { sponsor: "claude" }));
     yield snapshot();
-    // Translation was kicked off at upload; poll briefly so the demo stays snappy.
+    // Translation was kicked off at upload. A real multi-sheet plan set can take
+    // a minute+, so poll until it actually finishes rather than bailing early to
+    // reference facts (which is what made the read feel instant + generic).
     let mfst = await manifest(urn);
-    for (let i = 0; i < 5 && mfst && mfst.status !== "success" && mfst.status !== "failed"; i++) {
-      emit(msg("plan-reader", "info", `DWG translating… ${mfst.progress}`));
+    for (let i = 0; i < 40 && mfst && mfst.status !== "success" && mfst.status !== "failed" && mfst.status !== "timeout"; i++) {
+      emit(msg("plan-reader", "info", `Autodesk translating the DWG… ${mfst.progress || "in progress"}`, { sponsor: "claude" }));
       yield snapshot();
       await sleep(3000);
       mfst = await manifest(urn);
     }
     if (mfst?.status === "success") {
-      emit(msg("plan-reader", "done", "DWG translated. Extracting text & properties from the model…", { sponsor: "claude" }));
+      // Read EVERY sheet/layout in the set, not just the first viewable.
+      const sheets = await listViewables(urn);
+      emit(msg("plan-reader", "done", `DWG translated — ${sheets.length} sheet${sheets.length === 1 ? "" : "s"} found. Extracting text & properties from each…`, { sponsor: "claude" }));
       yield snapshot();
-      const lines = await extractText(urn);
+      const lines: string[] = [];
+      for (let i = 0; i < sheets.length; i++) {
+        const sheetLines = await extractSheetText(urn, sheets[i]);
+        lines.push(...sheetLines);
+        emit(msg("plan-reader", "info", `Read sheet ${i + 1}/${sheets.length}: ${sheets[i].name} (${sheetLines.length} labels).`, { sponsor: "claude" }));
+        yield snapshot();
+      }
+      emit(msg("plan-reader", "info", `Interpreting ${lines.length} extracted labels with Claude…`, { sponsor: "claude" }));
+      yield snapshot();
       facts = await interpretDwgText(lines);
     } else {
-      emit(msg("plan-reader", "info", "Translation still processing — using the validated reference facts for this pass.", { sponsor: "claude" }));
+      emit(msg("plan-reader", "info", `Translation did not complete (${mfst?.status ?? "no manifest"}) — using the validated reference facts for this pass.`, { sponsor: "claude" }));
       facts = await extractPlanFacts(pageImages);
     }
   } else {

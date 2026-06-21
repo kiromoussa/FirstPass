@@ -181,21 +181,63 @@ export async function waitForTranslation(
   return manifest(urn);
 }
 
-// Best-effort fact extraction: pull text/property strings from the translated
-// model so Claude can interpret them into typed facts. Returns raw strings.
-export async function extractText(urn: string): Promise<string[]> {
+// List every viewable (sheet/layout) in a translated DWG. A plan set is
+// translated as MANY 2D viewables — one per layout — each with its own guid.
+export interface Viewable {
+  guid: string;
+  name: string;
+  role?: string;
+}
+export async function listViewables(urn: string): Promise<Viewable[]> {
   const t = await getToken();
   if (!t) return [];
   try {
-    const metaRes = await fetch(`${APS_BASE}/modelderivative/v2/designdata/${urn}/metadata`, {
+    const res = await fetch(`${APS_BASE}/modelderivative/v2/designdata/${urn}/metadata`, {
       headers: auth(t),
     });
-    if (!metaRes.ok) return [];
-    const meta = (await metaRes.json()) as { data?: { metadata?: { guid: string }[] } };
-    const guid = meta.data?.metadata?.[0]?.guid;
-    if (!guid) return [];
+    if (!res.ok) return [];
+    const meta = (await res.json()) as {
+      data?: { metadata?: { guid: string; name?: string; role?: string }[] };
+    };
+    return (meta.data?.metadata ?? []).map((m) => ({
+      guid: m.guid,
+      name: m.name ?? m.guid,
+      role: m.role,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// Recursively flatten a property value into "key: value" strings so nested
+// property groups (where dimensions/annotations often live) aren't dropped.
+function flattenProps(prefix: string, v: unknown, out: string[], depth = 0): void {
+  if (depth > 4 || out.length > 6000) return;
+  if (v == null) return;
+  if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+    const s = String(v).trim();
+    if (s) out.push(prefix ? `${prefix}: ${s}` : s);
+    return;
+  }
+  if (Array.isArray(v)) {
+    for (const item of v) flattenProps(prefix, item, out, depth + 1);
+    return;
+  }
+  if (typeof v === "object") {
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      flattenProps(prefix ? `${prefix}.${k}` : k, val, out, depth + 1);
+    }
+  }
+}
+
+// Pull text/property strings from ONE sheet (viewable) of the translated model.
+// Each line is tagged with the sheet name so Claude knows its origin.
+export async function extractSheetText(urn: string, v: Viewable): Promise<string[]> {
+  const t = await getToken();
+  if (!t) return [];
+  try {
     const propRes = await fetch(
-      `${APS_BASE}/modelderivative/v2/designdata/${urn}/metadata/${guid}/properties`,
+      `${APS_BASE}/modelderivative/v2/designdata/${urn}/metadata/${v.guid}/properties?forceget=true`,
       { headers: auth(t) }
     );
     if (!propRes.ok) return [];
@@ -204,15 +246,38 @@ export async function extractText(urn: string): Promise<string[]> {
     };
     const out: string[] = [];
     for (const c of props.data?.collection ?? []) {
-      if (c.name) out.push(c.name);
-      for (const [k, v] of Object.entries(c.properties ?? {})) {
-        if (typeof v === "string" || typeof v === "number") out.push(`${k}: ${v}`);
-      }
+      const lines: string[] = [];
+      if (c.name) lines.push(c.name);
+      flattenProps("", c.properties, lines);
+      for (const line of lines) out.push(`[${v.name}] ${line}`);
     }
-    return out.slice(0, 500);
+    return out;
   } catch {
     return [];
   }
+}
+
+// Pull text/property strings from EVERY sheet of the translated model so Claude
+// can interpret them into typed facts. Returns de-duplicated raw strings tagged
+// with the sheet they came from. `onSheet` reports progress as sheets are read.
+export async function extractText(
+  urn: string,
+  onSheet?: (sheet: string, index: number, total: number) => void
+): Promise<string[]> {
+  const viewables = await listViewables(urn);
+  if (viewables.length === 0) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (let i = 0; i < viewables.length; i++) {
+    onSheet?.(viewables[i].name, i, viewables.length);
+    for (const line of await extractSheetText(urn, viewables[i])) {
+      if (!seen.has(line)) {
+        seen.add(line);
+        out.push(line);
+      }
+    }
+  }
+  return out.slice(0, 4000);
 }
 
 export { BUCKET_KEY };
