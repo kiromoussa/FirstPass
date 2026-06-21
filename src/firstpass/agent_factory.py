@@ -9,15 +9,19 @@ from band import Agent
 from band.adapters import AnthropicAdapter
 
 from firstpass.archive_tool import ARCHIVE_SCRAPE_TOOLS
-from firstpass.config import init_environment, load_agent_config
-from firstpass.report_tool import REPORT_TOOLS
+from firstpass.config import DEFAULT_MODEL, init_environment, load_agent_config
+from firstpass.report_tool import MERGE_REPORT_TOOLS, REPORT_TOOLS
 
 AgentRole = Literal["researcher", "synthesizer"]
+
+# Keep completions short — full code text lives in output/*.txt, not chat/tool payloads
+RESEARCHER_MAX_TOKENS = 1024
+SYNTHESIZER_MAX_TOKENS = 2048
 
 
 def _tools_for_role(role: AgentRole) -> list:
     if role == "synthesizer":
-        return REPORT_TOOLS + ARCHIVE_SCRAPE_TOOLS
+        return MERGE_REPORT_TOOLS + REPORT_TOOLS
     return ARCHIVE_SCRAPE_TOOLS + REPORT_TOOLS
 
 
@@ -28,10 +32,13 @@ def create_band_agent(
 ) -> Agent:
     init_environment()
 
+    max_tokens = SYNTHESIZER_MAX_TOKENS if role == "synthesizer" else RESEARCHER_MAX_TOKENS
+
     adapter = AnthropicAdapter(
-        model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929"),
+        model=os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL),
         custom_section=custom_section,
-        enable_execution_reporting=True,
+        enable_execution_reporting=False,
+        max_tokens=max_tokens,
         additional_tools=_tools_for_role(role),
     )
 

@@ -11,6 +11,9 @@ import yaml
 CONFIG_FILENAME = "firstpass.config.yaml"
 EXAMPLE_FILENAME = "firstpass.config.yaml.example"
 
+# Cheapest Claude model suitable for tool-calling agents (override in firstpass.config.yaml)
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+
 
 def get_config_path() -> Path:
     return Path(os.getcwd()) / CONFIG_FILENAME

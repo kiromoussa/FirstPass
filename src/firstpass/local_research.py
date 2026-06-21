@@ -17,15 +17,14 @@ def _scrape_and_write(
     report_type: str,
     scrape_input: ArchiveCodeScrapeInput,
 ) -> Path:
+    scrape_input.auto_write_report = True
+    scrape_input.report_filename = filename
+    scrape_input.report_type = report_type
     raw = archive_code_scrape(scrape_input)
     data = json.loads(raw)
-    content = data.get("formatted_report", raw)
-    result = json.loads(
-        write_text_report(
-            WriteTextReportInput(filename=filename, content=content, report_type=report_type)
-        )
-    )
-    return Path(result["path"])
+    if path := data.get("report_path"):
+        return Path(path)
+    raise RuntimeError(f"Scrape failed for {filename}: {data.get('errors', raw)}")
 
 
 def _build_final_summary(municipal_path: Path, state_path: Path, address: str, project_type: str) -> str:

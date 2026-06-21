@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote_plus, urlparse
 
 import httpx
@@ -14,8 +16,10 @@ from playwright.sync_api import sync_playwright
 from pydantic import BaseModel, Field
 
 from firstpass.code_sources import ARCHIVE_ITEMS, OAKLAND_MUNICIPAL_URLS, search_archive_text
+from firstpass.report_tool import MergeResearchReportsInput, WriteTextReportInput, merge_research_reports, write_text_report
 
 TEXT_LIMIT = 20_000
+SUMMARY_LIMIT = 1_500
 NAV_TIMEOUT_MS = 90_000
 
 
@@ -39,6 +43,26 @@ class ArchiveCodeScrapeInput(BaseModel):
     use_browserbase: bool = Field(
         default=True,
         description="If false, only fetch Internet Archive OCR text (faster, no Browserbase session)",
+    )
+    auto_write_report: bool = Field(
+        default=True,
+        description="Write full report to output/ automatically (saves a Claude tool turn)",
+    )
+    report_filename: str | None = Field(
+        default=None,
+        description="Output filename when auto_write_report is true, e.g. municipal_codes.txt",
+    )
+    report_type: str = Field(
+        default="research",
+        description="Report type for auto-write: municipal, state, or final_summary",
+    )
+    address: str | None = Field(
+        default=None,
+        description="Project address (for auto-merge into final_summary.txt)",
+    )
+    project_type: str = Field(
+        default="Detached ADU",
+        description="Project type (for auto-merge into final_summary.txt)",
     )
 
 
@@ -179,6 +203,34 @@ def _browserbase_archive_context(
     return session_url, page_text, errors
 
 
+def _run_sync_in_thread(fn, *args, **kwargs):
+    """Run sync Playwright safely when Band's asyncio loop is active."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return fn(*args, **kwargs)
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(fn, *args, **kwargs).result()
+
+
+def _try_auto_merge(input: ArchiveCodeScrapeInput) -> str | None:
+    """Merge municipal + state reports when both files exist."""
+    if input.report_type not in {"municipal", "state"}:
+        return None
+    address = (input.address or "").strip()
+    if not address:
+        return None
+    result = json.loads(
+        merge_research_reports(
+            MergeResearchReportsInput(address=address, project_type=input.project_type)
+        )
+    )
+    if result.get("status") == "written":
+        return result.get("path")
+    return None
+
+
 def archive_code_scrape(input: ArchiveCodeScrapeInput) -> str:
     """Scrape code excerpts from Internet Archive OCR text + Browserbase session."""
     api_key = os.environ.get("BROWSERBASE_API_KEY")
@@ -195,7 +247,7 @@ def archive_code_scrape(input: ArchiveCodeScrapeInput) -> str:
     sources_used: list[dict] = []
     all_excerpts: list[dict] = []
     errors: list[str] = []
-    session_recording: str | None = None
+    session_recordings: list[str] = []
 
     # 1. Fetch full OCR text (primary — reliable, free, no paywall)
     item_ids_to_try: list[str] = []
@@ -242,9 +294,15 @@ def archive_code_scrape(input: ArchiveCodeScrapeInput) -> str:
         f"https://archive.org/details/{item_id}" if item_id else "https://archive.org/search?query=california+residential+code+ADU"
     )
     if input.use_browserbase:
-        session_recording, page_text, browse_errors = _browserbase_archive_context(
-            api_key, project_id, browse_url, input.search_terms
+        session_url, page_text, browse_errors = _run_sync_in_thread(
+            _browserbase_archive_context,
+            api_key,
+            project_id,
+            browse_url,
+            input.search_terms,
         )
+        if session_url:
+            session_recordings.append(session_url)
         errors.extend(browse_errors)
         if page_text:
             sources_used.append({"type": "browserbase_page", "url": browse_url, "text_length": len(page_text)})
@@ -253,33 +311,64 @@ def archive_code_scrape(input: ArchiveCodeScrapeInput) -> str:
         # 3. Search archive.org for additional municipal items if jurisdiction mentions Oakland
         if "oakland" in input.jurisdiction.lower():
             search_url = f"https://archive.org/search?query={quote_plus('oakland planning code accessory dwelling')}"
-            _, extra_text, extra_errors = _browserbase_archive_context(
-                api_key, project_id, search_url, input.search_terms
+            extra_session, extra_text, extra_errors = _run_sync_in_thread(
+                _browserbase_archive_context,
+                api_key,
+                project_id,
+                search_url,
+                input.search_terms,
             )
+            if extra_session:
+                session_recordings.append(extra_session)
             errors.extend(extra_errors)
             if extra_text:
                 all_excerpts.extend(search_archive_text(extra_text, input.search_terms, max_excerpts=5))
                 sources_used.append({"type": "archive_search", "url": search_url})
 
-    report_body = _format_scrape_report(input, sources_used, all_excerpts, errors)
+    report_body = _format_scrape_report(input, sources_used, all_excerpts, errors, session_recordings)
 
-    return json.dumps(
-        {
-            "research_goal": input.research_goal,
-            "jurisdiction": input.jurisdiction,
-            "session_recording_url": session_recording,
-            "sources": sources_used,
-            "excerpts": all_excerpts[:20],
-            "excerpt_count": len(all_excerpts),
-            "errors": errors,
-            "formatted_report": report_body,
-            "instruction": (
-                "Use formatted_report content. Write it to a .txt file via WriteTextReportInput. "
-                "Cite archive.org URLs. Note this is pre-submission research, not official approval."
-            ),
-        },
-        indent=2,
-    )
+    report_path: str | None = None
+    if input.auto_write_report and input.report_filename:
+        write_result = json.loads(
+            write_text_report(
+                WriteTextReportInput(
+                    filename=input.report_filename,
+                    content=report_body,
+                    report_type=input.report_type,
+                )
+            )
+        )
+        report_path = write_result.get("path")
+
+    final_summary_path = _try_auto_merge(input)
+
+    summary = report_body[:SUMMARY_LIMIT]
+    primary_session = session_recordings[0] if session_recordings else None
+    payload: dict = {
+        "session_recording_url": primary_session,
+        "session_recording_urls": session_recordings,
+        "final_summary_path": final_summary_path,
+        "excerpt_count": len(all_excerpts),
+        "summary": summary,
+        "report_path": report_path,
+        "errors": errors[:3] if errors else [],
+    }
+    if final_summary_path:
+        payload["instruction"] = (
+            "@mention `@varbtw/code-synthesizer` once: final_summary.txt is ready at "
+            f"{final_summary_path}. Ask it to confirm in chat. Do NOT merge yourself."
+        )
+    elif report_path:
+        payload["instruction"] = (
+            "@mention `@varbtw/code-synthesizer` with report_path and session_recording_url in max 5 sentences. "
+            "Do NOT call WriteTextReportInput again."
+        )
+    else:
+        payload["instruction"] = (
+            "Pass summary to WriteTextReportInput once. Post max 5 sentences in chat."
+        )
+
+    return json.dumps(payload)
 
 
 def _format_scrape_report(
@@ -287,15 +376,20 @@ def _format_scrape_report(
     sources: list[dict],
     excerpts: list[dict],
     errors: list[str],
+    session_recordings: list[str] | None = None,
 ) -> str:
     lines = [
         f"BUILDING CODE RESEARCH — {input.jurisdiction}",
         f"Goal: {input.research_goal}",
         f"Search terms: {input.search_terms}",
-        "",
-        "SOURCES",
-        "-------",
     ]
+    if session_recordings:
+        for i, url in enumerate(session_recordings, 1):
+            label = "Browserbase Session" if len(session_recordings) == 1 else f"Browserbase Session {i}"
+            lines.append(f"{label}: {url}")
+    elif input.use_browserbase:
+        lines.append("Browserbase Session: (session failed or unavailable)")
+    lines.extend(["", "SOURCES", "-------"])
     for src in sources:
         lines.append(f"- [{src.get('type')}] {src.get('url', src.get('item_id', ''))}")
     lines.extend(["", "CODE EXCERPTS", "-------------"])
