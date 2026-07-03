@@ -1,0 +1,93 @@
+services:
+  - type: web
+    name: firstpass
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      # Secrets: declared here so Render's dashboard prompts for each, but
+      # `sync: false` means no value is ever stored in this file/repo — set
+      # the real values in the Render dashboard (Environment tab).
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false
+      - key: BROWSERBASE_API_KEY
+        sync: false
+      - key: BROWSERBASE_PROJECT_ID
+        sync: false
+      - key: FIRSTPASS_LIVE_RESEARCH
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: FIRSTPASS_REDISVL
+        sync: false
+      - key: ARIZE_API_KEY
+        sync: false
+      - key: ARIZE_SPACE_ID
+        sync: false
+      - key: FIRSTPASS_BAND
+        sync: false
+      - key: BAND_API_KEY
+        sync: false
+      - key: BAND_AGENT_MUNICIPAL_ID
+        sync: false
+      - key: BAND_AGENT_STATE_ID
+        sync: false
+      - key: BAND_AGENT_SYNTHESIZER_ID
+        sync: false
+      - key: BAND_AGENT_COMPARE_ID
+        sync: false
+      - key: BAND_AGENT_MUNICIPAL_KEY
+        sync: false
+      - key: BAND_AGENT_STATE_KEY
+        sync: false
+      - key: BAND_AGENT_SYNTHESIZER_KEY
+        sync: false
+      - key: BAND_AGENT_COMPARE_KEY
+        sync: false
+      - key: BAND_AGENT_CEO_ID
+        sync: false
+      - key: BAND_AGENT_CEO_KEY
+        sync: false
+      - key: BAND_AGENT_PLANNER_ID
+        sync: false
+      - key: BAND_AGENT_PLANNER_KEY
+        sync: false
+      - key: BAND_AGENT_PROJECT_PROPERTY_MANAGER_ID
+        sync: false
+      - key: BAND_AGENT_PROJECT_PROPERTY_MANAGER_KEY
+        sync: false
+      - key: BAND_AGENT_VISUAL_ID
+        sync: false
+      - key: BAND_AGENT_VISUAL_KEY
+        sync: false
+      - key: BAND_AGENT_SOLUTIONS_ID
+        sync: false
+      - key: BAND_AGENT_SOLUTIONS_KEY
+        sync: false
+      - key: BAND_AGENT_PERMIT_ID
+        sync: false
+      - key: BAND_AGENT_PERMIT_KEY
+        sync: false
+      - key: BAND_AGENT_ID
+        sync: false
+      - key: BAND_AGENT_HANDLE
+        sync: false
+      - key: BAND_MENTION_ID
+        sync: false
+      - key: BAND_MENTION_NAME
+        sync: false
+      - key: BAND_MENTION_HANDLE
+        sync: false
+      - key: BAND_USER_API_KEY
+        sync: false
+      - key: APS_CLIENT_ID
+        sync: false
+      - key: APS_CLIENT_SECRET
+        sync: false
+      - key: APS_CALLBACK_URL
+        sync: false
