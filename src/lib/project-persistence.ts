@@ -15,8 +15,16 @@ function legacyProjectPath(id: string): string {
 }
 
 export async function persistProject(project: Project): Promise<void> {
-  await ensureProjectDir(project.id);
-  await fs.writeFile(projectMetaPath(project.id), JSON.stringify(project, null, 2), "utf-8");
+  // The disk mirror is a local-dev/Python-bridge convenience (see module
+  // comment) — best-effort only. Vercel's filesystem is read-only outside
+  // /tmp, so this write cannot succeed there; it must never block the real,
+  // durable persistence (kvSet, backed by Redis) below.
+  try {
+    await ensureProjectDir(project.id);
+    await fs.writeFile(projectMetaPath(project.id), JSON.stringify(project, null, 2), "utf-8");
+  } catch (e) {
+    console.warn("[project-persistence] disk write skipped (read-only filesystem?):", (e as Error)?.message ?? e);
+  }
   await kvSet(`proj:${project.id}`, project);
   await persistActiveProject(project);
 }
