@@ -90,6 +90,17 @@ function planTouchesTopic(facts: PlanFact[], topic: CorpusTopic): boolean {
   return false;
 }
 
+// Every code-layer category scripts/chunk_codes.py and scripts/import_cadai_corpus.py
+// assign (see CATEGORY_RULES / STATE_CODE_FILES). A topic's real governing
+// provision doesn't always live in its "preferred" layer — e.g. ventilation
+// is centrally a Mechanical Code topic, not Building — so the fallback chain
+// must cover every real category, not a fixed short list that quietly never
+// reaches mechanical/electrical/fire/plumbing/energy at all.
+const ALL_CATEGORIES = [
+  "building", "residential", "mechanical", "electrical", "plumbing",
+  "fire", "green", "energy", "city", "state", "county", "general",
+];
+
 async function retrieveTopicChunk(
   topic: CorpusTopic,
   project: Project,
@@ -97,14 +108,20 @@ async function retrieveTopicChunk(
 ): Promise<CodeChunk | null> {
   const appliesTo = project.projectType;
   const preferred = TOPIC_CATEGORY[topic];
-  const tries = preferred
-    ? [preferred, "city", "state", "building", "residential", "green", undefined]
-    : [undefined, "city", "state", "building"];
-  for (const cat of tries) {
-    const chunk = await retrieveCodeHybrid(topic, appliesTo, citySlug, cat);
+  const ordered = preferred
+    ? [preferred, ...ALL_CATEGORIES.filter((c) => c !== preferred)]
+    : ALL_CATEGORIES;
+  // requireTag=true while trying each category: retrieveCode's own widen-
+  // within-category fallback would otherwise let the FIRST category tried
+  // always return *some* plausible-looking chunk, so this loop would never
+  // actually reach the category the topic really lives in. Only the final,
+  // whole-corpus try (category=undefined) is allowed to widen — a true
+  // last resort, not a trap sprung on the very first attempt.
+  for (const cat of ordered) {
+    const chunk = await retrieveCodeHybrid(topic, appliesTo, citySlug, cat, true);
     if (chunk) return chunk;
   }
-  return null;
+  return retrieveCodeHybrid(topic, appliesTo, citySlug, undefined, false);
 }
 
 function excerpt(text: string, max = 320): string {

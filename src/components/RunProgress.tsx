@@ -13,7 +13,7 @@ const ORDER: Phase[] = ["jurisdiction", "research", "read", "comply", "review", 
 const BAND_PHASE_DETAIL: Record<string, string> = {
   jurisdiction: "CEO Boss delegates; Project and Property Manager writes the project brief.",
   research: "Municipal + State researchers scrape codes; Synthesizer merges.",
-  read: "Visual Analysis reads the plan set with Claude vision.",
+  read: "Visual Analysis reads the plan set with vision AI.",
   comply: "Compare Codes flags plan vs code violations.",
   review: "Final audit.",
   report: "Composing report.",

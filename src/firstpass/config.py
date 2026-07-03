@@ -11,9 +11,8 @@ import yaml
 CONFIG_FILENAME = "firstpass.config.yaml"
 EXAMPLE_FILENAME = "firstpass.config.yaml.example"
 
-# Cheapest Claude model suitable for tool-calling + vision agents (Band team default).
-# Override only if you accept higher cost: Sonnet/Opus are NOT used by default.
-DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+# Cheapest OpenAI model suitable for tool-calling + vision agents (Band team default).
+DEFAULT_MODEL = "gpt-5-mini"
 
 # Maps firstpass.config.yaml band keys → Next.js band-client.ts env var names.
 BAND_ENV_MAP: dict[str, tuple[str, str]] = {
@@ -49,14 +48,14 @@ def load_config() -> dict:
 
 
 def init_environment() -> None:
-    """Load config and populate env vars for Anthropic, Browserbase, and Band."""
+    """Load config and populate env vars for OpenAI, Browserbase, and Band."""
     config = load_config()
 
-    if anthropic := config.get("anthropic"):
-        if key := anthropic.get("api_key"):
-            os.environ.setdefault("ANTHROPIC_API_KEY", key)
-        if model := anthropic.get("model"):
-            os.environ.setdefault("ANTHROPIC_MODEL", model)
+    if openai := config.get("openai"):
+        if key := openai.get("api_key"):
+            os.environ.setdefault("OPENAI_API_KEY", key)
+        if model := openai.get("model"):
+            os.environ.setdefault("OPENAI_MODEL", model)
 
     if browserbase := config.get("browserbase"):
         if key := browserbase.get("api_key"):

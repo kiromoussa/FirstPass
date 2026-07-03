@@ -17,7 +17,7 @@ import type {
 import { DISCLAIMER, projectTypeLabel } from "./types";
 import { JURISDICTION_ID, deriveChecklist } from "./fixtures";
 import { researchSources } from "./integrations/browserbase";
-import { extractPlanFacts, explain, interpretDwgText, extractPlanFactsFromDoc, extractPlanFactsFromDocs, extractPlanFactsFromImages } from "./integrations/claude";
+import { extractPlanFacts, explain, interpretDwgText, extractPlanFactsFromPdfDual, extractPlanFactsFromDocs, extractPlanFactsFromImages } from "./integrations/llm";
 import { APS_LIVE, listViewables, extractSheetText, waitForTranslation } from "./integrations/aps";
 import { plotDwgSheets, tilesFromPdf } from "./integrations/autocad-da";
 import {
@@ -31,6 +31,7 @@ import {
   compareNumeric,
   selectRule,
   scoreFrom,
+  suggestFix,
   languageLint,
 } from "./compliance";
 import { saveState, kvGet, kvSet } from "./store";
@@ -147,7 +148,11 @@ export async function* runPipeline(
     yield snapshot();
     const stored = await kvGet<{ mediaType: string; data: string }>(`plan:${project.id}`);
     if (stored?.data) {
-      facts = await extractPlanFactsFromDoc(stored.data, stored.mediaType, project.projectType);
+      // Dual-pass: native document read, then a high-res vision pass when core
+      // metrics come back unread/low-confidence; the passes merge deterministically.
+      facts = await extractPlanFactsFromPdfDual(stored.data, stored.mediaType, project.projectType, (note) =>
+        emit(msg("plan-reader", "info", note, { sponsor: "claude" }))
+      );
       const read = facts.filter((f) => f.key !== "sheets" && f.value != null);
       const sf = facts.find((f) => f.key === "sheets");
       if (Array.isArray(sf?.value)) sheetNames = sf.value as string[];
@@ -287,13 +292,13 @@ export async function* runPipeline(
         .map((r) => r.key)
     ),
   ];
-  // ADU keeps the scripted "buggy first pass" (applicability OFF) so the wrong
-  // attached-vs-detached rule is picked and Arize can catch it. Single/multi-
-  // family enforce applicability from the start — there's no scripted bug there.
-  const isAdu = project.projectType === "detached_adu" || project.projectType === "attached_adu";
-
+  // Applicability is enforced from the first pass for every project type. (The
+  // scripted "buggy first pass" that picked the wrong attached-vs-detached rule
+  // for the Arize demo set piece lives only in the demo pipeline now — the real
+  // run never plants a bug. The review pass below remains as a genuine safety
+  // net: it re-checks applicability and corrects if a wrong rule ever slips in.)
   for (const key of numericKeys) {
-    const rule = selectRule(rules, key, project.projectType, !isAdu);
+    const rule = selectRule(rules, key, project.projectType, true);
     const fact = factForRuleKey(key);
     if (!rule || !fact) continue;
     const res = compareNumeric(fact, rule);
@@ -419,12 +424,11 @@ export async function* runPipeline(
   // Suggested corrections for non-PASS findings (Claude, with safe fallback).
   for (const f of state.findings) {
     if (f.status === "PASS") continue;
-    const fallback =
-      f.status === "FAIL"
-        ? `Adjust the design so ${f.title.toLowerCase()} meets the cited requirement before submission.`
-        : f.status === "WARNING"
-        ? `${f.title} is close to the limit — verify the dimension and consider added margin.`
-        : `Provide the missing information for ${f.title.toLowerCase()} and re-check.`;
+    // Deterministic fallback names the exact delta to comply (never a bare flag).
+    const fRule = rules.find((r) => r.key === f.ruleKey && r.sourceId === f.sourceRef) ?? rules.find((r) => r.key === f.ruleKey);
+    const fallback = fRule
+      ? suggestFix(factForRuleKey(f.ruleKey), fRule, f.status, f.title)
+      : `Provide the missing information for ${f.title.toLowerCase()} and re-check.`;
     f.suggestedCorrection = languageLint(
       await explain(
         `In one sentence, suggest how a residential architect could resolve this pre-submission finding: "${f.title}: ${f.message}". Use cautious language (likely/potential).`,

@@ -6,11 +6,11 @@ import os
 from typing import Literal
 
 from band import Agent
-from band.adapters import AnthropicAdapter
 
 from firstpass.archive_tool import ARCHIVE_SCRAPE_TOOLS
 from firstpass.browserbase_tool import BROWSERBASE_TOOLS
 from firstpass.config import DEFAULT_MODEL, init_environment, load_agent_config
+from firstpass.openai_adapter import OpenAIAdapter
 from firstpass.permit.tool import PERMIT_TOOLS
 from firstpass.permit_research_tool import PERMIT_RESEARCH_TOOLS
 from firstpass.plan_analysis_tool import PLAN_ANALYSIS_TOOLS
@@ -71,8 +71,8 @@ def create_band_agent(
         else RESEARCHER_MAX_TOKENS
     )
 
-    adapter = AnthropicAdapter(
-        model=os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL),
+    adapter = OpenAIAdapter(
+        model=os.getenv("OPENAI_MODEL", DEFAULT_MODEL),
         custom_section=custom_section,
         enable_execution_reporting=False,
         max_tokens=max_tokens,

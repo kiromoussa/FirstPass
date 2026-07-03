@@ -1,0 +1,501 @@
+# source: California Government Code — Accessory Dwelling Units (Title 7, Div. 1, Ch. 13)
+# citation: https://leginfo.legislature.ca.gov/faces/codesTOCSelected.xhtml?tocCode=GOV
+# fetched: 2026-07-03
+# recency: Amended by Stats. 2025, Ch. 520, Sec. 1. (SB 543)
+
+--- Government Code § 66310 ---
+66310. The Legislature finds and declares all of the following:
+
+(a) Accessory dwelling units are a valuable form of housing in California.
+
+(b) Accessory dwelling units provide housing for family members, students, the elderly, in-home health care providers, the disabled, and others, at below market prices within existing neighborhoods.
+
+(c) Homeowners who create accessory dwelling units benefit from added income, and an increased sense of security.
+
+(d) Allowing accessory dwelling units in single-family or multifamily residential zones provides additional rental housing stock in California.
+
+(e) California faces a severe housing crisis.
+
+(f) The state is falling far short of meeting current and future housing demand with serious consequences for the state’s economy, our ability to build green infill consistent with state greenhouse gas reduction goals, and the well-being of our citizens, particularly lower and middle-income earners.
+
+(g) Accessory dwelling units offer lower cost housing to meet the needs of existing and future residents within existing neighborhoods, while respecting architectural character.
+
+(h) Accessory dwelling units are, therefore, an essential component of California’s housing supply.
+
+(Added by Stats. 2024, Ch. 7, Sec. 20. (SB 477) Effective March 25, 2024.)
+
+--- Government Code § 66311 ---
+66311. It is the intent of the Legislature that an accessory dwelling unit or a junior accessory dwelling unit ordinance adopted by a local agency has the effect of providing for the creation of accessory dwelling units or a junior accessory dwelling unit and that provisions in this ordinance relating to matters including unit size, parking, fees, and other requirements, are not so arbitrary, excessive, or burdensome so as to unreasonably restrict the ability of homeowners to create accessory dwelling units or junior accessory dwelling units in zones in which they are authorized by local ordinance.
+
+(Amended by Stats. 2025, Ch. 520, Sec. 1. (SB 543) Effective January 1, 2026.)
+
+--- Government Code § 66312 ---
+Justia › U.S. Law › U.S. Codes and Statutes › California Code › 2025 California Code › Government Code - GOV › TITLE 7 - PLANNING AND LAND USE › DIVISION 1 - PLANNING AND ZONING › CHAPTER 13 - Accessory Dwelling Units › ARTICLE 1 - General Provisions › Section 66312.
+Go to Other Versions of The California Code
+2025 California Code
+Government Code - GOV
+TITLE 7 - PLANNING AND LAND USE
+DIVISION 1 - PLANNING AND ZONING
+CHAPTER 13 - Accessory Dwelling Units
+ARTICLE 1 - General Provisions
+Section 66312.
+Universal Citation:
+CA Govt Code § 66312 (2025)
+Learn more
+This media-neutral citation is based on the American Association of Law Libraries Universal Citation Guide and is not necessarily the official citation.
+Previous
+Next
+
+66312. Notwithstanding Section 65803, this chapter shall also apply to a charter city.
+
+(Added by Stats. 2024, Ch. 7, Sec. 20. (SB 477) Effective March 25, 2024.)
+
+Previous
+Next
+Disclaimer: These codes may not be the most recent version. California may have more current or accurate information. We make no warranties or guarantees about the accuracy, completeness, or adequacy of the information contained on this site or the information linked to on the state site. Please check official sources.
+Free Daily Summaries in Your Inbox
+
+Sign up for our free summaries and get the latest delivered directly to you.
+
+Our Suggestions:
+Enter Your Email
+Free Webinars for All
+
+Discover the latest legal insights from our experts.
+
+See All Webinars
+
+Ask a Lawyer
+Get Free Answers
+
+Have a legal question? Get free answers from experienced lawyers!
+
+Ask Question
+
+Find a Lawyer
+
+Lawyers - Get Listed Now!
+Get a free directory profile listing
+
+--- Government Code § 66313 ---
+66313. For purposes of this chapter:
+
+(a) “Accessory dwelling unit” means an attached or a detached residential dwelling unit that provides complete independent living facilities for one or more persons and is located on a lot with a proposed or existing primary residence. It shall include permanent provisions for living, sleeping, eating, cooking, and sanitation on the same parcel as the single-family or multifamily dwelling is or will be situated. An accessory dwelling unit also includes the following:
+
+(1) An efficiency unit.
+
+(2) A manufactured home, as defined in Section 18007 of the Health and Safety Code.
+
+(b) “Accessory structure” means a structure that is accessory and incidental to a dwelling located on the same lot.
+
+(c) “Efficiency unit” has the same meaning as defined in Section 17958.1 of the Health and Safety Code.
+
+(d) “Junior accessory dwelling unit” means a unit that is no more than 500 square feet of interior livable space in size and contained entirely within a single-family residence. A junior accessory dwelling unit may include separate sanitation facilities, or may share sanitation facilities with the existing structure.
+
+(e) “Livable space” means a space in a dwelling intended for human habitation, including living, sleeping, eating, cooking, or sanitation.
+
+(f) “Living area” means the interior habitable area of a dwelling unit, including basements and attics, but does not include a garage or any accessory structure.
+
+(g) “Local agency” means a city, county, or city and county, whether general law or chartered.
+
+(h) “Nonconforming zoning condition” means a physical improvement on a property that does not conform to current zoning standards.
+
+(i) “Objective standards” means standards that involve no personal or subjective judgment by a public official and are uniformly verifiable by reference to an external and uniform benchmark or criterion available and knowable by both the development applicant or proponent and the public official prior to submittal.
+
+(j) “Passageway” means a pathway that is unobstructed clear to the sky and extends from a street to one entrance of the accessory dwelling unit.
+
+(k) “Permitting agency” means any entity that is involved in the review of a permit for an accessory dwelling unit or junior accessory dwelling unit and for which there is no substitute, including, but not limited to, applicable planning departments, building departments, utilities, and special districts.
+
+(l) “Proposed dwelling” means a dwelling that is the subject of a permit application and that meets the requirements for permitting.
+
+(m) “Public transit” means a location, including, but not limited to, a bus stop or train station, where the public may access buses, trains, subways, and other forms of transportation that charge set fares, run on fixed routes, and are available to the public.
+
+(n) “Tandem parking” means that two or more automobiles are parked on a driveway or in any other location on a lot, lined up behind one another.
+
+(Amended by Stats. 2025, Ch. 520, Sec. 2. (SB 543) Effective January 1, 2026.)
+
+--- Government Code § 66314 ---
+66314. A local agency may, by ordinance, provide for the creation of accessory dwelling units in areas zoned to allow single-family or multifamily dwelling residential use. The ordinance shall do all of the following:
+
+(a) Designate areas within the jurisdiction of the local agency where accessory dwelling units may be permitted. The designation of areas may be based on the adequacy of water and sewer services and the impact of accessory dwelling units on traffic flow and public safety. A local agency that does not provide water or sewer services shall consult with the local water or sewer service provider regarding the adequacy of water and sewer services before designating an area where accessory dwelling units may be permitted.
+
+(b) (1) Impose objective standards on accessory dwelling units that include, but are not limited to, parking, height, setback, landscape, architectural review, maximum size of a unit, and standards that prevent adverse impacts on any real property that is listed in the California Register of Historical Resources. These standards shall not include requirements on minimum lot size.
+
+(2) Notwithstanding paragraph (1), a local agency may reduce or eliminate parking requirements for any accessory dwelling unit located within its jurisdiction.
+
+(c) Provide that accessory dwelling units do not exceed the allowable density for the lot upon which the accessory dwelling unit is located, and that accessory dwelling units are a residential use that is consistent with the existing general plan and zoning designation for the lot.
+
+(d) Require the accessory dwelling units to comply with all of the following:
+
+(1) Except as provided in Article 4 (commencing with Section 66340), the accessory dwelling unit may be rented separate from the primary residence, but shall not be sold or otherwise conveyed separate from the primary residence.
+
+(2) The lot is zoned to allow single-family or multifamily dwelling residential use and includes a proposed or existing dwelling.
+
+(3) The accessory dwelling unit is either attached to, or located within, the proposed or existing primary dwelling, including attached garages, storage areas or similar uses, or an accessory structure or detached from the proposed or existing primary dwelling and located on the same lot as the proposed or existing primary dwelling, including detached garages.
+
+(4) If there is an existing primary dwelling, the total floor area of an attached accessory dwelling unit shall not exceed 50 percent of the existing primary dwelling.
+
+(5) The total floor area for a detached accessory dwelling unit shall not exceed 1,200 square feet.
+
+(6) No passageway shall be required in conjunction with the construction of an accessory dwelling unit.
+
+(7) No setback shall be required for an existing living area or accessory structure or a structure constructed in the same location and to the same dimensions as an existing structure that is converted to an accessory dwelling unit or to a portion of an accessory dwelling unit, and a setback of no more than four feet from the side and rear lot lines shall be required for an accessory dwelling unit that is not converted from an existing structure or a new structure constructed in the same location and to the same dimensions as an existing structure.
+
+(8) Local building code requirements that apply to detached dwellings, except that the construction of an accessory dwelling unit shall not constitute a Group R occupancy change under the local building code, as described in Section 310 of the California Building Code (Title 24 of the California Code of Regulations), unless the building official or enforcement agency of the local agency makes a written finding based on substantial evidence in the record that the construction of the accessory dwelling unit could have a specific, adverse impact on public health and safety. Nothing in this paragraph shall be interpreted to prevent a local agency from changing the occupancy code of a space that was uninhabitable space or was only permitted for nonresidential use and was subsequently converted for residential use pursuant to this article.
+
+(9) Approval by the local health officer where a private sewage disposal system is being used, if required.
+
+(10) (A) Parking requirements for accessory dwelling units shall not exceed one parking space per accessory dwelling unit or per bedroom, whichever is less. These spaces may be provided as tandem parking on a driveway.
+
+(B) Off­street parking shall be permitted in setback areas in locations determined by the local agency or through tandem parking, unless specific findings are made that parking in setback areas or tandem parking is not feasible based upon specific site or regional topographical or fire and life safety conditions.
+
+(C) This subparagraph shall not apply to an accessory dwelling unit that is described in Section 66322.
+
+(11) When a garage, carport, covered parking structure, or uncovered parking space is demolished in conjunction with the construction of an accessory dwelling unit or converted to an accessory dwelling unit, the local agency shall not require that those offstreet parking spaces be replaced.
+
+(12) Accessory dwelling units shall not be required to provide fire sprinklers if they are not required for the primary residence. The construction of an accessory dwelling unit shall not trigger a requirement for fire sprinklers to be installed in the existing primary dwelling.
+
+(e) Require that a demolition permit for a detached garage that is to be replaced with an accessory dwelling unit be reviewed with the application for the accessory dwelling unit and issued at the same time.
+
+(f) An accessory dwelling unit ordinance shall not require, and the applicant shall not be otherwise required, to provide written notice or post a placard for the demolition of a detached garage that is to be replaced with an accessory dwelling unit, unless the property is located within an architecturally and historically significant historic district.
+
+(Amended by Stats. 2025, Ch. 67, Sec. 109. (AB 1170) Effective January 1, 2026.)
+
+--- Government Code § 66315 ---
+66315. Section 66314 establishes the maximum standards that a local agency shall use to evaluate a proposed accessory dwelling unit on a lot that includes a proposed or existing single-family dwelling. No additional standards, other than those provided in Section 66314, shall be used or imposed, including an owner-occupant requirement, except that a local agency may require that the property may be used for rentals of terms 30 days or longer.
+
+(Added by Stats. 2024, Ch. 7, Sec. 20. (SB 477) Effective March 25, 2024.)
+
+--- Government Code § 66316 ---
+66316. An existing accessory dwelling unit ordinance governing the creation of an accessory dwelling unit by a local agency or an accessory dwelling ordinance adopted by a local agency shall provide an approval process that includes only ministerial provisions for the approval of accessory dwelling units and shall not include any discretionary processes, provisions, or requirements for those units, except as otherwise provided in this article. If a local agency has an existing accessory dwelling unit ordinance that fails to meet the requirements of this article, that ordinance shall be null and void and that agency shall thereafter apply the standards established in this article for the approval of accessory dwelling units, unless and until the agency adopts an ordinance that complies with this article.
+
+(Added by Stats. 2024, Ch. 7, Sec. 20. (SB 477) Effective March 25, 2024.)
+
+--- Government Code § 66317 ---
+66317. (a) (1) A permit application for an accessory dwelling unit shall be considered and approved ministerially without discretionary review or a hearing, notwithstanding Section 65901 or 65906 or any local ordinance regulating the issuance of variances or special use permits.
+
+(2) (A) A permitting agency shall determine whether an application to create or serve an accessory dwelling unit is complete and provide written notice of this determination to the applicant not later than 15 business days after the permitting agency received the application.
+
+(B) If the permitting agency determines an application is incomplete, the permitting agency shall provide the applicant with a list of incomplete items and a description of how the application can be made complete. The list and description shall be provided with the written notice required by subparagraph (A).
+
+(C) After receiving a notice that the application was incomplete, an applicant may cure and address the items that are deemed to be incomplete by the permitting agency.
+
+(D) In the review of an application submitted pursuant to subparagraph (C), the permitting agency shall not require the application to include an item that was not included in the list required by subparagraph (B).
+
+(E) If an applicant submits an application pursuant to subparagraph (C), the permitting agency shall determine whether the additional application has remedied all incomplete items listed in the determination issued pursuant to subparagraph (B). This additional application is subject to the timelines and requirements specified in subparagraph (A).
+
+(F) If a permitting agency does not make a timely determination as required by this paragraph, the application or resubmitted application shall be deemed to be complete for the purposes of this section.
+
+(3) The permitting agency shall either approve or deny the application to create or serve an accessory dwelling unit within 60 days from the date the permitting agency receives a completed application if there is an existing single-family or multifamily dwelling on the lot. If the permit application to create or serve an accessory dwelling unit is submitted with a permit application to create a new single-family or multifamily dwelling on the lot, the permitting agency may delay approving or denying the permit application for the accessory dwelling unit until the permitting agency approves or denies the permit application to create the new single-family or multifamily dwelling, but the application to create or serve the accessory dwelling unit shall be considered without discretionary review or hearing. If the applicant requests a delay, the 60-day time period shall be tolled for the period of the delay. If the local agency has not approved or denied the completed application within 60 days, the application shall be deemed approved. A local agency may charge a fee to reimburse it for costs incurred to implement this section, including the costs of adopting or amending any ordinance that provides for the creation of an accessory dwelling unit.
+
+(b) If a permitting agency denies an application for an accessory dwelling unit pursuant to subdivision (a), the permitting agency shall, within the time period described in subdivision (a), return in writing a full set of comments to the applicant with a list of items that are defective or deficient and a description of how the application can be remedied by the applicant.
+
+(c) No local ordinance, policy, or regulation, other than an accessory dwelling unit ordinance consistent with this article shall be the basis for the delay or denial of a building permit or a use permit under this section.
+
+(d) (1) If a permit application is determined to be incomplete under paragraph (2) of subdivision (a) or denied under paragraph (3) of subdivision (a), the permitting agency shall provide a process for the applicant to appeal that decision in writing to the governing body of the agency or, if there is no governing body, to the director of the agency, as provided by that agency. A city or county shall provide that the right of appeal is to the governing body or, at their option, the planning commission, or both.
+
+(2) A permitting agency on the appeal shall provide a final written determination by not later than 60 business days after receipt of the applicant’s written appeal. The fact that an appeal is permitted to both the planning commission and to the governing body does not extend the 60-business-day period.
+
+(Amended by Stats. 2025, Ch. 520, Sec. 3. (SB 543) Effective January 1, 2026.)
+
+--- Government Code § 66318 ---
+66318. (a) A local agency may amend its zoning ordinance or general plan to incorporate the policies, procedures, or other provisions applicable to the creation of an accessory dwelling unit if these provisions are consistent with the limitations of this article.
+
+(b) An accessory dwelling unit ordinance shall not be considered in the application of any local ordinance, policy, or program to limit residential growth.
+
+(Added by Stats. 2024, Ch. 7, Sec. 20. (SB 477) Effective March 25, 2024.)
+
+--- Government Code § 66319 ---
+66319. An accessory dwelling unit that conforms to Section 66314 shall be deemed to be an accessory use or an accessory building and shall not be considered to exceed the allowable density for the lot upon which it is located, and shall be deemed to be a residential use that is consistent with the existing general plan and zoning designations for the lot. The accessory dwelling unit shall not be considered in the application of any local ordinance, policy, or program to limit residential growth.
+
+(Added by Stats. 2024, Ch. 7, Sec. 20. (SB 477) Effective March 25, 2024.)
+
+--- Government Code § 66320 ---
+66320. When a local agency that has not adopted an ordinance governing accessory dwelling units in accordance with Section 66314 receives an application for a permit to create or serve an accessory dwelling unit pursuant to this article, the local agency shall approve or disapprove the application ministerially without discretionary review pursuant to Section 66317.
+
+(Amended by Stats. 2025, Ch. 520, Sec. 4. (SB 543) Effective January 1, 2026.)
+
+--- Government Code § 66321 ---
+66321. (a) Subject to subdivision (b), a local agency may establish minimum and maximum unit size requirements for both attached and detached accessory dwelling units.
+
+(b) Notwithstanding subdivision (a), a local agency shall not establish by ordinance any of the following:
+
+(1) A minimum square footage requirement for either an attached or detached accessory dwelling unit that prohibits an efficiency unit.
+
+(2) A maximum square footage requirement for either an attached or detached accessory dwelling unit that is less than either of the following:
+
+(A) Eight hundred fifty square feet of interior livable space.
+
+(B) One thousand square feet of interior livable space for an accessory dwelling unit that provides more than one bedroom.
+
+(3) Any requirement for a zoning clearance or separate zoning review or any other minimum or maximum size for an accessory dwelling unit, size based upon a percentage of the proposed or existing primary dwelling, or limits on lot coverage, floor area ratio, open space, front setbacks, and minimum lot size, for either attached or detached dwellings that does not permit an accessory dwelling unit with at least 800 square feet of interior livable space and with four-foot side and rear yard setbacks to be constructed in compliance with all other local development standards.
+
+(4) Any height limitation that does not allow at least the following, as applicable:
+
+(A) A height of 16 feet for a detached accessory dwelling unit on a lot with an existing or proposed single family or multifamily dwelling unit.
+
+(B) A height of 18 feet for a detached accessory dwelling unit on a lot with an existing or proposed single family or multifamily dwelling unit that is within one-half of one mile walking distance of a major transit stop or a high-quality transit corridor, as those terms are defined in Section 21155 of the Public Resources Code. A local agency shall also allow an additional two feet in height to accommodate a roof pitch on the accessory dwelling unit that is aligned with the roof pitch of the primary dwelling unit.
+
+(C) A height of 18 feet for a detached accessory dwelling unit on a lot with an existing or proposed multifamily, multistory dwelling.
+
+(D) A height of 25 feet or the height limitation in the local zoning ordinance that applies to the primary dwelling, whichever is lower, for an accessory dwelling unit that is attached to a primary dwelling. This subparagraph shall not require a local agency to allow an accessory dwelling unit to exceed two stories.
+
+(Amended by Stats. 2025, Ch. 520, Sec. 5. (SB 543) Effective January 1, 2026.)
+
+--- Government Code § 66322 ---
+66322. Notwithstanding any other law, and whether or not the local agency has adopted an ordinance governing accessory dwelling units in accordance with Section 66314, all of the following shall apply:
+
+(a) A local agency shall not impose any parking standards for an accessory dwelling unit in any of the following instances:
+
+(1) Where the accessory dwelling unit is located within one-half of one mile walking distance of public transit.
+
+(2) Where the accessory dwelling unit is located within an architecturally and historically significant historic district.
+
+(3) Where the accessory dwelling unit is part of the proposed or existing primary residence or an accessory structure.
+
+(4) When on-street parking permits are required but not offered to the occupant of the accessory dwelling unit.
+
+(5) When there is a car share vehicle located within one block of the accessory dwelling unit.
+
+(6) When a permit application for an accessory dwelling unit is submitted with a permit application to create a new single-family dwelling or a new multifamily dwelling on the same lot, provided that the accessory dwelling unit or the parcel satisfies any other criteria listed in this subdivision.
+
+(b) The local agency shall not deny an application for a permit to create an accessory dwelling unit due to the correction of nonconforming zoning conditions, building code violations, or unpermitted structures that do not present a threat to public health and safety and are not affected by the construction of the accessory dwelling unit.
+
+(Added by Stats. 2024, Ch. 7, Sec. 20. (SB 477) Effective March 25, 2024.)
+
+--- Government Code § 66323 ---
+66323. (a) Notwithstanding Sections 66314 to 66322, inclusive, a local agency shall ministerially approve an application for a building permit within a residential or mixed-use zone to create any of the following units, or any combination of the following units:
+
+(1) One accessory dwelling unit and one junior accessory dwelling unit per lot with a proposed or existing single-family dwelling if all of the following apply:
+
+(A) The accessory dwelling unit or junior accessory dwelling unit is within the proposed space of a single-family dwelling or existing space of a single-family dwelling or accessory structure and may include an expansion of not more than 150 square feet beyond the same physical dimensions as the existing accessory structure. An expansion beyond the physical dimensions of the existing accessory structure shall be limited to accommodating ingress and egress.
+
+(B) The space has exterior access from the proposed or existing single-family dwelling.
+
+(C) The side and rear setbacks are sufficient for fire and safety.
+
+(D) The junior accessory dwelling unit complies with the requirements of Article 3 (commencing with Section 66333).
+
+(2) One detached, new construction, accessory dwelling unit that does not exceed four-foot side and rear yard setbacks for a lot with a proposed or existing single-family dwelling. A local agency may impose the following conditions on the accessory dwelling unit:
+
+(A) A total floor area limitation of not more than 800 square feet of livable space.
+
+(B) A height limitation as provided in subparagraph (A), (B), or (C) of paragraph (4) of subdivision (b) of Section 66321, as applicable.
+
+(3) (A) Multiple accessory dwelling units within the portions of existing multifamily dwelling structures that are not used as livable space, including, but not limited to, storage rooms, boiler rooms, passageways, attics, basements, or garages, if each unit complies with state building standards for dwellings.
+
+(B) A local agency shall allow at least one accessory dwelling unit within an existing multifamily dwelling and shall allow up to 25 percent of the existing multifamily dwelling units.
+
+(4) (A) (i) Multiple accessory dwelling units, not to exceed the number specified in clause (ii) or (iii), as applicable, that are located on a lot that has an existing or proposed multifamily dwelling, but are detached from that multifamily dwelling and are subject to a height limitation in subparagraph (A), (B), or (C) of paragraph (4) of subdivision (b) of Section 66321, as applicable, and rear yard and side setbacks of no more than four feet.
+
+(ii) On a lot with an existing multifamily dwelling, not more than eight detached accessory dwelling units. However, the number of accessory dwelling units allowable pursuant to this clause shall not exceed the number of existing units on the lot.
+
+(iii) On a lot with a proposed multifamily dwelling, not more than two detached accessory dwelling units.
+
+(B) If the existing multifamily dwelling has a rear or side setback of less than four feet, the local agency shall not require any modification of the existing multifamily dwelling as a condition of approving the application to construct an accessory dwelling unit that satisfies the requirements of this paragraph.
+
+(b) A local agency shall not impose any objective development or design standard that is not authorized by this section upon any unit that meets the requirements of any of paragraphs (1) to (4), inclusive, of subdivision (a).
+
+(c) A local agency shall not require, as a condition for ministerial approval of a permit application for the creation of an accessory dwelling unit or a junior accessory dwelling unit, the correction of nonconforming zoning conditions.
+
+(d) The installation of fire sprinklers shall not be required in an accessory dwelling unit or a junior accessory dwelling unit if sprinklers are not required for the primary residence. The construction of an accessory dwelling unit or a junior accessory dwelling unit shall not trigger a requirement for fire sprinklers to be installed in the existing multifamily dwelling.
+
+(e) A local agency shall require that a rental of the accessory dwelling unit created pursuant to this section be for a term longer than 30 days.
+
+(f) A local agency may require, as part of the application for a permit to create an accessory dwelling unit connected to an onsite wastewater treatment system, a percolation test completed within the last five years, or, if the percolation test has been recertified, within the last 10 years.
+
+(Amended by Stats. 2025, Ch. 520, Sec. 6. (SB 543) Effective January 1, 2026.)
+
+--- Government Code § 66324 ---
+66324. (a) Fees charged for the construction of accessory dwelling units shall be determined in accordance with Chapter 5 (commencing with Section 66000) and Chapter 7 (commencing with Section 66012).
+
+(b) An accessory dwelling unit shall not be considered by a local agency, special district, or water corporation to be a new residential use for purposes of calculating connection fees or capacity charges for utilities, including water and sewer service, unless the accessory dwelling unit was constructed with a new single-family dwelling.
+
+(c) (1) A local agency, special district, or water corporation shall not impose any impact fee upon the development of an accessory dwelling unit less than 750 square feet. Any impact fees charged for an accessory dwelling unit of 750 square feet or more shall be charged proportionately in relation to the square footage of the primary dwelling unit.
+
+(2) For purposes of this subdivision, “impact fee” has the same meaning as the term “fee” is defined in subdivision (b) of Section 66000, except that it also includes fees specified in Section 66477. “Impact fee” does not include any connection fee or capacity charge charged by a local agency, special district, or water corporation.
+
+(d) For an accessory dwelling unit described in paragraph (1) of subdivision (a) of Section 66323, a local agency, special district, or water corporation shall not require the applicant to install a new or separate utility connection directly between the accessory dwelling unit and the utility or impose a related connection fee or capacity charge, unless the accessory dwelling unit was constructed with a new single-family dwelling, or upon separate conveyance of the accessory dwelling unit pursuant to Section 66342.
+
+(e) For an accessory dwelling unit that is not described in paragraph (1) of subdivision (a) of Section 66323, a local agency, special district, or water corporation may require a new or separate utility connection directly between the accessory dwelling unit and the utility. Consistent with Section 66013, the connection may be subject to a connection fee or capacity charge that shall be proportionate to the burden of the proposed accessory dwelling unit, based upon either its square feet or the number of its drainage fixture unit (DFU) values, as defined in the Uniform Plumbing Code adopted and published by the International Association of Plumbing and Mechanical Officials, upon the water or sewer system. This fee or charge shall not exceed the reasonable cost of providing this service.
+
+(Added by Stats. 2024, Ch. 7, Sec. 20. (SB 477) Effective March 25, 2024.)
+
+--- Government Code § 66325 ---
+Justia › U.S. Law › U.S. Codes and Statutes › California Code › 2025 California Code › Government Code - GOV › TITLE 7 - PLANNING AND LAND USE › DIVISION 1 - PLANNING AND ZONING › CHAPTER 13 - Accessory Dwelling Units › ARTICLE 2 - Accessory Dwelling Unit Approvals › Section 66325.
+Go to Other Versions of The California Code
+2025 California Code
+Government Code - GOV
+TITLE 7 - PLANNING AND LAND USE
+DIVISION 1 - PLANNING AND ZONING
+CHAPTER 13 - Accessory Dwelling Units
+ARTICLE 2 - Accessory Dwelling Unit Approvals
+Section 66325.
+Universal Citation:
+CA Govt Code § 66325 (2025)
+Learn more
+This media-neutral citation is based on the American Association of Law Libraries Universal Citation Guide and is not necessarily the official citation.
+Previous
+Next
+
+66325. (a) Except as provided in subdivision (b), this article shall supersede a conflicting local ordinance.
+
+(b) This article does not limit the authority of local agencies to adopt less restrictive requirements for the creation of an accessory dwelling unit.
+
+(Added by Stats. 2024, Ch. 7, Sec. 20. (SB 477) Effective March 25, 2024.)
+
+Previous
+Next
+Disclaimer: These codes may not be the most recent version. California may have more current or accurate information. We make no warranties or guarantees about the accuracy, completeness, or adequacy of the information contained on this site or the information linked to on the state site. Please check official sources.
+Free Daily Summaries in Your Inbox
+
+Sign up for our free summaries and get the latest delivered directly to you.
+
+Our Suggestions:
+Enter Your Email
+Free Webinars for All
+Immigration Law in the Months Ahead: Forecasting Change Through Rules, Bans, Litigation, and Agency Action [CLE]
+Charles H. Kuck
+Greg Siskind
+Jul 7, 1 pm ET / 10 am PT
+Key Rulings From the 2025–2026 Supreme Court Term: Breaking Down the Bench [CLE]
+Vikram Amar
+Michael Dorf
+Jul 9, 2 pm ET / 11 am PT
+“Mild” Traumatic Brain Injury (TBI) Cases: Understanding, Developing and Litigating [CLE]
+James Perry
+Jul 10, 1 pm ET / 10 am PT
+View All Webinars ›
+Justia Webinars are free and open to all, lawyers and non-lawyers. CLE credit is only available for Justia Connect Pro members. View individual webinar pages for CLE accreditation info.
+
+Ask a Lawyer
+Get Free Answers
+
+Have a legal question? Get free answers from experienced lawyers!
+
+Ask Question
+
+Find a Lawyer
+
+Lawyers - Get Listed Now!
+Get a free directory profile listing
+
+--- Government Code § 66326 ---
+66326. (a) A local agency shall submit a copy of the ordinance adopted pursuant to Section 66314 to the Department of Housing and Community Development within 60 days after adoption. After adoption of an ordinance, the department may submit written findings to the local agency as to whether the ordinance complies with this article.
+
+(b) (1) If the department finds that the local agency’s ordinance does not comply with this article, the department shall notify the local agency and shall provide the local agency with a reasonable time, no longer than 30 days, to respond to the findings before taking any other action authorized by this article.
+
+(2) The local agency shall consider the findings made by the department pursuant to paragraph (1) and shall do one of the following:
+
+(A) Amend the ordinance to comply with this article.
+
+(B) Adopt the ordinance without changes. The local agency shall include findings in its resolution adopting the ordinance that explain the reasons the local agency believes that the ordinance complies with this article despite the findings of the department.
+
+(c) (1) If the local agency does not amend its ordinance in response to the department’s findings or does not adopt a resolution with findings explaining the reason the ordinance complies with this article and addressing the department’s findings, the department shall notify the local agency and may notify the Attorney General that the local agency is in violation of state law.
+
+(2) Before notifying the Attorney General that the local agency is in violation of state law, the department may consider whether a local agency adopted an ordinance in compliance with this article between January 1, 2017, and January 1, 2020.
+
+(d) If a local agency fails to submit a copy of its ordinance to the department within 60 days of adoption pursuant to this section or fails to respond to the department’s findings that the local ordinance does not comply with this article within 30 days pursuant to this section, that ordinance shall be null and void. The local agency shall thereafter apply the standards established in this article for the approval of accessory dwelling units, unless and until the agency adopts an ordinance that complies with this article, including, but not limited to, the submittal requirements of this section.
+
+(Amended by Stats. 2025, Ch. 510, Sec. 1. (SB 9) Effective January 1, 2026.)
+
+--- Government Code § 66327 ---
+66327. The department may review, adopt, amend, or repeal guidelines to implement uniform standards or criteria that supplement or clarify the terms, references, and standards set forth in this article. The guidelines adopted pursuant to this section are not subject to Chapter 3.5 (commencing with Section 11340) of Part 1 of Division 3 of Title 2.
+
+(Added by Stats. 2024, Ch. 7, Sec. 20. (SB 477) Effective March 25, 2024.)
+
+--- Government Code § 66328 ---
+66328. (a) A local agency shall not issue a certificate of occupancy for an accessory dwelling unit before the local agency issues a certificate of occupancy for the primary dwelling.
+
+(b) Notwithstanding subdivision (a), a local agency shall issue a certificate of occupancy for an accessory dwelling unit constructed in a county that is subject to a proclamation of a state of emergency made by the Governor on or after February 1, 2025, if both of the following requirements are met, even if the primary dwelling has not yet been issued a certificate of occupancy:
+
+(1) The primary dwelling was substantially damaged or destroyed by an event referenced in the state of emergency proclamation issued by the Governor.
+
+(2) The accessory dwelling unit has been issued construction permits and has passed all required inspections.
+
+(c) Subdivision (b) does not apply to an accessory dwelling unit attached to the primary dwelling.
+
+(Amended by Stats. 2025, Ch. 491, Sec. 1. (AB 462) Effective October 10, 2025.)
+
+--- Government Code § 66329 ---
+66329. (a) Except as provided in subdivision (b), nothing in this article shall be construed to supersede or in any way alter or lessen the effect or application of the California Coastal Act of 1976 (Division 20 (commencing with Section 30000) of the Public Resources Code), except that the local government shall, pursuant to Section 66317, either approve or deny a coastal development permit application for an accessory dwelling within 60 days of receiving a completed application, and shall not be required to hold public hearings for coastal development permit applications for accessory dwelling units. The process to approve or deny a coastal development permit application under this subdivision shall happen concurrently with the process to approve or deny an application for an accessory dwelling unit under Section 66317.
+
+(b) (1) If the local government does not have a certified local coastal plan or program, as defined in Section 31001 of the Public Resources Code, then the California Coastal Commission shall either approve or deny the coastal development permit application for an accessory dwelling unit within 60 days of receiving a completed application.
+
+(2) A local government that does not have a certified local coastal plan or program shall immediately notify the California Coastal Commission that a permit application for an accessory dwelling unit is complete pursuant to Section 66317.
+
+(3) The California Coastal Commission’s review process to approve or deny a coastal development permit application shall happen concurrently with the process to approve or deny an application for an accessory dwelling unit under Section 66317 provided that the California Coastal Commission has received a completed application for a coastal development permit pursuant to Section 65943.
+
+(4) Notwithstanding paragraph (1), if the coastal development permit application to create or serve an accessory dwelling unit is submitted with a coastal development permit application to create or serve a new single-family or multifamily dwelling on the lot, the California Coastal Commission may delay approving or denying the coastal development permit application for the accessory dwelling unit until the California Coastal Commission approves or denies the coastal development permit application to create or serve the new single-family or multifamily dwelling.
+
+(5) Except as provided in paragraph (4), if the California Coastal Commission has not approved or denied the completed coastal development permit application for the accessory dwelling unit within 60 days, the application shall be deemed approved.
+
+(c) Any decision of a local government pursuant to subdivision (a) is not subject to appeal under Section 30603 of the Public Resources Code.
+
+(Amended by Stats. 2025, Ch. 491, Sec. 2. (AB 462) Effective October 10, 2025.)
+
+--- Government Code § 66330 ---
+Justia › U.S. Law › U.S. Codes and Statutes › California Code › 2025 California Code › Government Code - GOV › TITLE 7 - PLANNING AND LAND USE › DIVISION 1 - PLANNING AND ZONING › CHAPTER 13 - Accessory Dwelling Units › ARTICLE 2 - Accessory Dwelling Unit Approvals › Section 66330.
+Go to Other Versions of The California Code
+2025 California Code
+Government Code - GOV
+TITLE 7 - PLANNING AND LAND USE
+DIVISION 1 - PLANNING AND ZONING
+CHAPTER 13 - Accessory Dwelling Units
+ARTICLE 2 - Accessory Dwelling Unit Approvals
+Section 66330.
+Universal Citation:
+CA Govt Code § 66330 (2025)
+Learn more
+This media-neutral citation is based on the American Association of Law Libraries Universal Citation Guide and is not necessarily the official citation.
+Previous
+Next
+
+66330. A local agency may count an accessory dwelling unit for purposes of identifying adequate sites for housing, as specified in subdivision (a) of Section 65583.1, subject to authorization by the department and compliance with this division.
+
+(Added by Stats. 2024, Ch. 7, Sec. 20. (SB 477) Effective March 25, 2024.)
+
+Previous
+Next
+Disclaimer: These codes may not be the most recent version. California may have more current or accurate information. We make no warranties or guarantees about the accuracy, completeness, or adequacy of the information contained on this site or the information linked to on the state site. Please check official sources.
+Free Daily Summaries in Your Inbox
+
+Sign up for our free summaries and get the latest delivered directly to you.
+
+Our Suggestions:
+Enter Your Email
+Free Webinars for All
+Immigration Law in the Months Ahead: Forecasting Change Through Rules, Bans, Litigation, and Agency Action [CLE]
+Charles H. Kuck
+Greg Siskind
+Jul 7, 1 pm ET / 10 am PT
+Key Rulings From the 2025–2026 Supreme Court Term: Breaking Down the Bench [CLE]
+Vikram Amar
+Michael Dorf
+Jul 9, 2 pm ET / 11 am PT
+“Mild” Traumatic Brain Injury (TBI) Cases: Understanding, Developing and Litigating [CLE]
+James Perry
+Jul 10, 1 pm ET / 10 am PT
+View All Webinars ›
+Justia Webinars are free and open to all, lawyers and non-lawyers. CLE credit is only available for Justia Connect Pro members. View individual webinar pages for CLE accreditation info.
+
+Ask a Lawyer
+Get Free Answers
+
+Have a legal question? Get free answers from experienced lawyers!
+
+Ask Question
+
+Find a Lawyer
+
+Lawyers - Get Listed Now!
+Get a free directory profile listing
+
+--- Government Code § 66331 ---
+66331. In enforcing building standards pursuant to Article 1 (commencing with Section 17960) of Chapter 5 of Part 1.5 of Division 13 of the Health and Safety Code for an accessory dwelling unit described in subdivision (a) or (b), a local agency, upon request of an owner of an accessory dwelling unit for a delay in enforcement, shall delay enforcement of a building standard, subject to compliance with Section 17980.12 of the Health and Safety Code:
+
+(a) The accessory dwelling unit was built before January 1, 2020.
+
+(b) The accessory dwelling unit was built on or after January 1, 2020, in a local jurisdiction that, at the time the accessory dwelling unit was built, had a noncompliant accessory dwelling unit ordinance, but the ordinance is compliant at the time the request is made.
+
+(Added by Stats. 2024, Ch. 7, Sec. 20. (SB 477) Effective March 25, 2024.)

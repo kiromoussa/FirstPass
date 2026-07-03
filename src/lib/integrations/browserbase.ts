@@ -8,6 +8,14 @@ import type { Source } from "../types";
 export const BROWSERBASE_LIVE =
   !!process.env.BROWSERBASE_API_KEY && !!process.env.BROWSERBASE_PROJECT_ID;
 
+// Live in-run browsing is OPT-IN even when keys are present: scraping code
+// portals mid-run is slow and flaky, and the committed corpus already carries
+// citations + retrieval dates. Browserbase's real job is corpus INGESTION
+// (scripts/ + the Python researchers); set FIRSTPASS_LIVE_RESEARCH=1 to also
+// browse live during a run (e.g. for the live-citation demo moment).
+const liveResearchEnabled = () =>
+  BROWSERBASE_LIVE && process.env.FIRSTPASS_LIVE_RESEARCH === "1";
+
 // Official-domain authority heuristic for a source URL (0..1).
 function authorityScore(url: string): number {
   const u = url.toLowerCase();
@@ -53,7 +61,7 @@ export async function researchSources(
     ? cached
     : CACHED_SOURCES.map((s) => ({ ...s, live: false }));
 
-  if (!BROWSERBASE_LIVE || slug !== DEFAULT_CITY) {
+  if (!liveResearchEnabled() || slug !== DEFAULT_CITY) {
     return { sources: fallback, live: false };
   }
   try {

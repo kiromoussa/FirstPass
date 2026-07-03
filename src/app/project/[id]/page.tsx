@@ -140,7 +140,7 @@ export default function ProjectDashboard() {
       <div className="px-6 py-2 border-b border-ink-700 flex items-center justify-between flex-shrink-0">
         <SponsorRail active={activeSponsor} />
         <span className="text-[11px] text-faint">
-          Deterministic checks · Claude reasoning · cited & audited
+          Deterministic checks · AI reasoning · cited & audited
         </span>
       </div>
 

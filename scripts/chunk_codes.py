@@ -111,8 +111,13 @@ KEYWORD_HEAD = re.compile(
     r"^\s*(SEC\.|SECTION|ARTICLE|CHAPTER|DIVISION|TITLE|APPENDIX|PART)\b", re.I
 )
 # A structured section number (must contain a separator . - ( so a bare "18" in
-# "18 feet in height" is NOT mistaken for a heading) followed by a title.
-NUM_HEAD = re.compile(r"^\s*§?\s*[A-Z]?\d+[\w()-]*[.\-(][\w.\-()]*(\s+[A-Z]\.\d[\w.\-()]*)?\s+\S")
+# "18 feet in height" is NOT mistaken for a heading) followed by a title. The
+# leading number must be letter-prefixed (R101, 30-5.21) or 2+ digits (101,
+# 12) — a single digit ("1.", "2.", "9.") is almost always an enumerated list
+# item inside a section's body, not a new section boundary; densely-numbered
+# regulatory text (e.g. the CA Energy Code) was getting shredded into
+# sentence-fragment chunks by treating every list item as a new section.
+NUM_HEAD = re.compile(r"^\s*§?\s*(?:[A-Z]\d+|\d{2,})[\w()-]*[.\-(][\w.\-()]*(\s+[A-Z]\.\d[\w.\-()]*)?\s+\S")
 ALLCAPS_HEAD = re.compile(r"^[A-Z0-9][A-Z0-9 ,.&/()\-§'’]{6,}$")
 
 
@@ -246,8 +251,27 @@ def chunk_city(slug: str) -> int:
     raw_sources = meta.get("rawSources") or {}
     first_source = (meta.get("sources") or [{}])[0].get("id", "")
 
-    chunks: list[dict] = []
+    # sourceIds this run will (re)derive from raw/*.txt — everything else in
+    # chunks.json comes from elsewhere (e.g. scripts/import_cadai_corpus.py's
+    # pre-chunked bulk import, which deliberately stores chunks directly and
+    # never writes a raw/*.txt for chunk_codes to reprocess). Preserve those
+    # untouched instead of silently discarding them on every regeneration —
+    # only sourceIds actually owned by a present raw/*.txt file get replaced.
+    raw_txt_names = {p.name for p in raw_dir.glob("*.txt")}
+    owned_source_ids = {sid for name, sid in raw_sources.items() if name in raw_txt_names}
+    out_path = city_dir / "chunks.json"
+    preserved: list[dict] = []
+    if out_path.exists():
+        try:
+            existing = json.loads(out_path.read_text(encoding="utf-8"))
+            preserved = [c for c in existing if c.get("sourceId") not in owned_source_ids]
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    chunks: list[dict] = list(preserved)
     by_category: dict[str, int] = {}
+    for c in preserved:
+        by_category[c.get("category", "general")] = by_category.get(c.get("category", "general"), 0) + 1
     for txt in sorted(raw_dir.glob("*.txt")):
         text = txt.read_text(encoding="utf-8")
         category = detect_category(txt.stem)
@@ -280,10 +304,10 @@ def chunk_city(slug: str) -> int:
                 )
                 by_category[category] = by_category.get(category, 0) + 1
 
-    out = city_dir / "chunks.json"
-    out.write_text(json.dumps(chunks, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    out_path.write_text(json.dumps(chunks, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     cats = ", ".join(f"{k}:{v}" for k, v in sorted(by_category.items()))
-    print(f"  {slug}: {len(chunks)} chunks ({cats}) -> {out.relative_to(ROOT)}")
+    preserved_note = f", {len(preserved)} preserved from other sources" if preserved else ""
+    print(f"  {slug}: {len(chunks)} chunks ({cats}){preserved_note} -> {out_path.relative_to(ROOT)}")
     untagged = [c["id"] for c in chunks if not c["topics"]]
     if untagged:
         print(f"    note: {len(untagged)} chunk(s) matched no rule topic (still retrievable by category/text)")

@@ -200,7 +200,16 @@ export async function retrieveCode(
   ruleKey: string,
   appliesTo?: string,
   slug: string = DEFAULT_CITY,
-  category?: string // optionally scope to one code layer (green/plumbing/…)
+  category?: string, // optionally scope to one code layer (green/plumbing/…)
+  // When true, only ever return a chunk actually tagged for this topic — no
+  // widening to the rest of the (possibly category-filtered) corpus. Callers
+  // that try several categories in order (e.g. retrieveTopicChunk) need this:
+  // otherwise the widen-fallback below makes the FIRST category tried always
+  // return *something*, so the loop never reaches the category the topic
+  // actually lives in (ventilation is centrally a Mechanical Code topic, but
+  // a "building"-scoped call would otherwise always find a plausible-looking
+  // Building Code chunk first and never even try "mechanical").
+  requireTag = false
 ): Promise<CodeChunk | null> {
   // Prefer the committed on-disk corpus (scripts/chunk_codes.py output) in memory —
   // avoids 10k+ Redis round-trips for cities like los-angeles-ca (~10k chunks).
@@ -217,20 +226,45 @@ export async function retrieveCode(
     }
   }
   if (category) chunks = chunks.filter((c) => c.category === category);
+
+  const rank = (list: CodeChunk[]) =>
+    list
+      .map((c) => ({ c, s: scoreChunk(c, ruleKey, appliesTo) }))
+      .filter((r) => r.s > 0)
+      .sort(
+        (a, b) =>
+          b.s - a.s ||
+          (a.c.tokensEst ?? a.c.text.length) - (b.c.tokensEst ?? b.c.text.length) ||
+          a.c.id.localeCompare(b.c.id) // deterministic tie-break
+      );
+
   // Topic-tagged chunks are the primary pool; if a real (untagged) scrape
   // tagged nothing, fall back to scoring the whole corpus so recall survives.
   const tagged = chunks.filter((c) => c.topics.includes(ruleKey));
+
+  if (requireTag) {
+    // Never fall through to scoring the (possibly category-filtered) whole
+    // corpus — if this category has no chunk actually tagged for the topic,
+    // that's a real "not here" signal the caller needs to advance to the
+    // next category, not a same-category chunk that merely uses a couple of
+    // the topic's words in passing.
+    const ranked = rank(tagged);
+    return ranked.length ? ranked[0].c : null;
+  }
+
   const pool = tagged.length ? tagged : chunks;
-  const ranked = pool
-    .map((c) => ({ c, s: scoreChunk(c, ruleKey, appliesTo) }))
-    .filter((r) => r.s > 0)
-    .sort(
-      (a, b) =>
-        b.s - a.s ||
-        (a.c.tokensEst ?? a.c.text.length) - (b.c.tokensEst ?? b.c.text.length) ||
-        a.c.id.localeCompare(b.c.id) // deterministic tie-break
-    );
-  return ranked.length ? ranked[0].c : tagged[0] ?? null;
+  let ranked = rank(pool);
+  // A large, loosely topic-tagged corpus can tag a chunk under a topic
+  // without that chunk actually containing any of the topic's lexical
+  // terms — scoring it 0. Returning "the first tagged chunk" in that case
+  // would hand back an unrelated citation with full-looking confidence,
+  // which is worse than no citation for a compliance tool. Widen to the
+  // full (untagged) corpus before giving up, and never return an unscored
+  // guess — null means "verify manually, no citation," which is honest.
+  if (!ranked.length && pool !== chunks) {
+    ranked = rank(chunks);
+  }
+  return ranked.length ? ranked[0].c : null;
 }
 
 // Lexical query terms per rule, used to rank candidate chunks (BM25-style term
@@ -341,18 +375,23 @@ export async function searchCodeIndex(
   return chunkFromFields(fields.map(String));
 }
 
-// Preferred retrieval: try the RedisVL hybrid index first, fall back to the
-// deterministic lexical scorer when the index isn't built (local dev, no Search
-// module, or a city that hasn't been indexed). Same signature as retrieveCode.
+// Preferred retrieval: the deterministic lexical scorer over the committed
+// corpus. It is reproducible, needs no Search module, and on this corpus style
+// matches the index's results — so the RedisVL hybrid index is OPT-IN
+// (FIRSTPASS_REDISVL=1 + scripts/index_codes_redisvl.py) for when a corpus
+// outgrows lexical scoring, with lexical still the fallback on index misses.
 export async function retrieveCodeHybrid(
   ruleKey: string,
   appliesTo?: string,
   slug: string = DEFAULT_CITY,
-  category?: string
+  category?: string,
+  requireTag = false
 ): Promise<CodeChunk | null> {
-  const viaIndex = await searchCodeIndex(ruleKey, appliesTo, slug, category);
-  if (viaIndex) return viaIndex;
-  return retrieveCode(ruleKey, appliesTo, slug, category);
+  if (process.env.FIRSTPASS_REDISVL === "1" && !requireTag) {
+    const viaIndex = await searchCodeIndex(ruleKey, appliesTo, slug, category);
+    if (viaIndex) return viaIndex;
+  }
+  return retrieveCode(ruleKey, appliesTo, slug, category, requireTag);
 }
 
 const RULE_CATEGORY_ORDER: Record<string, string[]> = {

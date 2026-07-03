@@ -15,12 +15,20 @@
     "city_zoning_lamc.txt": "S1",
     "state_adu_hcd.txt": "S2",
     "county_code.txt": "S3",
-    "building_code_cbc.txt": "S5",
-    "residential_code_crc.txt": "S6",
-    "plumbing_code_cpc.txt": "S7",
-    "green_code_calgreen.txt": "S8",
     "state_codes.txt": "B1",
-    "building_regulations_lamc.txt": "S9"
+    "gov-code-adu-ch13.txt": "S10",
+    "hcd-adu-handbook.txt": "S11",
+    "dgs-bsc-codes.txt": "S12",
+    "lamc-adu.txt": "S13",
+    "cadai-gov.ca.bsc.residential.2025_djvu_chunked.md": "S14",
+    "cadai-gov.ca.bsc.building.2.2025_djvu_chunked.md": "S15",
+    "cadai-gov.ca.bsc.electrical.2025_djvu_chunked.md": "S16",
+    "cadai-gov.ca.bsc.mechanical.2025_djvu_chunked.md": "S17",
+    "cadai-gov.ca.bsc.plumbing.2025_djvu_chunked.md": "S18",
+    "cadai-gov.ca.bsc.green.2025_djvu_chunked.md": "S19",
+    "cadai-gov.ca.bsc.fire.2025_djvu_chunked.md": "S20",
+    "cadai-lamc.md": "S21",
+    "cec-energy-code-full.txt": "S23"
   },
   "sources": [
     {
@@ -72,6 +80,76 @@
       "id": "S9",
       "url": "https://codelibrary.amlegal.com/codes/los_angeles/latest/lamc/0-0-0-1",
       "title": "Los Angeles Municipal Code, Chapter IX — Building Regulations (LABC, full text)"
+    },
+    {
+      "id": "S10",
+      "url": "https://leginfo.legislature.ca.gov/faces/codesTOCSelected.xhtml?tocCode=GOV",
+      "title": "California Government Code — Accessory Dwelling Units (Title 7, Div. 1, Ch. 13)"
+    },
+    {
+      "id": "S11",
+      "url": "https://www.hcd.ca.gov/policy-and-research/accessory-dwelling-units",
+      "title": "California HCD Accessory Dwelling Unit Handbook"
+    },
+    {
+      "id": "S12",
+      "url": "https://www.dgs.ca.gov/BSC/Codes",
+      "title": "California Building Standards Commission — Codes, Errata & Supplements"
+    },
+    {
+      "id": "S13",
+      "url": "https://codelibrary.amlegal.com/codes/los_angeles/latest/lamc/0-0-0-1",
+      "title": "Los Angeles Municipal Code — Accessory Dwelling Units (LAMC §12.22 A.33)"
+    },
+    {
+      "id": "S14",
+      "url": "https://archive.org/details/gov.ca.bsc.residential.2025",
+      "title": "California Residential Code (2025) — Title 24"
+    },
+    {
+      "id": "S15",
+      "url": "https://archive.org/details/2022californiabu01unse",
+      "title": "California Building Code (2025) — Title 24"
+    },
+    {
+      "id": "S16",
+      "url": "https://www.dgs.ca.gov/BSC/Codes",
+      "title": "California Electrical Code (2025) — Title 24"
+    },
+    {
+      "id": "S17",
+      "url": "https://www.dgs.ca.gov/BSC/Codes",
+      "title": "California Mechanical Code (2025) — Title 24"
+    },
+    {
+      "id": "S18",
+      "url": "https://www.dgs.ca.gov/BSC/Codes",
+      "title": "California Plumbing Code (2025) — Title 24"
+    },
+    {
+      "id": "S19",
+      "url": "https://archive.org/details/2022californiagr00unse",
+      "title": "California Green Building Standards Code (2025) — Title 24"
+    },
+    {
+      "id": "S20",
+      "url": "https://www.dgs.ca.gov/BSC/Codes",
+      "title": "California Fire Code (2025) — Title 24"
+    },
+    {
+      "id": "S21",
+      "url": "https://codelibrary.amlegal.com/codes/los_angeles/latest/lamc/0-0-0-1",
+      "title": "Los Angeles Municipal Code (full, chunked)"
+    },
+    {
+      "id": "S22",
+      "url": "https://www.energy.ca.gov/programs-and-topics/programs/building-energy-efficiency-standards",
+      "title": "California Energy Commission — 2025 Energy Code Summary (Title 24, Part 6)"
+    },
+    {
+      "id": "S23",
+      "url": "https://www.energy.ca.gov/publications/2025/2025-building-energy-efficiency-standards-residential-and-nonresidential",
+      "title": "CEC — Restructured 2025 Energy Code, Title 24 Part 6 (full text; CEC reformatting of the adopted regulations, \"for information only\")"
     }
   ]
 }

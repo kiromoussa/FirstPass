@@ -89,14 +89,17 @@ export interface PlotResult {
 export interface SheetTile {
   label: string; // e.g. "A2.0 (row 1, col 2)"
   data: string; // base64 PNG
+  /** Grid position within the full sheet — lets a bbox read on this tile be
+   *  re-normalized to full-sheet coordinates for the plan-viewer overlay. */
+  grid?: { row: number; col: number; rows: number; cols: number };
 }
 
 // Render a plotted sheet PDF into high-DPI PNG tiles so fine dimension text is
 // legible to vision (a full ARCH-D sheet downsampled to ~1568px is not). Uses
 // mupdf (pure WASM, in-memory) to rasterize region crops — no poppler/system
 // binaries, so it works identically in local dev and on serverless (Vercel).
-// dpi gives detail; the grid is computed so every tile is <= MAX_TILE_PX, which
-// the Anthropic API requires for many-image requests (each dimension <= 2000px).
+// dpi gives detail; the grid is computed so every tile is <= MAX_TILE_PX,
+// comfortably under vision providers' per-image size limits for many-image requests.
 const MAX_TILE_PX = 1900;
 export async function tilesFromPdf(
   pdfBase64: string,
@@ -131,7 +134,11 @@ export async function tilesFromPdf(
     if (cols === 1 && rows === 1) {
       // Small sheet — one render, no cropping.
       const pix = page.toPixmap(matrix, mupdf.ColorSpace.DeviceRGB, false);
-      tiles.push({ label: sheetName, data: Buffer.from(pix.asPNG()).toString("base64") });
+      tiles.push({
+        label: sheetName,
+        data: Buffer.from(pix.asPNG()).toString("base64"),
+        grid: { row: 1, col: 1, rows: 1, cols: 1 },
+      });
       pix.destroy();
       return tiles;
     }
@@ -147,7 +154,11 @@ export async function tilesFromPdf(
         const dev = new mupdf.DrawDevice(mupdf.Matrix.identity, pix);
         page.run(dev, matrix);
         dev.close();
-        tiles.push({ label: `${sheetName} (row ${r + 1}, col ${cc + 1})`, data: Buffer.from(pix.asPNG()).toString("base64") });
+        tiles.push({
+          label: `${sheetName} (row ${r + 1}, col ${cc + 1})`,
+          data: Buffer.from(pix.asPNG()).toString("base64"),
+          grid: { row: r + 1, col: cc + 1, rows, cols },
+        });
         pix.destroy();
       }
     }

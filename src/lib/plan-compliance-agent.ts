@@ -16,16 +16,17 @@ import { JURISDICTION_ID, deriveChecklist } from "./fixtures";
 import {
   compareNumeric,
   selectRule,
+  suggestFix,
 } from "./compliance";
 import { rulesFor, retrieveCodeForRule, retrieveCodeHybrid, resolveCitySlug } from "./code-db";
 import { corpusChunkCount, runCorpusTopicChecks } from "./corpus-compliance";
 import {
   extractPlanFacts,
-  extractPlanFactsFromDoc,
+  extractPlanFactsFromPdfDual,
   extractPlanFactsFromDocs,
   extractPlanFactsFromImages,
   interpretDwgText,
-} from "./integrations/claude";
+} from "./integrations/llm";
 import {
   APS_LIVE,
   extractSheetText,
@@ -350,7 +351,10 @@ async function readPlanFacts(
     );
     const stored = await kvGet<{ mediaType: string; data: string }>(`plan:${project.id}`);
     if (stored?.data) {
-      facts = await extractPlanFactsFromDoc(stored.data, stored.mediaType, project.projectType);
+      // Dual-pass: native document read + high-res vision verification pass.
+      facts = await extractPlanFactsFromPdfDual(stored.data, stored.mediaType, project.projectType, (note) =>
+        push(agentMsg("plan-reader", "info", note))
+      );
       const read = facts.filter((f) => f.key !== "sheets" && f.value != null);
       const sf = facts.find((f) => f.key === "sheets");
       if (Array.isArray(sf?.value)) sheetNames = sf.value as string[];
@@ -507,12 +511,16 @@ async function runComplianceChecks(
         : planReadError
           ? `Plan reader couldn't measure this — ${planReadError}. ${limit}.`
           : `Not shown on readable sheets — ${limit}. Verify manually.`;
+    const title = RULE_LABELS[key] ?? rule.label;
     const finding: Finding = {
       id: `f_${key}`,
       ruleKey: key,
-      title: RULE_LABELS[key] ?? rule.label,
+      title,
       status: res.status,
       message: detail,
+      // Never a bare flag: every non-PASS names the exact delta / action to comply.
+      suggestedCorrection:
+        res.status === "PASS" ? undefined : suggestFix(fact, rule, res.status, title),
       factRef: fact.key,
       ruleRef: rule.key,
       sourceRef: rule.sourceId,

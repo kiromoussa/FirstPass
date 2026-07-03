@@ -10,9 +10,9 @@ export const maxDuration = 60;
 
 const PLANS_DIR = path.join(process.cwd(), "plans");
 
-// Accepts a plan set (PDF or image) for native Claude-vision reading. Stores the
+// Accepts a plan set (PDF or image) for native vision reading. Stores the
 // bytes under `plan:<projectId>` and flags the project so the pipeline reads it.
-// PDFs are read page-by-page by Claude directly — no rasterization needed.
+// PDFs are read page-by-page by the plan reader directly — no rasterization needed.
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, reason: "missing file or projectId" }, { status: 400 });
     }
     const bytes = Buffer.from(await file.arrayBuffer());
-    // Anthropic limit: 32MB / 100 pages for PDFs.
+    // Conservative cap for a base64-inlined PDF/image upload.
     if (bytes.length > 32 * 1024 * 1024) {
       return NextResponse.json({ ok: false, reason: "file exceeds 32MB" }, { status: 413 });
     }

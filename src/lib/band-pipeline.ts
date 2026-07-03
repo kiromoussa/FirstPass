@@ -2,7 +2,6 @@
 import type { Phase, Project, ProjectState } from "./types";
 import type { BandChannel } from "./integrations/band";
 import { outputFresh, clearStaleDeliverables } from "./band-output";
-import { ANTHROPIC_AGENT_MODEL } from "./anthropic-model";
 import { rulesFor } from "./code-db";
 import { JURISDICTION_ID } from "./fixtures";
 import { runPlanComplianceAgent, projectHasPlanInput } from "./plan-compliance-agent";
@@ -41,20 +40,22 @@ const AUTHOR_PHASE: Record<string, Phase> = {
   "Permit Agent": "report",
 };
 
-async function checkAnthropic(): Promise<string | null> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return "ANTHROPIC_API_KEY is not set in .env.local";
+// Health check for the LLM the Python Band agents actually call
+// (src/firstpass/openai_adapter.py) — surfaced before a Band run so a missing
+// or dead key shows up as a message instead of a silent multi-minute hang.
+async function checkOpenAi(): Promise<string | null> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return "OPENAI_API_KEY is not set in .env.local";
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
+        Authorization: `Bearer ${key}`,
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: ANTHROPIC_AGENT_MODEL,
-        max_tokens: 8,
+        model: process.env.OPENAI_MODEL || "gpt-5-mini",
+        max_completion_tokens: 8,
         messages: [{ role: "user", content: "ping" }],
       }),
       signal: AbortSignal.timeout(10_000),
@@ -63,7 +64,7 @@ async function checkAnthropic(): Promise<string | null> {
     const body = (await res.json().catch(() => ({}))) as {
       error?: { message?: string };
     };
-    return body.error?.message ?? `Anthropic API returned ${res.status}`;
+    return body.error?.message ?? `OpenAI API returned ${res.status}`;
   } catch (e) {
     return (e as Error).message;
   }
@@ -220,14 +221,14 @@ export async function* runBandPipeline(
     });
   }
 
-  const anthropicIssue = await checkAnthropic();
-  if (anthropicIssue) {
+  const openaiIssue = await checkOpenAi();
+  if (openaiIssue) {
     state.messages.push({
-      id: `anthropic_err_${Date.now()}`,
+      id: `openai_err_${Date.now()}`,
       ts: Date.now(),
       from: "orchestrator",
       type: "info",
-      text: `Anthropic API: ${anthropicIssue}`,
+      text: `OpenAI API: ${openaiIssue}`,
       sponsor: "band",
     });
   }

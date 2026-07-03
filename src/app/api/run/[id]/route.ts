@@ -134,10 +134,14 @@ async function runStream(
         } else {
           // Demo mode: env flag, or any run of the demo DWG (no restart needed).
           const demoDwg = /los\s*angeles\s*\(?1\)?/i.test(project.dwgName ?? "");
+          // The Band multi-agent room is OPT-IN (FIRSTPASS_BAND=1 in addition to
+          // the API key): the scripted pipeline does the same compliance work
+          // faster and without the room-orchestration failure modes, so a key
+          // being configured shouldn't route real runs through the room.
           const pipeline =
             process.env.FIRSTPASS_DEMO === "1" || demoDwg
               ? runDemoPipeline
-              : BAND_LIVE
+              : BAND_LIVE && process.env.FIRSTPASS_BAND === "1"
               ? runBandPipeline
               : runPipeline;
           for await (const state of pipeline(project, channel)) {

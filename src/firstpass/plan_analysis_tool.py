@@ -1,10 +1,11 @@
-"""Claude vision plan analysis — Python port of src/lib/integrations/claude.ts."""
+"""Vision plan analysis — Python port of src/lib/integrations/llm.ts."""
 
 from __future__ import annotations
 
 import base64
 import json
 import os
+import re
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -98,19 +99,21 @@ def _resolve_plan_paths(filenames: list[str]) -> list[Path]:
     return paths
 
 
-def _media_block(path: Path) -> dict:
+def _media_block(path: Path, file_n: list[int]) -> dict:
+    """OpenAI chat-completions content part for a plan sheet (PDF → file, image → image_url)."""
     data = base64.standard_b64encode(path.read_bytes()).decode("ascii")
     suffix = path.suffix.lower()
     if suffix == ".pdf":
+        file_n[0] += 1
         return {
-            "type": "document",
-            "source": {"type": "base64", "media_type": "application/pdf", "data": data},
+            "type": "file",
+            "file": {
+                "filename": f"sheet-{file_n[0]}.pdf",
+                "file_data": f"data:application/pdf;base64,{data}",
+            },
         }
     media_type = "image/png" if suffix == ".png" else "image/jpeg"
-    return {
-        "type": "image",
-        "source": {"type": "base64", "media_type": media_type, "data": data},
-    }
+    return {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{data}"}}
 
 
 def _null_facts(sheet_names: list[str]) -> dict:
@@ -164,14 +167,14 @@ def _format_report(facts: list[dict], project_type: str) -> str:
 
 
 def analyze_plan(input: AnalyzePlanInput) -> str:
-    """Extract plan facts with Claude vision — same contract as the FirstPass web app."""
-    import anthropic
+    """Extract plan facts with vision — same contract as the FirstPass web app."""
+    from openai import OpenAI
 
     from firstpass.config import DEFAULT_MODEL
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        return json.dumps({"error": "ANTHROPIC_API_KEY not configured", "facts": _null_facts([])["facts"]})
+        return json.dumps({"error": "OPENAI_API_KEY not configured", "facts": _null_facts([])["facts"]})
 
     paths = _resolve_plan_paths(input.filenames)
     sheet_names = [p.stem for p in paths]
@@ -217,21 +220,30 @@ def analyze_plan(input: AnalyzePlanInput) -> str:
             ),
         }
     ]
+    file_n = [0]
     for path in paths:
         content.append({"type": "text", "text": f"--- Sheet {path.stem} ---"})
-        content.append(_media_block(path))
+        content.append(_media_block(path, file_n))
 
-    model = os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL)
-    client = anthropic.Anthropic(api_key=api_key)
+    model = os.getenv("OPENAI_MODEL", DEFAULT_MODEL)
+    reasoning = bool(re.match(r"^(gpt-5|o\d)", model))
+    client = OpenAI(api_key=api_key)
 
     try:
-        resp = client.messages.create(
-            model=model,
-            max_tokens=16000,
-            messages=[{"role": "user", "content": content}],
-            output_config={"format": {"type": "json_schema", "schema": schema}},
-        )
-        text = next((b.text for b in resp.content if b.type == "text"), None)
+        kwargs: dict = {
+            "model": model,
+            "messages": [{"role": "user", "content": content}],
+            "max_completion_tokens": 16000,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {"name": "extraction", "strict": True, "schema": schema},
+            },
+        }
+        if reasoning:
+            kwargs["reasoning_effort"] = "low"
+        resp = client.chat.completions.create(**kwargs)
+        choice = resp.choices[0]
+        text = None if choice.finish_reason == "length" else choice.message.content
         if not text:
             payload = _null_facts(sheet_names)
         else:

@@ -171,7 +171,10 @@ def main() -> None:
                     "embedding": emb,
                 }
             )
-        index.load(records, id_field="chunk_id")
+        # Smaller batches avoid overwhelming the connection on large cities
+        # (LA is now 6.6k+ chunks after the CADAI import) — a single giant
+        # bulk load risked a mid-transfer connection reset.
+        index.load(records, id_field="chunk_id", batch_size=200)
         total += len(records)
         print(f"  {slug}: indexed {len(records)} chunks")
 

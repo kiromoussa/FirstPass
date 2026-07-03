@@ -246,7 +246,7 @@ export function NewProjectForm({ onCreated }: Props) {
               <>
                 <span className="text-body">Drop your plan set here or click to browse</span>
                 <div className="text-[11px] text-muted mt-2 max-w-xs mx-auto leading-relaxed">
-                  <strong className="text-body/80">PDF recommended</strong>: Claude reads sheets directly.
+                  <strong className="text-body/80">PDF recommended</strong>: the plan reader reads sheets directly.
                   DWG is translated via Autodesk APS. Optional. A reference set is used if none provided.
                 </div>
               </>
