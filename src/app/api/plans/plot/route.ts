@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { loadProject } from "@/lib/project-persistence";
 import { ensurePlansReady, ensureProjectPlansStaged } from "@/lib/plans-prep";
 import {
@@ -16,6 +17,9 @@ export const maxDuration = 300;
 // Kick off (or resume) DWG plotting for the in-app sheet viewer. Safe to call
 // while Band Chat 1 is running — shares the same durable plans/ cache.
 export async function POST(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
   const projectId =
     req.nextUrl.searchParams.get("projectId") ??
     ((await req.json().catch(() => ({}))) as { projectId?: string }).projectId;
@@ -24,7 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   const project = await loadProject(projectId);
-  if (!project) {
+  if (!project || project.ownerId !== userId) {
     return NextResponse.json({ error: "project not found" }, { status: 404 });
   }
 

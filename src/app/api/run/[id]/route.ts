@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { loadProject, persistProject } from "@/lib/project-persistence";
 import { runPipeline } from "@/lib/pipeline";
 import { runBandPipeline } from "@/lib/band-pipeline";
@@ -37,7 +38,15 @@ async function runStream(
   req: NextRequest,
   params: Promise<{ id: string }>
 ) {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
   const { id } = await params;
+  const owned = await loadProject(id);
+  if (!owned || owned.ownerId !== userId) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -61,12 +70,7 @@ async function runStream(
         closed = true;
       });
 
-      const project = await loadProject(id);
-      if (!project) {
-        send("run-error", { message: "Project not found" });
-        controller.close();
-        return;
-      }
+      const project = owned;
 
       // First byte to the browser — never block the SSE on Redis/Band boot.
       send("state", {

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { hgetAll, getRaw } from "@/lib/store";
+import { loadProject } from "@/lib/project-persistence";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +37,13 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
+  const project = await loadProject(id);
+  if (!project || project.ownerId !== userId) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
 
   let hash = await hgetAll(`project:${id}:blackboard`);
   let source = id;

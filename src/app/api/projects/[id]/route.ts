@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { loadState, saveState, deleteProject } from "@/lib/store";
 import { loadProject, persistProject } from "@/lib/project-persistence";
 import type { Project } from "@/lib/types";
@@ -10,11 +11,16 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
   const state = await loadState(id);
-  if (state) return NextResponse.json(state);
+  if (state) {
+    if (state.project.ownerId !== userId) return NextResponse.json({ error: "not found" }, { status: 404 });
+    return NextResponse.json(state);
+  }
   const project = await loadProject(id);
-  if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!project || project.ownerId !== userId) return NextResponse.json({ error: "not found" }, { status: 404 });
   return NextResponse.json({ project, sources: [], rules: [], facts: [], findings: [], checklist: [], messages: [] });
 }
 
@@ -23,9 +29,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     const { id } = await params;
     const project = await loadProject(id);
-    if (!project) return NextResponse.json({ error: "not found" }, { status: 404 });
+    if (!project || project.ownerId !== userId) return NextResponse.json({ error: "not found" }, { status: 404 });
     const body = (await req.json().catch(() => ({}))) as Partial<Project>;
     const updated: Project = {
       ...project,
@@ -56,9 +64,13 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const { id } = await params;
-  const exists = (await loadState(id)) ?? (await loadProject(id));
-  if (!exists) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const state = await loadState(id);
+  const owner = state?.project.ownerId ?? (await loadProject(id))?.ownerId;
+  if (!owner) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (owner !== userId) return NextResponse.json({ error: "not found" }, { status: 404 });
   await deleteProject(id);
   return NextResponse.json({ ok: true });
 }

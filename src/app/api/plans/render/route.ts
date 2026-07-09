@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { loadProject } from "@/lib/project-persistence";
 import { ensureProjectPlansStaged } from "@/lib/plans-prep";
 import {
@@ -25,9 +26,16 @@ export async function GET(req: NextRequest) {
 }
 
 async function handleRender(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
   const projectId = req.nextUrl.searchParams.get("projectId");
   if (!projectId) {
     return NextResponse.json({ error: "projectId required" }, { status: 400 });
+  }
+  const owned = await loadProject(projectId);
+  if (!owned || owned.ownerId !== userId) {
+    return NextResponse.json({ error: "project not found" }, { status: 404 });
   }
 
   const idx = req.nextUrl.searchParams.get("i");
@@ -44,8 +52,7 @@ async function handleRender(req: NextRequest) {
 
   let meta = await getPlotViewerMeta(projectId);
   if (!meta || (meta.status !== "ready" && meta.status !== "failed")) {
-    const project = await loadProject(projectId);
-    if (project) await ensureProjectPlansStaged(project);
+    await ensureProjectPlansStaged(owned);
     const hydrated = await hydratePlotViewerFromDisk(projectId);
     if (hydrated) meta = hydrated;
   }

@@ -237,7 +237,7 @@ export function NewProjectForm({ onCreated }: Props) {
             <input
               type="file"
               accept=".pdf,.png,.jpg,.jpeg,.dwg,.dxf,application/pdf,application/acad,image/vnd.dwg,application/dxf"
-              className="hidden"
+              className="sr-only"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
             {file ? (

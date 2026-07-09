@@ -98,6 +98,8 @@ export function projectTypeLabel(type: ProjectType | string | undefined): string
 
 export interface Project {
   id: string;
+  /** Clerk user id of the account that created this project. */
+  ownerId: string;
   name: string;
   address: string;
   projectType: ProjectType;

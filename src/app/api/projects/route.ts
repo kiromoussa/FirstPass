@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { kvSet, kvGet, addToProjectIndex, listProjectIds, loadState } from "@/lib/store";
 import { loadProject } from "@/lib/project-persistence";
 import { resolveCitySlug, loadCityMeta, cityLabel, DEFAULT_CITY } from "@/lib/code-db";
@@ -9,22 +10,28 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
   const ids = await listProjectIds();
   const projects: Project[] = [];
   for (const id of ids) {
     const state = await loadState(id);
     if (state?.project) {
-      projects.push(state.project);
+      if (state.project.ownerId === userId) projects.push(state.project);
       continue;
     }
     const project = (await kvGet<Project>(`proj:${id}`)) ?? (await loadProject(id));
-    if (project) projects.push(project);
+    if (project && project.ownerId === userId) projects.push(project);
   }
   projects.sort((a, b) => b.createdAt - a.createdAt);
   return NextResponse.json({ projects });
 }
 
 export async function POST(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
   const body = (await req.json().catch(() => ({}))) as {
     name?: string;
     address?: string;
@@ -48,6 +55,7 @@ export async function POST(req: NextRequest) {
   const meta = loadCityMeta(citySlug);
   const project: Project = {
     id,
+    ownerId: userId,
     name: body.name?.trim() || "Untitled Project",
     address: body.address?.trim() || cityLabel(citySlug),
     projectType,
