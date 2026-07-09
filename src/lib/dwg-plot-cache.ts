@@ -5,8 +5,9 @@ import fs from "fs/promises";
 import path from "path";
 import { decodeUrn } from "./integrations/aps";
 import { projectDir } from "./project-files";
+import { DATA_ROOT } from "./data-root";
 
-const CACHE_ROOT = path.join(process.cwd(), "projects", "_dwg_plots");
+const CACHE_ROOT = path.join(DATA_ROOT, "projects", "_dwg_plots");
 const PLAN_EXT = new Set([".pdf", ".png", ".jpg", ".jpeg", ".webp"]);
 
 function cacheKeyFromUrn(urn: string): string | null {

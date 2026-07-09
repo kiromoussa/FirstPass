@@ -2,11 +2,12 @@
 import fs from "fs/promises";
 import path from "path";
 import type { Project } from "./types";
+import { DATA_ROOT } from "./data-root";
 
-export const PROJECTS_ROOT = path.join(process.cwd(), "projects");
+export const PROJECTS_ROOT = path.join(DATA_ROOT, "projects");
 
 /** @deprecated legacy flat upload dir — read-only fallback */
-const LEGACY_UPLOADS_DIR = path.join(process.cwd(), "uploads");
+const LEGACY_UPLOADS_DIR = path.join(DATA_ROOT, "uploads");
 
 export function projectDir(projectId: string): string {
   return path.join(PROJECTS_ROOT, projectId);

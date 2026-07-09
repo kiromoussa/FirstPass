@@ -14,6 +14,7 @@ import { plotDwgSheets } from "./integrations/autocad-da";
 import { APS_LIVE } from "./integrations/aps";
 import { kvGet } from "./store";
 import { projectDir } from "./project-files";
+import { DATA_ROOT } from "./data-root";
 import {
   hydratePlotViewerFromDisk,
   setPlotViewerFailed,
@@ -23,7 +24,7 @@ import { restoreDwgPlotCache, saveDwgPlotCache } from "./dwg-plot-cache";
 import { ensureDemoPlanSheets } from "./demo-plan-cache";
 import type { Project } from "./types";
 
-export const PLANS_DIR = path.join(process.cwd(), "plans");
+export const PLANS_DIR = path.join(DATA_ROOT, "plans");
 const PLAN_EXT = new Set([".pdf", ".png", ".jpg", ".jpeg", ".webp"]);
 
 export interface PlansPrepResult {

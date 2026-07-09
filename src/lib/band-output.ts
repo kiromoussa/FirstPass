@@ -1,7 +1,8 @@
 import fs from "fs/promises";
 import path from "path";
+import { DATA_ROOT } from "./data-root";
 
-export const OUTPUT_DIR = path.join(process.cwd(), "output");
+export const OUTPUT_DIR = path.join(DATA_ROOT, "output");
 
 export async function outputFresh(filename: string, sinceMs: number): Promise<boolean> {
   try {
