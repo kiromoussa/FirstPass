@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
-import { auth } from "@clerk/nextjs/server";
 import { loadProject, persistProject } from "@/lib/project-persistence";
 import { kvSet } from "@/lib/store";
 import { PLANS_DIR } from "@/lib/plans-prep";
@@ -15,18 +14,11 @@ export const maxDuration = 60;
 // PDFs are read page-by-page by the plan reader directly — no rasterization needed.
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await auth();
-    if (!userId) return NextResponse.json({ ok: false, reason: "unauthorized" }, { status: 401 });
-
     const form = await req.formData();
     const file = form.get("file") as File | null;
     const projectId = form.get("projectId") as string | null;
     if (!file || !projectId) {
       return NextResponse.json({ ok: false, reason: "missing file or projectId" }, { status: 400 });
-    }
-    const project = await loadProject(projectId);
-    if (!project || project.ownerId !== userId) {
-      return NextResponse.json({ ok: false, reason: "project not found" }, { status: 404 });
     }
     const bytes = Buffer.from(await file.arrayBuffer());
     // Conservative cap for a base64-inlined PDF/image upload.
@@ -50,7 +42,10 @@ export async function POST(req: NextRequest) {
       console.warn("[plans/upload] disk mirror skipped (read-only filesystem?):", (e as Error)?.message ?? e);
     }
 
-    await persistProject({ ...project, planMime: mediaType, pdfName: file.name });
+    const project = await loadProject(projectId);
+    if (project) {
+      await persistProject({ ...project, planMime: mediaType, pdfName: file.name });
+    }
     return NextResponse.json({ ok: true, mediaType, diskPath });
   } catch (e) {
     return NextResponse.json({ ok: false, reason: (e as Error).message }, { status: 500 });
