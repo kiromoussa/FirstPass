@@ -1,0 +1,8 @@
+# Never upload local env files to a deployment. Next.js loads .env.local at
+# runtime, which would OVERRIDE the Vercel-managed environment variables and can
+# route production onto local-only settings (e.g. FIRSTPASS_BAND=1, which needs
+# external Python workflow agents that do not exist on Vercel). Production must
+# use only the env configured in the Vercel dashboard.
+.env
+.env.*
+!.env.example
