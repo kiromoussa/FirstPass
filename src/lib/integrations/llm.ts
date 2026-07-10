@@ -21,6 +21,10 @@ const MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
 // reject legacy params — gate the reasoning-specific request shape on this.
 const REASONING = /^(gpt-5|o\d)/.test(MODEL);
 
+// Per-call timeout. Must stay well under the run route's maxDuration (300s) so a
+// single slow call can't starve the rest of the pipeline. Override via env.
+const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 90_000;
+
 type ContentBlock =
   | { type: "text"; text: string }
   | { type: "image"; source: { media_type: string; data: string } }
@@ -77,6 +81,11 @@ async function generateText(
       json_schema: { name: "extraction", strict: true, schema },
     };
   }
+  // Bound every call: raw fetch has NO default timeout, so a slow/stuck OpenAI
+  // request would hang until the serverless function is killed at maxDuration
+  // (300s), leaving the run stuck with no persisted state. On timeout we abort
+  // and return the graceful "service call failed" error, so the pipeline
+  // continues (the finding becomes NEEDS_REVIEW) instead of dying.
   const call = () =>
     fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -85,6 +94,7 @@ async function generateText(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
     });
 
   try {

@@ -37,7 +37,13 @@ import {
 import { saveState, kvGet, kvSet } from "./store";
 import { seedCodeChunks, retrieveCodeHybrid, cityLabel, rulesFor } from "./code-db";
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Artificial pacing that makes the SSE feel "live" in a local demo. In
+// production the real APS/LLM work provides the pacing and every second counts
+// against the 300s function budget, so these delays are skipped.
+const sleep = (ms: number) =>
+  process.env.NODE_ENV === "production"
+    ? Promise.resolve()
+    : new Promise((r) => setTimeout(r, ms));
 
 let seq = 0;
 function msg(
@@ -185,10 +191,15 @@ export async function* runPipeline(
       // Tile each sheet into high-DPI crops — a full ARCH-D sheet downsampled to
       // vision's ~1568px makes dimension text unreadable; tiles keep it legible.
       const tiles: { label: string; data: string }[] = [];
+      // Cap tiles so the single vision call stays within LLM_TIMEOUT_MS and the
+      // overall run fits the 300s budget. 80 tiles in one request routinely
+      // times out; 24 high-DPI crops still cover the dimensioned sheets.
+      const TILE_CAP = Number(process.env.PLAN_TILE_CAP) || 24;
       for (const s of plotted) {
-        if (tiles.length >= 80) break; // stay under the 100-image/request cap
+        if (tiles.length >= TILE_CAP) break;
         tiles.push(...(await tilesFromPdf(s.data, s.name)));
       }
+      if (tiles.length > TILE_CAP) tiles.length = TILE_CAP;
       emit(msg("plan-reader", "info", `Reading ${tiles.length} sheet tiles with Claude vision — measuring dimensions off the drawings…`, { sponsor: "claude" }));
       yield snapshot();
       facts = tiles.length > 0
@@ -356,6 +367,9 @@ export async function* runPipeline(
   state.findings.push(docsFinding);
   emit(msg("checklist", "info", `${docsFinding.title}: ${docsFinding.status} — ${docsFinding.message}`, { refs: [docsFinding.id] }));
   yield snapshot();
+  // Checkpoint: the expensive read + all findings are computed. Persist now so an
+  // interruption during review/report doesn't discard the work.
+  await saveState(snapshot()).catch(() => null);
   await sleep(400);
 
   // ---- Phase 5: Review (Arize evals + correction) ----
@@ -411,6 +425,7 @@ export async function* runPipeline(
   }
   emit(msg("reviewer", "done", "Eval pass complete. Findings audited and corrected where needed."));
   yield snapshot();
+  await saveState(snapshot()).catch(() => null);
   await sleep(300);
 
   // ---- Phase 6: Report (Claude writing) + score ----
@@ -422,20 +437,25 @@ export async function* runPipeline(
   state.project.score = score;
 
   // Suggested corrections for non-PASS findings (Claude, with safe fallback).
-  for (const f of state.findings) {
-    if (f.status === "PASS") continue;
-    // Deterministic fallback names the exact delta to comply (never a bare flag).
-    const fRule = rules.find((r) => r.key === f.ruleKey && r.sourceId === f.sourceRef) ?? rules.find((r) => r.key === f.ruleKey);
-    const fallback = fRule
-      ? suggestFix(factForRuleKey(f.ruleKey), fRule, f.status, f.title)
-      : `Provide the missing information for ${f.title.toLowerCase()} and re-check.`;
-    f.suggestedCorrection = languageLint(
-      await explain(
-        `In one sentence, suggest how a residential architect could resolve this pre-submission finding: "${f.title}: ${f.message}". Use cautious language (likely/potential).`,
-        fallback
-      )
-    );
-  }
+  // Run the per-finding LLM calls concurrently — sequential awaits over ~13
+  // findings routinely pushed the run past the 300s function budget.
+  await Promise.all(
+    state.findings
+      .filter((f) => f.status !== "PASS")
+      .map(async (f) => {
+        // Deterministic fallback names the exact delta to comply (never a bare flag).
+        const fRule = rules.find((r) => r.key === f.ruleKey && r.sourceId === f.sourceRef) ?? rules.find((r) => r.key === f.ruleKey);
+        const fallback = fRule
+          ? suggestFix(factForRuleKey(f.ruleKey), fRule, f.status, f.title)
+          : `Provide the missing information for ${f.title.toLowerCase()} and re-check.`;
+        f.suggestedCorrection = languageLint(
+          await explain(
+            `In one sentence, suggest how a residential architect could resolve this pre-submission finding: "${f.title}: ${f.message}". Use cautious language (likely/potential).`,
+            fallback
+          )
+        );
+      })
+  );
 
   const sections: ReportSection[] = state.findings.map((f) => ({
     heading: f.title,

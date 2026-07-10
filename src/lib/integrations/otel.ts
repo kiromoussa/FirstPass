@@ -42,7 +42,12 @@ export function getTracer(): Tracer | null {
 
 export async function flushTraces(): Promise<void> {
   try {
-    await provider?.forceFlush();
+    // Bound the flush: a slow/unreachable OTLP (Arize) exporter must never hang
+    // the request after the run is already done and its state persisted.
+    await Promise.race([
+      provider?.forceFlush() ?? Promise.resolve(),
+      new Promise<void>((r) => setTimeout(r, 5_000)),
+    ]);
   } catch {
     /* best-effort */
   }
