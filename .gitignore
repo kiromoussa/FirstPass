@@ -37,3 +37,4 @@ projects/*
 plans/*
 !plans/.gitkeep
 .gstack/
+.env*
