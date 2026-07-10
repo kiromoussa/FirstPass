@@ -91,3 +91,7 @@ services:
         sync: false
       - key: APS_CALLBACK_URL
         sync: false
+      # Vercel Blob token for the durable DWG-plot cache (optional; falls back
+      # to /tmp when absent). Generate from a linked Vercel Blob store.
+      - key: BLOB_READ_WRITE_TOKEN
+        sync: false
