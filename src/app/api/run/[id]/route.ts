@@ -58,9 +58,13 @@ async function runStream(
       const send = (event: string, data: unknown) => {
         if (closed) return;
         try {
-          controller.enqueue(
-            encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-          );
+          // JSON.stringify(undefined) returns the JS value undefined, which a
+          // template literal renders as the string "undefined" - the browser
+          // then throws "unexpected character at line 1 column 1" on parse.
+          // Serialize first and skip any frame that can't produce valid JSON.
+          const payload = JSON.stringify(data);
+          if (typeof payload !== "string") return;
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${payload}\n\n`));
         } catch {
           closed = true;
         }

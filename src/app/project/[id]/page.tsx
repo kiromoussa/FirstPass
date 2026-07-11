@@ -40,8 +40,17 @@ export default function ProjectDashboard() {
     let cancelled = false;
     const es = new EventSource(`/api/run/${id}`);
     es.addEventListener("state", (e) => {
+      // Guard the parse like the band/run-error handlers below: a malformed or
+      // empty frame (proxy buffering, a truncated payload, a stray keep-alive)
+      // must not throw an uncaught "unexpected character" and kill the whole
+      // run view. Skip the bad frame; the next state snapshot will arrive.
+      let next: ProjectState;
+      try {
+        next = JSON.parse((e as MessageEvent).data) as ProjectState;
+      } catch {
+        return;
+      }
       gotStateRef.current = true;
-      const next = JSON.parse((e as MessageEvent).data) as ProjectState;
       setState(next);
       setError(null);
       if (next.bandRoomId) setBandRoomId(next.bandRoomId);
