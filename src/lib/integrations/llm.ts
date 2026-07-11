@@ -320,14 +320,35 @@ const factItemSchema = (withTile: boolean) => ({
   ],
 });
 
-const factsSchema = (withTile: boolean, withSheets: boolean) => ({
+// Document types a plotted sheet can contain — drives the required-documents
+// checklist off what the sheets actually SHOW instead of keyword-matching DWG
+// layout names (layouts named "A1.0"/"Layout1" never contain the word "site",
+// which made the checklist report every document as missing).
+export const SHEET_DOC_TYPES = [
+  "site_plan",
+  "floor_plan",
+  "elevation",
+  "section",
+  "cover_or_index",
+  "energy_title24",
+  "structural",
+  "mep",
+  "detail_or_schedule",
+  "other",
+] as const;
+export type SheetDocType = (typeof SHEET_DOC_TYPES)[number];
+
+const factsSchema = (withTile: boolean, withSheets: boolean, withDocTypes = false) => ({
   type: "object",
   additionalProperties: false,
   properties: {
     facts: { type: "array", items: factItemSchema(withTile) },
     ...(withSheets ? { sheets: { type: "array", items: { type: "string" } } } : {}),
+    ...(withDocTypes
+      ? { docTypes: { type: "array", items: { type: "string", enum: [...SHEET_DOC_TYPES] } } }
+      : {}),
   },
-  required: ["facts", ...(withSheets ? ["sheets"] : [])],
+  required: ["facts", ...(withSheets ? ["sheets"] : []), ...(withDocTypes ? ["docTypes"] : [])],
 });
 
 const BBOX_HINT =
@@ -483,15 +504,37 @@ export async function extractPlanFactsFromImages(
   tiles: { label: string; data: string; grid?: TileGrid; region?: FactRegion }[],
   projectType = "single_family"
 ): Promise<PlanFact[]> {
+  return (await extractFactsFromTiles(tiles, projectType, false)).facts;
+}
+
+// Per-sheet variant: same read, plus a classification of which document types
+// the sheet contains (site plan / floor plan / elevations / Title-24 …), read
+// off the title block and drawing content. Used by the per-sheet DWG reader so
+// the required-documents checklist reflects the actual set.
+export async function extractPlanFactsFromSheetImages(
+  tiles: { label: string; data: string; grid?: TileGrid; region?: FactRegion }[],
+  projectType = "single_family"
+): Promise<{ facts: PlanFact[]; docTypes: SheetDocType[] }> {
+  return extractFactsFromTiles(tiles, projectType, true);
+}
+
+async function extractFactsFromTiles(
+  tiles: { label: string; data: string; grid?: TileGrid; region?: FactRegion }[],
+  projectType: string,
+  classifyDocs: boolean
+): Promise<{ facts: PlanFact[]; docTypes: SheetDocType[] }> {
   const sheetNames = [...new Set(tiles.map((t) => t.label.replace(/\s*\(.*$/, "")))];
-  const nullFacts = (readError?: string): PlanFact[] => [
-    ...NUMERIC_KEYS.map((k) => ({ key: k.key, label: k.label, value: null, unit: k.unit, sheet: "—", bbox: null, confidence: 0, raw: "Not read from the plan set." })),
-    { key: "sheets", label: "Sheets present", value: sheetNames, unit: "docs" as const, sheet: "—", bbox: null, confidence: sheetNames.length ? 0.95 : 0, readError },
-  ];
+  const nullFacts = (readError?: string): { facts: PlanFact[]; docTypes: SheetDocType[] } => ({
+    facts: [
+      ...NUMERIC_KEYS.map((k) => ({ key: k.key, label: k.label, value: null, unit: k.unit, sheet: "—", bbox: null, confidence: 0, raw: "Not read from the plan set." })),
+      { key: "sheets", label: "Sheets present", value: sheetNames, unit: "docs" as const, sheet: "—", bbox: null, confidence: sheetNames.length ? 0.95 : 0, readError },
+    ],
+    docTypes: [],
+  });
   if (!PLAN_READER_LIVE || tiles.length === 0)
     return nullFacts(PLAN_READER_LIVE ? undefined : NOT_CONFIGURED);
 
-  const schema = factsSchema(true, false);
+  const schema = factsSchema(true, false, classifyDocs);
   const tileRegions = new Map<string, FactRegion>();
   for (const t of tiles) {
     const region = t.region ?? (t.grid ? gridToRegion(t.grid) : null);
@@ -510,7 +553,11 @@ export async function extractPlanFactsFromImages(
         "plan's overall dimensions. Cite the sheet each value came from and quote the raw label/dimension. Set " +
         "tile to the exact '--- … ---' label of the image you read the value from, and bbox to [x, y, w, h] " +
         "normalized 0..1 within THAT image ([0,0,0,0] if you cannot localize it). Use a " +
-        "confidence below 0.4 if a value is unclear or not shown. Emit at most one fact per key.",
+        "confidence below 0.4 if a value is unclear or not shown. Emit at most one fact per key." +
+        (classifyDocs
+          ? " Also set docTypes to every document type these images contain, judged from the title block " +
+            "and drawing content (a sheet can contain several, e.g. a site plan with an energy notes block)."
+          : ""),
     },
   ];
   for (const t of tiles) {
@@ -521,13 +568,16 @@ export async function extractPlanFactsFromImages(
   try {
     const { text, error } = await extractJson(content, schema, "extractPlanFactsFromImages", 32000);
     if (text == null) return nullFacts(error);
-    const parsed = JSON.parse(text) as { facts: any[] };
+    const parsed = JSON.parse(text) as { facts: any[]; docTypes?: string[] };
     const byKey = new Map(parsed.facts.map((f) => [f.key, f]));
     const facts: PlanFact[] = NUMERIC_KEYS.map(
       (k) => sanitizeExtractedFact(k, byKey.get(k.key), { tileRegions }) ?? notReadFact(k)
     );
     facts.push({ key: "sheets", label: "Sheets present", value: sheetNames, unit: "docs", sheet: "—", bbox: null, confidence: 0.95 });
-    return facts;
+    const docTypes = (Array.isArray(parsed.docTypes) ? parsed.docTypes : []).filter(
+      (t): t is SheetDocType => (SHEET_DOC_TYPES as readonly string[]).includes(t)
+    );
+    return { facts, docTypes };
   } catch (e) {
     console.error("[llm:extractPlanFactsFromImages] could not parse model output:", (e as Error)?.message ?? e);
     return nullFacts("the plan reader's output could not be parsed");

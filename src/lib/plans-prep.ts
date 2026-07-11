@@ -32,6 +32,8 @@ export interface PlansPrepResult {
   files: string[];
   source?: "cache" | "disk" | "upload" | "dwg";
   message?: string;
+  /** Partial capture: sheets the plot enumerated but could not produce. */
+  warning?: string;
 }
 
 /** Durable per-project plan store (survives connection drops / re-runs). */
@@ -85,21 +87,87 @@ export async function publishViewerSheets(projectId: string): Promise<void> {
   await hydratePlotViewerFromDisk(projectId);
 }
 
+// Capture-schema marker for a project's durable plan store. v2 plots model
+// space alongside the paper layouts and reconciles the layout manifest — a
+// durable store WITHOUT the marker predates that (e.g. holds 1 of N sheets of
+// a model-space-heavy DWG) and must be re-captured, not served forever.
+const PLOT_SCHEMA_MARKER = "_plot-schema.txt";
+const PLOT_SCHEMA = "v2-model-space";
+
+async function hasCurrentPlotSchema(projectId: string): Promise<boolean> {
+  try {
+    const txt = await fs.readFile(path.join(projectPlansDir(projectId), PLOT_SCHEMA_MARKER), "utf8");
+    return txt.trim() === PLOT_SCHEMA;
+  } catch {
+    return false;
+  }
+}
+
+async function markPlotSchema(projectId: string): Promise<void> {
+  try {
+    const dir = projectPlansDir(projectId);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, PLOT_SCHEMA_MARKER), PLOT_SCHEMA);
+  } catch {
+    /* marker is an optimization — a failed write just re-captures next run */
+  }
+}
+
 /** Stage plan PDFs on disk from bundled demo sheets or prior URN plot cache. */
 export async function ensureProjectPlansStaged(project: Project): Promise<string[]> {
   const durableDir = projectPlansDir(project.id);
   let durable = await listIn(durableDir);
-  if (durable.length > 0) return durable;
+  if (durable.length > 0) {
+    // DWG-sourced stores must come from the current capture schema; stale
+    // pre-v2 plots (partial sets) are cleared and re-captured below.
+    if (!project.apsUrn || (await hasCurrentPlotSchema(project.id))) return durable;
+    for (const name of durable) {
+      await fs.rm(path.join(durableDir, name), { force: true });
+    }
+    // The viewer's disk cache renders the OLD capture — drop it so hydrate
+    // rebuilds from the re-captured sheets instead of short-circuiting.
+    await fs.rm(path.join(durableDir, ".viewer"), { recursive: true, force: true });
+    durable = [];
+  }
 
   const demo = await ensureDemoPlanSheets(project);
-  if (demo.length > 0) return demo;
+  if (demo.length > 0) {
+    await markPlotSchema(project.id);
+    return demo;
+  }
 
   if (project.apsUrn) {
     const restored = await restoreDwgPlotCache(project.apsUrn, project.id);
-    if (restored.length > 0) return restored;
+    if (restored.length > 0) {
+      await markPlotSchema(project.id);
+      return restored;
+    }
   }
 
   return [];
+}
+
+/**
+ * Load this project's staged plan sheets (projects/{id}/plans/*.pdf) as
+ * base64 PDFs — the shape the per-sheet vision reader consumes. Names are the
+ * plotted layout names (TS, A1.0 …).
+ */
+export async function loadProjectPlanSheets(
+  projectId: string
+): Promise<{ name: string; data: string }[]> {
+  const dir = projectPlansDir(projectId);
+  const names = (await listIn(dir)).filter((n) => n.toLowerCase().endsWith(".pdf"));
+  names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const sheets: { name: string; data: string }[] = [];
+  for (const name of names) {
+    try {
+      const buf = await fs.readFile(path.join(dir, name));
+      sheets.push({ name: name.replace(/\.pdf$/i, ""), data: buf.toString("base64") });
+    } catch {
+      /* skip unreadable file */
+    }
+  }
+  return sheets;
 }
 
 function safePlanName(name: string, fallbackExt: string): string {
@@ -156,11 +224,9 @@ async function prepPlans(
 ): Promise<PlansPrepResult> {
   const durableDir = projectPlansDir(project.id);
 
-  // 0. Bundled demo sheets or prior URN plot — no Autodesk wait.
-  let durable = await listIn(durableDir);
-  if (durable.length === 0) {
-    durable = await ensureProjectPlansStaged(project);
-  }
+  // 0. Durable store, bundled demo sheets, or prior URN plot — no Autodesk
+  // wait. (Staleness of pre-v2 DWG captures is handled inside.)
+  const durable = await ensureProjectPlansStaged(project);
 
   // 1. Durable cache hit — this project was already plotted/staged. Restore it.
   if (durable.length > 0) {
@@ -187,6 +253,7 @@ async function prepPlans(
     const buf = Buffer.from(stored.data, "base64");
     await fs.writeFile(path.join(durableDir, diskName), buf);
     await fs.writeFile(path.join(PLANS_DIR, diskName), buf);
+    await markPlotSchema(project.id);
     const files = await listPlanFiles();
     return {
       ok: files.length > 0,
@@ -208,7 +275,7 @@ async function prepPlans(
     }
     onProgress?.("submitting workitem to Autodesk Design Automation…");
     await setPlotViewerPending(project.id);
-    const { sheets, failure } = await plotDwgSheets(project.apsUrn, onProgress);
+    const { sheets, failure, warning } = await plotDwgSheets(project.apsUrn, onProgress);
     if (sheets.length === 0) {
       await setPlotViewerFailed(project.id, failure);
       return {
@@ -224,6 +291,7 @@ async function prepPlans(
       await fs.writeFile(path.join(durableDir, diskName), buf);
       await fs.writeFile(path.join(PLANS_DIR, diskName), buf);
     }
+    await markPlotSchema(project.id);
     if (project.apsUrn) await saveDwgPlotCache(project.apsUrn, project.id);
     const files = await listPlanFiles();
     return {
@@ -231,6 +299,7 @@ async function prepPlans(
       files,
       source: "dwg",
       message: `Plotted ${sheets.length} sheet${sheets.length === 1 ? "" : "s"} from DWG into plans/`,
+      warning,
     };
   }
 

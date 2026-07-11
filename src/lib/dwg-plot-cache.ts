@@ -8,11 +8,17 @@ import { projectDir } from "./project-files";
 import { DATA_ROOT } from "./data-root";
 import { blobEnabled, putBlob, getBlob, listBlobs } from "./blob-store";
 
-const CACHE_ROOT = path.join(DATA_ROOT, "projects", "_dwg_plots");
+// Cache keys are VERSIONED by capture schema: v2 plots model space alongside
+// the paper layouts and reconciles against the layout manifest. Bumping the
+// version orphans pre-v2 caches (which hold partial sets — e.g. one sheet of a
+// model-space-heavy DWG) instead of serving them forever, since OSS object
+// keys are just the file name and re-uploads collide with the old cache.
+const PLOT_CACHE_VERSION = "v2";
+const CACHE_ROOT = path.join(DATA_ROOT, "projects", `_dwg_plots_${PLOT_CACHE_VERSION}`);
 const PLAN_EXT = new Set([".pdf", ".png", ".jpg", ".jpeg", ".webp"]);
 
 // Blob pathname prefix for the durable (cross-invocation) plot mirror.
-const BLOB_ROOT = "dwg-plots";
+const BLOB_ROOT = `dwg-plots-${PLOT_CACHE_VERSION}`;
 
 function cacheKeyFromUrn(urn: string): string | null {
   const decoded = decodeUrn(urn);

@@ -24,7 +24,6 @@ import {
   extractPlanFacts,
   extractPlanFactsFromPdfDual,
   extractPlanFactsFromDocs,
-  extractPlanFactsFromImages,
   interpretDwgText,
 } from "./integrations/llm";
 import {
@@ -35,7 +34,8 @@ import {
   uploadDwg,
   waitForTranslation,
 } from "./integrations/aps";
-import { plotDwgSheets, tilesFromPdf, type PlottedSheet } from "./integrations/autocad-da";
+import { plotDwgSheets, type PlottedSheet } from "./integrations/autocad-da";
+import { readFactsFromAllSheets } from "./plan-read";
 import { OUTPUT_DIR } from "./band-output";
 import { readProjectDwg, projectDir } from "./project-files";
 import { kvGet } from "./store";
@@ -199,27 +199,41 @@ async function readFactsFromPlottedSheets(
     agentMsg(
       "plan-reader",
       "info",
-      `Reading ${plotted.length} plotted sheet(s): ${sheetNames.join(", ")}. Tiling for Claude vision…`
+      `Reading all ${plotted.length} plotted sheet(s): ${sheetNames.join(", ")} — one vision call per sheet…`
     )
   );
-  const tiles: { label: string; data: string }[] = [];
-  for (const s of plotted) {
-    if (tiles.length >= 80) break;
-    tiles.push(...(await tilesFromPdf(s.data, s.name)));
+  // Read EVERY sheet (parallel per-sheet calls, no global tile cap) — the old
+  // 80-tile truncation dropped the later sheets of a large set entirely.
+  const outcome = await readFactsFromAllSheets(plotted, project.projectType, (note) =>
+    push(agentMsg("plan-reader", "info", note))
+  );
+  if (outcome.sheetsFailed.length > 0) {
+    push(
+      agentMsg(
+        "plan-reader",
+        "info",
+        `Could not read ${outcome.sheetsFailed.length} sheet(s): ${outcome.sheetsFailed.join(", ")}.`
+      )
+    );
   }
-  push(
-    agentMsg(
-      "plan-reader",
-      "info",
-      `Reading ${tiles.length} tiles with Claude vision…`
-    )
-  );
-  const facts =
-    tiles.length > 0
-      ? await extractPlanFactsFromImages(tiles, project.projectType)
-      : await extractPlanFactsFromDocs(plotted, project.projectType);
-  const extractedFacts = facts.filter((f) => f.key !== "sheets" && f.value != null).length > 0;
-  for (const f of facts.filter((x) => x.key !== "sheets" && x.value != null)) {
+  const facts = outcome.facts.length
+    ? outcome.facts
+    : await extractPlanFactsFromDocs(plotted, project.projectType);
+  if (outcome.docTypes.length > 0) {
+    // Embedded so deriveChecklist sees the detected document types downstream.
+    facts.push({
+      key: "docTypes",
+      label: "Document types",
+      value: outcome.docTypes,
+      unit: "docs",
+      sheet: "—",
+      bbox: null,
+      confidence: 0.9,
+    });
+  }
+  const read = facts.filter((f) => f.key !== "sheets" && f.key !== "docTypes" && f.value != null);
+  const extractedFacts = read.length > 0;
+  for (const f of read) {
     push(
       agentMsg(
         "plan-reader",
@@ -232,7 +246,7 @@ async function readFactsFromPlottedSheets(
     agentMsg(
       "plan-reader",
       "done",
-      `Measured ${facts.filter((f) => f.key !== "sheets" && f.value != null).length}/4 dimensions from the plan set.`
+      `Measured ${read.length} dimension(s) across all ${plotted.length} sheets.`
     )
   );
   return { facts, extractedFacts, sheetNames };

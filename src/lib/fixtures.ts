@@ -179,20 +179,36 @@ export const REQUIRED_DOCS = [
   "Title-24 energy compliance report",
 ];
 
-export function deriveChecklist(facts: PlanFact[]): ChecklistItem[] {
+// `docTypes` is what the per-sheet vision reader detected ON the sheets
+// (site_plan, floor_plan, elevation, energy_title24 …). Plotted DWG layouts are
+// usually named "A1.0"/"SP-1", so the sheet-NAME keyword match alone reported
+// every required document as missing even when the set contained them all.
+// Content detection is authoritative; names remain a fallback for reads where
+// no per-sheet classification ran.
+export function deriveChecklist(facts: PlanFact[], docTypes: string[] = []): ChecklistItem[] {
   const sheetsFact = facts.find((f) => f.key === "sheets");
   const sheets = Array.isArray(sheetsFact?.value)
     ? (sheetsFact!.value as string[]).join(" ").toLowerCase()
     : "";
   const has = (kw: string[]) => kw.some((k) => sheets.includes(k));
+  // Callers that can't thread docTypes explicitly may embed them as a fact.
+  const embedded = facts.find((f) => f.key === "docTypes");
+  const dt = new Set([
+    ...docTypes,
+    ...(Array.isArray(embedded?.value) ? (embedded!.value as string[]) : []),
+  ]);
   return [
-    { item: "Site plan", required: true, present: has(["site"]) },
-    { item: "Floor plan", required: true, present: has(["floor"]) },
-    { item: "Building elevations", required: true, present: has(["elevation"]) },
+    { item: "Site plan", required: true, present: dt.has("site_plan") || has(["site"]) },
+    { item: "Floor plan", required: true, present: dt.has("floor_plan") || has(["floor"]) },
+    {
+      item: "Building elevations",
+      required: true,
+      present: dt.has("elevation") || has(["elevation", "elev"]),
+    },
     {
       item: "Title-24 energy compliance report",
       required: true,
-      present: has(["title-24", "title 24", "energy"]),
+      present: dt.has("energy_title24") || has(["title-24", "title 24", "energy", "t24"]),
       note: "Not found in the uploaded set.",
     },
   ];

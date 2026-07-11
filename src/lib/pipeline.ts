@@ -17,13 +17,11 @@ import type {
 import { DISCLAIMER, projectTypeLabel } from "./types";
 import { JURISDICTION_ID, deriveChecklist } from "./fixtures";
 import { researchSources } from "./integrations/browserbase";
-import { extractPlanFacts, explain, interpretDwgText, extractPlanFactsFromPdfDual, extractPlanFactsFromDocs, extractPlanFactsFromImages } from "./integrations/llm";
+import { extractPlanFacts, explain, interpretDwgText, extractPlanFactsFromPdfDual, extractPlanFactsFromDocs } from "./integrations/llm";
 import { APS_LIVE, listViewables, extractSheetText, waitForTranslation } from "./integrations/aps";
-import { plotDwgSheets, tilesFromPdf } from "./integrations/autocad-da";
-import {
-  persistPlotViewerFromSheets,
-  setPlotViewerFailed,
-} from "./plot-viewer-cache";
+import { ensurePlansReady, loadProjectPlanSheets } from "./plans-prep";
+import { readFactsFromAllSheets } from "./plan-read";
+import { setPlotViewerFailed } from "./plot-viewer-cache";
 import { evaluateFinding } from "./integrations/arize";
 import { BandChannel } from "./integrations/band";
 import { flushTraces } from "./integrations/otel";
@@ -147,6 +145,10 @@ export async function* runPipeline(
   // simply not being drawn. Drives a specific, actionable finding message.
   let planReadError: string | undefined;
   let sheetNames: string[] = [];
+  // Document types detected on the sheets (site plan, floor plan, elevations …)
+  // by the per-sheet reader — drives the required-documents checklist off sheet
+  // CONTENT instead of keyword-matching layout names like "A1.0".
+  let docTypes: string[] = [];
   const urn = project.apsUrn;
   if (project.planMime) {
     // Accurate path: Claude reads the uploaded plan set (PDF/image) natively.
@@ -172,45 +174,43 @@ export async function* runPipeline(
     }
   } else if (APS_LIVE && urn) {
     // Accurate DWG path: plot every layout to a legible PDF with Autodesk Design
-    // Automation (real AutoCAD in the cloud), then read the sheets with Claude
-    // vision. APS Model Derivative properties are empty and its rasters are
-    // illegible, so this plot→vision route is what makes DWG facts trustworthy.
-    emit(msg("plan-reader", "info", "Plotting the DWG sheets to PDF with Autodesk (AutoCAD cloud)…", { sponsor: "claude" }));
+    // Automation (real AutoCAD in the cloud), then read the sheets with vision.
+    // APS Model Derivative properties are empty and its rasters are illegible,
+    // so this plot→vision route is what makes DWG facts trustworthy. Sheets are
+    // staged through the durable per-project store: a set already plotted by an
+    // earlier run or the sheet viewer restores instantly instead of re-spending
+    // 2-4 min of Design Automation inside this request's time budget.
+    emit(msg("plan-reader", "info", "Preparing the DWG plan set — restoring cached sheets or plotting with Autodesk (AutoCAD cloud)…", { sponsor: "claude" }));
     yield snapshot();
-    const { sheets: plotted, failure: plotFailure } = await plotDwgSheets(urn);
+    const prep = await ensurePlansReady(project);
+    const plotted = prep.ok ? await loadProjectPlanSheets(project.id) : [];
+    const plotFailure = prep.ok ? undefined : prep.message;
     if (plotted.length > 0) {
       sheetNames = plotted.map((s) => s.name);
-      emit(msg("plan-reader", "info", `Plotted ${plotted.length} sheet${plotted.length === 1 ? "" : "s"} (${sheetNames.join(", ")}). Tiling at high resolution so dimensions are legible…`, { sponsor: "claude" }));
-      yield snapshot();
-      // Persist display renders for the in-app viewer (PlanSheetViewer).
-      try {
-        await persistPlotViewerFromSheets(project.id, plotted);
-      } catch {
-        /* viewer falls back to schematic */
+      emit(msg("plan-reader", "info", `${prep.source === "cache" ? "Restored" : "Plotted"} ${plotted.length} sheet${plotted.length === 1 ? "" : "s"} (${sheetNames.join(", ")}). Reading every sheet at high resolution…`, { sponsor: "claude" }));
+      if (prep.warning) {
+        emit(msg("plan-reader", "info", `Plot warning: ${prep.warning}. The captured sheets are still checked; verify the named sheets manually.`, { sponsor: "claude" }));
       }
-      // Tile each sheet into high-DPI crops — a full ARCH-D sheet downsampled to
-      // vision's ~1568px makes dimension text unreadable; tiles keep it legible.
-      const tiles: { label: string; data: string }[] = [];
-      // Cap tiles so the single vision call stays within LLM_TIMEOUT_MS and the
-      // overall run fits the 300s budget. 80 tiles in one request routinely
-      // times out; 24 high-DPI crops still cover the dimensioned sheets.
-      const TILE_CAP = Number(process.env.PLAN_TILE_CAP) || 24;
-      for (const s of plotted) {
-        if (tiles.length >= TILE_CAP) break;
-        tiles.push(...(await tilesFromPdf(s.data, s.name)));
-      }
-      if (tiles.length > TILE_CAP) tiles.length = TILE_CAP;
-      emit(msg("plan-reader", "info", `Reading ${tiles.length} sheet tiles with Claude vision — measuring dimensions off the drawings…`, { sponsor: "claude" }));
       yield snapshot();
-      facts = tiles.length > 0
-        ? await extractPlanFactsFromImages(tiles, project.projectType)
+      // Read EVERY sheet, one vision call per sheet in parallel — no global tile
+      // cap. The old single capped call only ever saw the first ~4 sheets of a
+      // large set, so values drawn on later sheets came back "missing".
+      const outcome = await readFactsFromAllSheets(plotted, project.projectType, (note) =>
+        emit(msg("plan-reader", "info", note, { sponsor: "claude" }))
+      );
+      docTypes = outcome.docTypes;
+      facts = outcome.facts.length
+        ? outcome.facts
         : await extractPlanFactsFromDocs(plotted, project.projectType);
+      if (outcome.sheetsFailed.length > 0) {
+        emit(msg("plan-reader", "info", `Could not read ${outcome.sheetsFailed.length} of ${plotted.length} sheets (${outcome.sheetsFailed.join(", ")}) — their values, if any, are flagged for manual review.`, { sponsor: "claude" }));
+      }
       const read = facts.filter((f) => f.key !== "sheets" && f.value != null);
       extractedFacts = read.length > 0;
-      for (const f of facts.filter((x) => x.key !== "sheets" && x.value != null)) {
+      for (const f of read) {
         emit(msg("plan-reader", "finding", `Read ${f.label}: ${f.value}${f.unit} from sheet ${f.sheet} (${Math.round(f.confidence * 100)}% conf) — "${f.raw}".`, { sponsor: "claude" }));
       }
-      emit(msg("plan-reader", "done", `Read ${read.length}/4 dimensions across ${plotted.length} plotted sheets. Unread values will be flagged for manual review.`, { sponsor: "claude" }));
+      emit(msg("plan-reader", "done", `Read ${read.length} dimension${read.length === 1 ? "" : "s"} across all ${plotted.length} plotted sheets. Unread values will be flagged for manual review.`, { sponsor: "claude" }));
       yield snapshot();
     } else {
       // DA unavailable/failed → fall back to the (text) extraction path, which is
@@ -348,7 +348,7 @@ export async function* runPipeline(
   }
 
   // Required documents check
-  const checklist = deriveChecklist(facts);
+  const checklist = deriveChecklist(facts, docTypes);
   state.checklist = checklist;
   const missing = checklist.filter((c) => c.required && c.present === false);
   const docsChunk = await retrieveCodeHybrid("requiredDocs", undefined, citySlug);

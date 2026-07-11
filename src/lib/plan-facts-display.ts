@@ -5,7 +5,7 @@ export function factsForDisplay(facts: PlanFact[], projectType: string): PlanFac
   const isAdu = projectType === "detached_adu" || projectType === "attached_adu";
   const aduKeys = new Set(["unitSize", "height", "setbackSide", "setbackRear", "sheets"]);
   return facts.filter((f) => {
-    if (f.key === "sheets") return false;
+    if (f.key === "sheets" || f.key === "docTypes") return false;
     if (f.value == null) return false;
     if (isAdu && !aduKeys.has(f.key)) return false;
     return true;

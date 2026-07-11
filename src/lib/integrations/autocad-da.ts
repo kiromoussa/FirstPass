@@ -26,19 +26,50 @@ const NICK = process.env.APS_CLIENT_ID || "";
 
 // Embedded LISP: enumerate layouts from the ACAD_LAYOUT dict and -PLOT each to
 // ./result/<layout>.pdf via the "DWG To PDF.pc3" device (ARCH D, fit to extents).
+//
+// Guards that make capture COMPLETE (v2):
+//  - result/_layouts.txt manifests every enumerated layout before plotting, so
+//    the caller can compare expected vs plotted and surface exactly which
+//    sheets were lost instead of silently accepting a partial set.
+//  - Each layout's plot is wrapped in vl-catch-all-apply — one failing layout
+//    logs to result/_plot_errors.txt and the loop continues (previously a
+//    mid-loop error killed every remaining sheet while the workitem still
+//    reported "success").
+//  - Layout names are sanitized for the filesystem (a "/" or ":" in a layout
+//    name made its plot fail).
+//  - MODEL space is ALWAYS plotted too (when it has extents) as Model.pdf.
+//    Many real plan sets draw most or all of their sheets side by side in
+//    model space with a single paper layout — skipping model space captured
+//    1 of N sheets. (This mirrors how Autodesk's own viewer exposes the
+//    "2D Views" model view alongside layouts.)
 const PLOT_LISP = [
   "(progn (vl-load-com)",
   ' (setvar "FILEDIA" 0)(setvar "CMDECHO" 0)(setvar "BACKGROUNDPLOT" 0)',
-  ' (vl-mkdir (strcat (getvar "DWGPREFIX") "result"))',
+  ' (setq rdir (strcat (getvar "DWGPREFIX") "result"))',
+  " (vl-mkdir rdir)",
+  " (defun sane (s) (vl-string-translate \"\\\\/:*?<>|\\\"\" \"_________\" s))",
+  " (defun logline (f s) (setq fh (open (strcat rdir f) \"a\")) (write-line s fh) (close fh))",
+  " (defun plotone (lay) (setq perr (vl-catch-all-apply (function (lambda ()",
+  '   (setvar "CTAB" lay)',
+  '   (if (= (strcase lay) "MODEL")',
+  '    (command "-PLOT" "Yes" lay "DWG To PDF.pc3" "ARCH D (24.00 x 36.00 Inches)"',
+  '      "Inches" "Landscape" "No" "Extents" "Fit" "Center" "Yes" "." "Yes" "As displayed"',
+  '      (strcat rdir "\\\\" (sane lay) ".pdf") "No" "Yes")',
+  '    (command "-PLOT" "Yes" lay "DWG To PDF.pc3" "ARCH D (24.00 x 36.00 Inches)"',
+  '      "Inches" "Landscape" "No" "Extents" "Fit" "Center" "Yes" "." "Yes" "No" "No" "No"',
+  '      (strcat rdir "\\\\" (sane lay) ".pdf") "No" "Yes"))',
+  '   (while (> (getvar "CMDACTIVE") 0) (command ""))))))',
+  "  (if (vl-catch-all-error-p perr)",
+  '   (logline "\\\\_plot_errors.txt" (strcat lay ": " (vl-catch-all-error-message perr)))))',
   " (setq lays (list))",
   ' (foreach e (dictsearch (namedobjdict) "ACAD_LAYOUT")',
   '  (if (and (= 3 (car e)) (/= (strcase (cdr e)) "MODEL")) (setq lays (cons (cdr e) lays))))',
-  " (foreach lay lays",
-  '  (setvar "CTAB" lay)',
-  '  (command "-PLOT" "Yes" lay "DWG To PDF.pc3" "ARCH D (24.00 x 36.00 Inches)"',
-  '    "Inches" "Landscape" "No" "Extents" "Fit" "Center" "Yes" "." "Yes" "No" "No" "No"',
-  '    (strcat (getvar "DWGPREFIX") "result\\\\" lay ".pdf") "No" "Yes")',
-  '  (while (> (getvar "CMDACTIVE") 0) (command "")))',
+  ' (foreach lay lays (logline "\\\\_layouts.txt" lay))',
+  " (foreach lay lays (plotone lay))",
+  ' (setvar "CTAB" "Model")',
+  ' (if (< (car (getvar "EXTMIN")) 1e19) (progn',
+  '  (logline "\\\\_layouts.txt" "Model")',
+  '  (plotone "Model")))',
   ' (princ "DONE"))',
 ].join(" ");
 
@@ -47,6 +78,26 @@ let activityEnsured = false;
 async function ensureActivity(token: string): Promise<boolean> {
   if (activityEnsured) return true;
   const JH = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  // If the aliased activity already runs the current script, don't mint a new
+  // version (previously every cold start appended one — versions are capped).
+  try {
+    const cur = await fetch(`${DA}/activities/${NICK}.${ACTNAME}+${ALIAS}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (cur.ok) {
+      const body = (await cur.json()) as { settings?: { script?: { value?: string } | string } };
+      const script =
+        typeof body.settings?.script === "string"
+          ? body.settings.script
+          : body.settings?.script?.value;
+      if (script?.trim() === PLOT_LISP.trim()) {
+        activityEnsured = true;
+        return true;
+      }
+    }
+  } catch {
+    /* fall through to create/update */
+  }
   const def = {
     id: ACTNAME,
     engine: ENGINE,
@@ -80,10 +131,12 @@ export interface PlottedSheet {
 // Result of a plot attempt. `sheets` is empty on failure, in which case
 // `failure` carries a specific, human-readable reason (which of the ~11 distinct
 // failure points was hit) so the pipeline's manual-review flag is debuggable
-// instead of opaque.
+// instead of opaque. `warning` reports PARTIAL capture: the layouts the plot
+// script enumerated (result/_layouts.txt) but that produced no PDF.
 export interface PlotResult {
   sheets: PlottedSheet[];
   failure?: string;
+  warning?: string;
 }
 
 export interface SheetTile {
@@ -101,6 +154,22 @@ export interface SheetTile {
 // dpi gives detail; the grid is computed so every tile is <= MAX_TILE_PX,
 // comfortably under vision providers' per-image size limits for many-image requests.
 const MAX_TILE_PX = 1900;
+// A tile whose ink coverage is below this is blank paper — skip it.
+const BLANK_TILE_INK = 0.0005;
+// Ceiling per sheet after blank-skipping (chunked into several vision calls).
+const MAX_TILES_PER_SHEET = 40;
+
+/** Fraction of sampled pixels that are not near-white. */
+function inkFraction(pixels: Uint8Array | Uint8ClampedArray, components: number): number {
+  const stride = components * 4; // sample every 4th pixel — plenty for blank detection
+  let ink = 0;
+  let total = 0;
+  for (let i = 0; i + 2 < pixels.length; i += stride) {
+    total++;
+    if (pixels[i] < 245 || pixels[i + 1] < 245 || pixels[i + 2] < 245) ink++;
+  }
+  return total ? ink / total : 0;
+}
 export async function tilesFromPdf(
   pdfBase64: string,
   sheetName: string,
@@ -143,6 +212,7 @@ export async function tilesFromPdf(
       return tiles;
     }
     const tileW = Math.ceil(wPx / cols), tileH = Math.ceil(hPx / rows);
+    const withDensity: { tile: SheetTile; density: number }[] = [];
     for (let r = 0; r < rows; r++) {
       for (let cc = 0; cc < cols; cc++) {
         // Allocate a pixmap covering just this tile's device-space rect; the
@@ -154,14 +224,35 @@ export async function tilesFromPdf(
         const dev = new mupdf.DrawDevice(mupdf.Matrix.identity, pix);
         page.run(dev, matrix);
         dev.close();
-        tiles.push({
-          label: `${sheetName} (row ${r + 1}, col ${cc + 1})`,
-          data: Buffer.from(pix.asPNG()).toString("base64"),
-          grid: { row: r + 1, col: cc + 1, rows, cols },
-        });
+        // Skip effectively-blank tiles: a model-space capture is mostly empty
+        // paper (its extents include stray objects), so shipping white tiles
+        // wastes vision-call budget without adding a single readable label.
+        const density = inkFraction(pix.getPixels(), pix.getNumberOfComponents());
+        if (density >= BLANK_TILE_INK) {
+          withDensity.push({
+            tile: {
+              label: `${sheetName} (row ${r + 1}, col ${cc + 1})`,
+              data: Buffer.from(pix.asPNG()).toString("base64"),
+              grid: { row: r + 1, col: cc + 1, rows, cols },
+            },
+            density,
+          });
+        }
         pix.destroy();
       }
     }
+    // Pathological sets could still tile past what vision can usefully read in
+    // one run — keep the densest tiles, in reading order, and say so via log.
+    let kept = withDensity;
+    if (withDensity.length > MAX_TILES_PER_SHEET) {
+      const cutoff = [...withDensity]
+        .sort((a, b) => b.density - a.density)[MAX_TILES_PER_SHEET - 1].density;
+      kept = withDensity.filter((t) => t.density >= cutoff).slice(0, MAX_TILES_PER_SHEET);
+      console.warn(
+        `[tilesFromPdf] ${sheetName}: kept ${kept.length} of ${withDensity.length} non-blank tiles (densest first)`
+      );
+    }
+    tiles.push(...kept.map((t) => t.tile));
     return tiles;
   } catch {
     return tiles;
@@ -363,9 +454,17 @@ export async function plotDwgSheets(
   }
 }
 
+// The plot script's filename sanitizer, mirrored so manifest names can be
+// matched against plotted PDF names.
+function sanePlotName(layout: string): string {
+  return layout.replace(/[\\/:*?<>|"]/g, "_");
+}
+
 // Unzip the result archive into per-sheet PDFs. Uses fflate (pure JS, in-memory)
 // rather than the system `unzip` binary — the binary isn't present on serverless
 // (Vercel) functions, which would silently break the only accurate DWG path.
+// Reconciles the plotted PDFs against the layout manifest the plot script wrote
+// (result/_layouts.txt) so partial capture is REPORTED, never silent.
 function unzipPdfs(zipBuf: Buffer): PlotResult {
   let entries: Record<string, Uint8Array>;
   try {
@@ -374,15 +473,49 @@ function unzipPdfs(zipBuf: Buffer): PlotResult {
     return { sheets: [], failure: "the plotted result archive was not a readable zip" };
   }
   const sheets: PlottedSheet[] = [];
+  let manifest: string[] = [];
+  let plotErrors = "";
   for (const [name, bytes] of Object.entries(entries)) {
-    if (!name.toLowerCase().endsWith(".pdf")) continue; // skip dirs/other files
-    const base = name.split("/").pop()!.replace(/\.pdf$/i, "");
-    sheets.push({ name: base, data: Buffer.from(bytes).toString("base64") });
+    const base = name.split("/").pop()!;
+    if (/^_layouts\.txt$/i.test(base)) {
+      manifest = Buffer.from(bytes).toString("utf8").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      continue;
+    }
+    if (/^_plot_errors\.txt$/i.test(base)) {
+      plotErrors = Buffer.from(bytes).toString("utf8").trim();
+      continue;
+    }
+    if (!base.toLowerCase().endsWith(".pdf")) continue; // skip dirs/other files
+    sheets.push({ name: base.replace(/\.pdf$/i, ""), data: Buffer.from(bytes).toString("base64") });
   }
   if (sheets.length === 0) {
-    return { sheets, failure: "the plotted archive contained no PDF sheets (no paper-space layouts plotted?)" };
+    return {
+      sheets,
+      failure:
+        "the plotted archive contained no PDF sheets (no paper-space layouts and empty model space?)" +
+        (plotErrors ? ` — plot errors: ${plotErrors.slice(0, 300)}` : ""),
+    };
   }
-  // Stable order (TS, A0.1, A1.0 … S2.0)
-  sheets.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  return { sheets };
+  // Expected-vs-plotted reconciliation: name every enumerated layout that
+  // produced no PDF, plus any per-layout error the script logged.
+  const plottedNames = new Set(sheets.map((s) => s.name));
+  const missing = manifest.filter((lay) => !plottedNames.has(sanePlotName(lay)));
+  let warning: string | undefined;
+  if (missing.length > 0 || plotErrors) {
+    const parts: string[] = [];
+    if (missing.length > 0) {
+      parts.push(`${missing.length} of ${manifest.length} sheets did not plot (${missing.join(", ")})`);
+    }
+    if (plotErrors) parts.push(`plot errors: ${plotErrors.slice(0, 300)}`);
+    warning = parts.join("; ");
+  }
+  // Stable order (TS, A0.1, A1.0 … S2.0); the model-space capture goes last,
+  // like the aggregate "2D Views" entry in Autodesk's own viewer.
+  sheets.sort((a, b) => {
+    const am = a.name.toLowerCase() === "model" ? 1 : 0;
+    const bm = b.name.toLowerCase() === "model" ? 1 : 0;
+    if (am !== bm) return am - bm;
+    return a.name.localeCompare(b.name, undefined, { numeric: true });
+  });
+  return { sheets, warning };
 }
