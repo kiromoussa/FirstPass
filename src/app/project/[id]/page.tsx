@@ -11,7 +11,7 @@ import { PhaseRail } from "@/components/PhaseRail";
 import { SponsorRail } from "@/components/SponsorRail";
 import { AgentFeed } from "@/components/AgentFeed";
 import { BlueprintViewer } from "@/components/BlueprintViewer";
-import { PlanSheetViewer } from "@/components/PlanSheetViewer";
+import { DwgViewer } from "@/components/DwgViewer";
 import { FindingsList } from "@/components/FindingsList";
 import { FactsList } from "@/components/FactsList";
 import { FindingInspector } from "@/components/FindingInspector";
@@ -176,7 +176,7 @@ export default function ProjectDashboard() {
         {/* Center: the plan sheet viewer gets the full center */}
         <section className="overflow-y-auto scrollbar-thin p-6">
           {state?.project.apsUrn ? (
-            <PlanSheetViewer projectId={id} />
+            <DwgViewer projectId={id} urn={state.project.apsUrn} />
           ) : (
             <BlueprintViewer
               findings={state?.findings ?? []}
