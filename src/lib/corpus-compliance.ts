@@ -165,3 +165,130 @@ export async function runCorpusTopicChecks(
 export function corpusChunkCount(citySlug: string): number {
   return loadCityChunks(citySlug)?.length ?? 0;
 }
+
+// Phrases that signal the plan set already carries energy documentation - the
+// CF1R Certificate of Compliance, Title 24 forms, or mandatory-measures notes.
+const ENERGY_DOC_TERMS = [
+  "title 24",
+  "title-24",
+  "t-24",
+  "t24",
+  "cf1r",
+  "cf-1r",
+  "cf2r",
+  "energy compliance",
+  "energy calc",
+  "mandatory measures",
+  "energy notes",
+];
+
+/** Read the per-sheet vision doc-type classification, wherever it was stashed. */
+export function docTypesFromFacts(facts: PlanFact[]): string[] {
+  const f = facts.find((x) => x.key === "docTypes");
+  return Array.isArray(f?.value) ? (f!.value as string[]) : [];
+}
+
+// Anchors that identify a LOW-RISE RESIDENTIAL energy provision, and ones that
+// mark a nonresidential/school section that must never be cited for an ADU or
+// house. The generic hybrid retriever (RedisVL semantic + term scoring) kept
+// returning the "School Buildings" envelope table for an energy query because
+// it is dense with "u-factor"/"insulation"; scanning the ingested energy corpus
+// with these residential anchors is deterministic and picks the right section.
+const RESIDENTIAL_ENERGY_ANCHORS: [string, number][] = [
+  ["low-rise residential", 4],
+  ["dwelling unit", 3],
+  ["fenestration", 3],
+  ["u-factor", 2],
+  ["insulation", 2],
+  ["mandatory", 1],
+];
+const NONRES_ENERGY_ANCHORS = ["school", "nonresidential", "metal building", "covered process", "high-rise"];
+
+// A residential low-rise energy section number: 150.x (prescriptive/mandatory
+// envelope + systems) or 110.x (mandatory measures) - the sections an ADU or
+// house is actually held to.
+const RES_SECTION_RE = /\b1(?:50|10)\.\d/;
+
+function scoreResidentialEnergy(c: CodeChunk): number {
+  const label = `${c.section} ${c.citation ?? ""}`.toLowerCase();
+  const body = c.text.toLowerCase();
+  const t = `${label} ${body}`;
+  let s = 0;
+  // The citation field carrying a real residential section number dominates -
+  // it is what the report shows and what the reviewer looks up.
+  if (RES_SECTION_RE.test(label)) s += 10;
+  else if (!/\d/.test(c.section)) s -= 4; // vague ALL-CAPS table header, no number
+  for (const [k, w] of RESIDENTIAL_ENERGY_ANCHORS) if (t.includes(k)) s += w;
+  for (const k of NONRES_ENERGY_ANCHORS) if (t.includes(k)) s -= 6;
+  // Prefer a chunk with enough text to be a real provision, not a stray caption.
+  if (c.text.length < 120) s -= 3;
+  return s;
+}
+
+/** Best low-rise-residential energy provision in the city's Title 24 Part 6 corpus. */
+function pickResidentialEnergyChunk(citySlug: string): CodeChunk | null {
+  const corpus = loadCityChunks(citySlug);
+  if (!corpus?.length) return null;
+  let best: CodeChunk | null = null;
+  let bestScore = 0; // strictly positive, so an off-topic chunk is never cited
+  for (const c of corpus) {
+    if (c.category !== "energy") continue;
+    const s = scoreResidentialEnergy(c);
+    if (s > bestScore) {
+      bestScore = s;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/**
+ * Title 24 Part 6 (California Energy Code) compliance finding.
+ *
+ * Energy compliance applies to essentially every conditioned residential
+ * project, but it is demonstrated by a signed CF1R Certificate of Compliance
+ * plus mandatory-measures notes on the plans - not by a single dimension on the
+ * drawing. So this is an honest NEEDS_REVIEW that cites the governing Energy
+ * Code provision (retrieved from the ingested Title 24 Part 6 corpus) and
+ * reports whether the energy documentation was actually found in the set.
+ * `docTypes` is the per-sheet vision classification ("energy_title24").
+ */
+export async function buildEnergyComplianceFinding(
+  project: Project,
+  facts: PlanFact[],
+  citySlug: string,
+  docTypes: string[] = []
+): Promise<Finding> {
+  const hay = `${planHaystack(facts)} ${docTypes.join(" ")}`;
+  const energyDocPresent =
+    docTypes.includes("energy_title24") || ENERGY_DOC_TERMS.some((t) => hay.includes(t));
+
+  // Governing residential energy provision from the Title 24 Part 6 corpus.
+  // Deterministic residential pick first (the fuzzy retriever mis-cites the
+  // school-buildings table); fall back to hybrid retrieval, then to a generic
+  // but always-correct part-level citation.
+  const chunk =
+    pickResidentialEnergyChunk(citySlug) ??
+    (await retrieveCodeHybrid("energyTitle24", project.projectType, citySlug, "energy", false));
+  const section = chunk?.citation ?? chunk?.section ?? "California Energy Code (Title 24, Part 6), Sec. 150.0-150.2";
+
+  const required =
+    "Title 24 Part 6 (California Energy Code) governs the conditioned space in this project. " +
+    "Compliance is shown with a signed CF1R Certificate of Compliance and mandatory-measures notes on the plans, " +
+    "covering envelope insulation, fenestration (U-factor / SHGC), HVAC, water heating, and lighting.";
+  const message = energyDocPresent
+    ? `${required} Energy documentation was detected in the set - confirm the CF1R matches the as-designed envelope and that the mandatory measures appear on the drawings. Verify against ${section}.`
+    : `${required} No CF1R energy report or mandatory-measures notes were detected in the plan set; these are typically required at submittal. Verify against ${section}.`;
+
+  return {
+    id: "f_energyTitle24",
+    ruleKey: "energyTitle24",
+    title: "Title 24 energy compliance (Part 6)",
+    status: "NEEDS_REVIEW",
+    message,
+    sourceRef: chunk?.sourceId,
+    codeSection: section,
+    codeText: chunk?.text,
+    sheet: facts.find((f) => f.key !== "sheets" && f.key !== "docTypes")?.sheet,
+  };
+}

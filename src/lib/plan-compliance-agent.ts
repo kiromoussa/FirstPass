@@ -19,7 +19,7 @@ import {
   suggestFix,
 } from "./compliance";
 import { rulesFor, retrieveCodeForRule, retrieveCodeHybrid, resolveCitySlug } from "./code-db";
-import { corpusChunkCount, runCorpusTopicChecks } from "./corpus-compliance";
+import { corpusChunkCount, runCorpusTopicChecks, buildEnergyComplianceFinding, docTypesFromFacts } from "./corpus-compliance";
 import {
   extractPlanFacts,
   extractPlanFactsFromPdfDual,
@@ -591,6 +591,23 @@ async function runComplianceChecks(
       )
     );
   }
+
+  // Title 24 Part 6 (California Energy Code) - cited energy-compliance finding.
+  const energyFinding = await buildEnergyComplianceFinding(
+    project,
+    facts,
+    citySlug,
+    docTypesFromFacts(facts)
+  );
+  findings.push(energyFinding);
+  push(
+    agentMsg(
+      "compliance",
+      "finding",
+      `${energyFinding.title}: ${energyFinding.status} — ${energyFinding.message}`,
+      { refs: [energyFinding.id] }
+    )
+  );
 
   push(
     agentMsg(

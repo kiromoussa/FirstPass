@@ -291,6 +291,21 @@ const RULE_TERMS: Record<string, string[]> = {
   solar: ["photovoltaic", "solar"],
   occupancy: ["occupancy", "occupant load", "occupant-load"],
   foundation: ["foundation", "footing", "slab"],
+  // Title 24 Part 6 (California Energy Code) — envelope, fenestration, HVAC,
+  // water heating, plus the CF1R compliance path. Matches the ~3,858
+  // category:"energy" chunks ingested from the CEC Restructured 2025 Energy Code.
+  energyTitle24: [
+    "low-rise residential",
+    "single-family",
+    "dwelling unit",
+    "section 150.1",
+    "section 150.0",
+    "fenestration",
+    "mandatory measures",
+    "prescriptive",
+    "water heating",
+    "insulation",
+  ],
 };
 
 function countOccurrences(hay: string, needle: string): number {

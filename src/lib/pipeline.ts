@@ -34,6 +34,7 @@ import {
 } from "./compliance";
 import { saveState, kvGet, kvSet } from "./store";
 import { seedCodeChunks, retrieveCodeHybrid, cityLabel, rulesFor } from "./code-db";
+import { buildEnergyComplianceFinding } from "./corpus-compliance";
 
 // Artificial pacing that makes the SSE feel "live" in a local demo. In
 // production the real APS/LLM work provides the pacing and every second counts
@@ -367,6 +368,14 @@ export async function* runPipeline(
   state.findings.push(docsFinding);
   emit(msg("checklist", "info", `${docsFinding.title}: ${docsFinding.status} — ${docsFinding.message}`, { refs: [docsFinding.id] }));
   yield snapshot();
+
+  // Title 24 Part 6 (California Energy Code) - a cited energy-compliance finding
+  // over the ingested Energy Code corpus. Honest NEEDS_REVIEW: energy compliance
+  // is shown by a CF1R report + mandatory measures, not a dimension on the sheet.
+  const energyFinding = await buildEnergyComplianceFinding(project, facts, citySlug, docTypes);
+  state.findings.push(energyFinding);
+  emit(msg("compliance", "info", `${energyFinding.title}: ${energyFinding.status} — ${energyFinding.message}`, { refs: [energyFinding.id] }));
+  yield snapshot();
   // Checkpoint: the expensive read + all findings are computed. Persist now so an
   // interruption during review/report doesn't discard the work.
   await saveState(snapshot()).catch(() => null);
@@ -386,7 +395,12 @@ export async function* runPipeline(
     f.evals = evals;
 
     const applicability = evals.find((e) => e.dimension === "applicability");
-    if (applicability && !applicability.passed) {
+    // Only re-run when a numeric rule was actually resolved but is the wrong one
+    // for this project type. Corpus/topic findings (e.g. Title 24 energy) carry
+    // no numeric rule, so a failed applicability there is expected, not a
+    // disagreement to re-run - skip them or the reviewer would flag every cited
+    // topic finding as wrong.
+    if (applicability && !applicability.passed && rule) {
       // The scripted disagreement + correction (Band message bus).
       emit(
         msg("reviewer", "disagreement", `DISAGREE on ${f.title}: ${applicability.rationale} Re-run with the correct rule.`, { to: "compliance", sponsor: "arize", refs: [f.id] })
