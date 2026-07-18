@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { upload } from "@vercel/blob/client";
 import { PROJECT_TYPES, DEFAULT_PROJECT_TYPE, type ProjectType } from "@/lib/types";
 
 type CityOption = { slug: string; label: string };
@@ -77,10 +78,21 @@ export function NewProjectForm({ onCreated }: Props) {
       let id: string;
 
       if (file && isDwg) {
-        setStatusText("Uploading DWG to Autodesk APS…");
-        const fd = new FormData();
-        fd.append("file", file);
-        const up = await fetch("/api/aps/upload", { method: "POST", body: fd });
+        setStatusText("Uploading DWG…");
+        // Uploaded straight to Blob from the browser (not through a Function
+        // body) since Vercel caps request bodies at 4.5MB and real DWGs
+        // routinely exceed that.
+        const blob = await upload(`dwg-uploads/${Date.now()}-${file.name}`, file, {
+          access: "private",
+          handleUploadUrl: "/api/blob/dwg-token",
+        });
+
+        setStatusText("Translating DWG in Autodesk APS…");
+        const up = await fetch("/api/aps/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ blobUrl: blob.url, fileName: file.name }),
+        });
         const upj = (await up.json()) as {
           ok?: boolean;
           urn?: string;
@@ -115,10 +127,11 @@ export function NewProjectForm({ onCreated }: Props) {
         id = data.id;
 
         setStatusText("Saving DWG to project…");
-        const stageFd = new FormData();
-        stageFd.append("file", file);
-        stageFd.append("projectId", id);
-        const stage = await fetch("/api/dwg/stage", { method: "POST", body: stageFd });
+        const stage = await fetch("/api/dwg/stage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ blobUrl: blob.url, fileName: file.name, projectId: id }),
+        });
         const stageJ = (await stage.json()) as { ok?: boolean; reason?: string };
         if (!stage.ok || !stageJ.ok) {
           throw new Error(stageJ.reason ?? "Could not save DWG file to the project workspace");
