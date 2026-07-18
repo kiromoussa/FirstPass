@@ -79,12 +79,15 @@ async function client(): Promise<Redis | null> {
   return redis;
 }
 
-export async function kvSet(key: string, value: unknown): Promise<void> {
+// ttlSeconds: undefined → the 6h default; 0 → persist with no expiry (corpus
+// data a runtime ingest must not silently lose).
+export async function kvSet(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
   const json = JSON.stringify(value);
   const r = await client();
   if (r) {
     try {
-      await r.set(key, json, "EX", 60 * 60 * 6); // 6h TTL
+      if (ttlSeconds === 0) await r.set(key, json);
+      else await r.set(key, json, "EX", ttlSeconds ?? 60 * 60 * 6);
       return;
     } catch (e) {
       warnMemoryFallback(`write failed: ${(e as Error).message}`);

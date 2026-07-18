@@ -80,5 +80,26 @@ export async function POST(req: NextRequest) {
       /* viewer hydrates on first GET */
     }
   }
+
+  // Auto-research: the address names a city we have no corpus for (it fell
+  // through to the default). Kick the jurisdiction researcher off in the
+  // background so by the time the user reviews results — or re-runs — the
+  // city's own code is retrievable. Fire-and-forget; the run works either way.
+  const addressCity = body.address?.split(",")[1]?.trim();
+  const addressState = body.address?.match(/,\s*([A-Z]{2})[\s,]*\d{5}/)?.[1] ?? "CA";
+  if (inferred === DEFAULT_CITY && addressCity && /^[a-z][a-z .'-]{1,40}$/i.test(addressCity)) {
+    try {
+      const { after } = await import("next/server");
+      const { researchAndIngestCity, cityCorpusExists, citySlugFor } = await import("@/lib/city-research");
+      if (!(await cityCorpusExists(citySlugFor(addressCity, addressState)))) {
+        after(async () => {
+          const res = await researchAndIngestCity({ city: addressCity, state: addressState });
+          console.log(`[projects] auto-research ${res.slug}:`, res.note, `chunks=${res.chunks} rules=${res.rules}`);
+        });
+      }
+    } catch (e) {
+      console.error("[projects] auto-research scheduling failed:", (e as Error)?.message ?? e);
+    }
+  }
   return NextResponse.json({ id, citySlug });
 }

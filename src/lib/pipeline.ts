@@ -33,7 +33,8 @@ import {
   languageLint,
 } from "./compliance";
 import { saveState, kvGet, kvSet } from "./store";
-import { seedCodeChunks, retrieveCodeHybrid, cityLabel, rulesFor } from "./code-db";
+import { seedCodeChunks, retrieveCodeHybrid, cityLabel, rulesForAsync } from "./code-db";
+import { researchAndIngestCity, cityCorpusExists, citySlugFor } from "./city-research";
 import { buildEnergyComplianceFinding } from "./corpus-compliance";
 
 // Artificial pacing that makes the SSE feel "live" in a local demo. In
@@ -96,8 +97,9 @@ export async function* runPipeline(
   // The city corpus this run retrieves code from (data/cities/<slug>).
   const citySlug = project.citySlug ?? JURISDICTION_ID;
   // The jurisdiction's own compliance rules (LA plan → LA limits, Alameda plan →
-  // Alameda limits). Falls back to the built-in set for un-researched cities.
-  const rules = rulesFor(citySlug);
+  // Alameda limits) — committed on disk OR researched at runtime into the
+  // durable store. Falls back to the built-in set for un-researched cities.
+  const rules = await rulesForAsync(citySlug);
   const state: ProjectState = {
     project: { ...project, status: "jurisdiction" },
     sources: [],
@@ -422,6 +424,30 @@ export async function* runPipeline(
     const selected = cityLabel(citySlug).split(",")[0]?.trim().toLowerCase();
     const onPlans = planMeta.projectCity.trim().toLowerCase();
     if (selected && onPlans && selected !== onPlans) {
+      // Auto-research: if the plan's actual city has no corpus, kick off the
+      // jurisdiction researcher in the background (after the SSE stream ends)
+      // so the corrected re-run has real citations. State inferred as CA when
+      // the plan address doesn't say otherwise — the pilot corpus is CA-only.
+      const stateMatch = planMeta.projectAddress?.match(/,\s*([A-Z]{2})[\s,]*\d{5}/);
+      const planState = stateMatch?.[1] ?? "CA";
+      const planCitySlug = citySlugFor(planMeta.projectCity, planState);
+      let researching = false;
+      if (!(await cityCorpusExists(planCitySlug))) {
+        researching = true;
+        try {
+          const { after } = await import("next/server");
+          const cityName = planMeta.projectCity;
+          after(async () => {
+            const res = await researchAndIngestCity({ city: cityName, state: planState });
+            console.log(`[pipeline] auto-research ${planCitySlug}:`, res.note, `chunks=${res.chunks} rules=${res.rules}`);
+          });
+        } catch (e) {
+          // Outside a request scope (tests, scripts) after() is unavailable —
+          // run it fire-and-forget instead.
+          researching = false;
+          console.error("[pipeline] auto-research scheduling failed:", (e as Error)?.message ?? e);
+        }
+      }
       const f: Finding = {
         id: "f_jurisdiction",
         ruleKey: "jurisdiction",
@@ -430,7 +456,13 @@ export async function* runPipeline(
         message:
           `The plans are for ${planMeta.projectAddress ?? planMeta.projectCity} (${planMeta.projectCity}), but this ` +
           `run checked them against ${cityLabel(citySlug)} rules. Every setback, FAR, parking, and coverage limit ` +
-          `cited here is ${cityLabel(citySlug)}'s, not ${planMeta.projectCity}'s. Re-run with the correct jurisdiction.`,
+          `cited here is ${cityLabel(citySlug)}'s, not ${planMeta.projectCity}'s. ` +
+          (researching
+            ? `${planMeta.projectCity}'s official code is being researched and ingested automatically — re-run this ` +
+              `project in a few minutes to check against it.`
+            : (await cityCorpusExists(planCitySlug))
+            ? `A ${planMeta.projectCity} corpus is available — re-run with it selected.`
+            : `Re-run with the correct jurisdiction.`),
         sourceRef: "S4",
       };
       state.findings.push(f);

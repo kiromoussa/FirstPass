@@ -157,11 +157,14 @@ export async function persistChunks(
   chunks: CodeChunk[],
   meta?: CityMeta
 ): Promise<number> {
-  for (const c of chunks) await kvSet(chunkKey(slug, c.id), c);
-  await kvSet(indexKey(slug), chunks.map((c) => c.id));
-  if (meta) await kvSet(metaKey(slug), meta);
+  // TTL 0 = no expiry: a runtime-ingested corpus is the only copy on
+  // serverless, and letting it lapse on the default 6h TTL silently reverts
+  // the city to the fallback rules.
+  for (const c of chunks) await kvSet(chunkKey(slug, c.id), c, 0);
+  await kvSet(indexKey(slug), chunks.map((c) => c.id), 0);
+  if (meta) await kvSet(metaKey(slug), meta, 0);
   const registry = (await kvGet<string[]>(REGISTRY_KEY)) ?? [];
-  if (!registry.includes(slug)) await kvSet(REGISTRY_KEY, [...registry, slug]);
+  if (!registry.includes(slug)) await kvSet(REGISTRY_KEY, [...registry, slug], 0);
   return chunks.length;
 }
 
@@ -282,11 +285,13 @@ const RULE_TERMS: Record<string, string[]> = {
   // many spaces must be PROVIDED per dwelling.
   parking: [
     "off-street parking space",
+    "off street parking",
     "parking spaces shall be provided",
     "automobile parking space",
     "spaces per dwelling",
     "covered parking",
     "parking space is required",
+    "parking spaces are required",
     "parking spaces per",
   ],
   requiredDocs: ["site plan", "plot plan", "floor plan", "elevation", "title-24", "submittal", "checklist", "application"],
@@ -564,6 +569,17 @@ export function loadCityRules(slug: string): Rule[] | null {
 // built-in (Alameda) rules. Always returns a usable set.
 export function rulesFor(slug: string): Rule[] {
   return loadCityRules(slug) ?? RULES;
+}
+
+// Async variant that also checks the durable store — a city researched at
+// runtime (city-research.ts) persists its derived rules to Redis under
+// code:<slug>:rules, which the sync disk-only loader can't see.
+export async function rulesForAsync(slug: string): Promise<Rule[]> {
+  const disk = loadCityRules(slug);
+  if (disk) return disk;
+  const stored = await kvGet<Rule[]>(`code:${slug}:rules`);
+  if (Array.isArray(stored) && stored.length > 0) return stored;
+  return RULES;
 }
 
 // "City, ST" display label for a city slug.

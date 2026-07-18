@@ -81,6 +81,15 @@ function detectCategory(name: string): string {
 function isLegalHeading(line: string): boolean {
   const s = line.trim();
   if (!s || s.length > 100) return false;
+  // Bare list enumerators ("1. Front yard: …", "(a) …", "B. …") are items
+  // WITHIN a section, not sections — real code numbers are multi-part
+  // ("15-4B-3", "150.0(b)", "R305.1"). Splitting on enumerators fragments a
+  // provision into one chunk per list item with citations like "1.".
+  if (/^\(?\d{1,2}[.)]\s/.test(s) && !/^\d+[-.]\d/.test(s)) return false;
+  if (/^\(?[a-zA-Z][.)]\s/.test(s)) return false;
+  // A bare structural keyword with no identifier ("SECTION:", "PART") labels
+  // nothing — treating it as a heading yields useless citations.
+  if (/^(sec\.|section|article|chapter|division|title|appendix|part)\s*:?\s*$/i.test(s)) return false;
   if (KEYWORD_HEAD.test(s) || NUM_HEAD.test(s)) return true;
   return ALLCAPS_HEAD.test(s) && /[A-Za-z]/.test(s);
 }
@@ -112,9 +121,10 @@ function splitBody(body: string): string[] {
 interface Section { header: string; source: string; body: string }
 
 // A short citation label from a heading line (up to the first sentence/colon, or
-// ~80 chars) — used when the provision text shares the heading line.
+// ~80 chars) — used when the provision text shares the heading line. Requires a
+// few characters before the terminator so "1." or "B." never becomes a label.
 function shortCitation(line: string): string {
-  const m = line.match(/^(.{0,80}?[.:])(\s|$)/);
+  const m = line.match(/^(.{6,80}?[.:])(\s|$)/);
   return (m ? m[1] : line.slice(0, 80)).trim();
 }
 

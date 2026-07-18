@@ -150,6 +150,18 @@ async function extractJson(
   return generateText(content, label, maxTokens, schema);
 }
 
+// Public structured-output helper for non-plan-reading callers (e.g. the
+// jurisdiction researcher deriving numeric rules from fetched code text).
+export async function llmExtractJson(
+  text: string,
+  schema: object,
+  label: string,
+  maxTokens = 16000
+): Promise<string | null> {
+  const { text: out } = await extractJson([{ type: "text", text }], schema, label, maxTokens);
+  return out;
+}
+
 // Structured extraction of plan facts from blueprint page images.
 // `pageImages` are base64 PNGs (without data: prefix). Empty → cached facts.
 export async function extractPlanFacts(
