@@ -584,6 +584,150 @@ async function extractFactsFromTiles(
   }
 }
 
+// Identity metadata read off the title/cover sheet: the address and city the
+// PLANS name, the zoning, the stated scope of work, whether that scope is a
+// conversion of existing enclosed space to an ADU, and the sheet index (table
+// of contents). This is what lets the pipeline catch a project run against the
+// wrong jurisdiction or the wrong project type, and reconcile the sheet index
+// against the sheets actually captured — all three failure modes are silent
+// otherwise.
+export interface PlanSetMeta {
+  projectAddress: string | null;
+  projectCity: string | null;
+  zoning: string | null;
+  scopeOfWork: string | null;
+  aduConversion: boolean;
+  dwellingUnits: number | null;
+  sheetIndex: string[];
+  confidence: number;
+}
+
+export async function extractPlanSetMeta(
+  tiles: { label: string; data: string }[]
+): Promise<PlanSetMeta | null> {
+  if (!PLAN_READER_LIVE || tiles.length === 0) return null;
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      projectAddress: { type: ["string", "null"] },
+      projectCity: { type: ["string", "null"] },
+      zoning: { type: ["string", "null"] },
+      scopeOfWork: { type: ["string", "null"] },
+      aduConversion: { type: "boolean" },
+      dwellingUnits: { type: ["number", "null"] },
+      sheetIndex: { type: "array", items: { type: "string" } },
+      confidence: { type: "number" },
+    },
+    required: [
+      "projectAddress",
+      "projectCity",
+      "zoning",
+      "scopeOfWork",
+      "aduConversion",
+      "dwellingUnits",
+      "sheetIndex",
+      "confidence",
+    ],
+  };
+  const content: ContentBlock[] = [
+    {
+      type: "text",
+      text:
+        "These are high-resolution tiles of a permit plan set's title/cover sheet. Read the title block, " +
+        "project data / site statistics table, scope of work, and the sheet index (table of contents). Return: " +
+        "projectAddress (the full project address as printed), projectCity (just the city name, e.g. 'El Segundo'), " +
+        "zoning (the zoning designation, e.g. 'R-3'), scopeOfWork (the stated scope, verbatim or close), " +
+        "aduConversion (true ONLY if the scope converts existing enclosed space — garage, laundry, basement, storage — " +
+        "into an accessory dwelling unit), dwellingUnits (the EXISTING number of dwelling units on the site if stated), " +
+        "and sheetIndex (every sheet number listed in the table of contents / sheet index, e.g. ['TS','A0.0','T24-1']). " +
+        "Use null for anything not shown. Set confidence 0..1 for the read as a whole. Never guess.",
+    },
+  ];
+  for (const t of tiles) {
+    content.push({ type: "text", text: `--- ${t.label} ---` });
+    content.push({ type: "image", source: { media_type: "image/png", data: t.data } });
+  }
+  try {
+    const { text } = await extractJson(content, schema, "extractPlanSetMeta", 8000);
+    if (text == null) return null;
+    const parsed = JSON.parse(text) as PlanSetMeta;
+    return {
+      projectAddress: typeof parsed.projectAddress === "string" ? parsed.projectAddress : null,
+      projectCity: typeof parsed.projectCity === "string" ? parsed.projectCity : null,
+      zoning: typeof parsed.zoning === "string" ? parsed.zoning : null,
+      scopeOfWork: typeof parsed.scopeOfWork === "string" ? parsed.scopeOfWork : null,
+      aduConversion: parsed.aduConversion === true,
+      dwellingUnits:
+        typeof parsed.dwellingUnits === "number" && Number.isFinite(parsed.dwellingUnits)
+          ? parsed.dwellingUnits
+          : null,
+      sheetIndex: Array.isArray(parsed.sheetIndex)
+        ? parsed.sheetIndex.filter((s): s is string => typeof s === "string" && !!s.trim())
+        : [],
+      confidence:
+        typeof parsed.confidence === "number" ? Math.min(1, Math.max(0, parsed.confidence)) : 0,
+    };
+  } catch (e) {
+    console.error("[llm:extractPlanSetMeta] could not parse model output:", (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
+// Focused second pass for metrics the full-set read left null or
+// under-confident. Same fact contract, but the prompt names ONLY the missing
+// keys and tells the model exactly where such values live on residential
+// sheets — dimension strings on property lines, site-statistics tables, and
+// roof-height callouts — which recovers values a general pass skims past.
+export async function extractMissingPlanFacts(
+  tiles: { label: string; data: string; grid?: TileGrid; region?: FactRegion }[],
+  missingKeys: string[],
+  projectType: string
+): Promise<{ facts: PlanFact[]; docTypes: SheetDocType[] } | null> {
+  if (!PLAN_READER_LIVE || tiles.length === 0 || missingKeys.length === 0) return null;
+  const wanted = NUMERIC_KEYS.filter((k) => missingKeys.includes(k.key));
+  if (wanted.length === 0) return null;
+  const schema = factsSchema(true, false, false);
+  const tileRegions = new Map<string, FactRegion>();
+  for (const t of tiles) {
+    const region = t.region ?? (t.grid ? gridToRegion(t.grid) : null);
+    if (region) tileRegions.set(t.label, region);
+  }
+  const content: ContentBlock[] = [
+    {
+      type: "text",
+      text:
+        `You are a licensed residential plan checker re-reading a ${projectType.replace(/_/g, " ")} permit plan set ` +
+        `for values a first pass could not find: ${wanted.map((k) => `${k.label} (key ${k.key}, ${k.unit})`).join("; ")}. ` +
+        "Search specifically: (1) dimension strings between property lines and building faces on the site plan — " +
+        "often drawn as ±5'-0\", 9'-6\", 15'-0\" with thin extension lines; treat a ± prefix as the value itself; " +
+        "(2) site statistics / project data tables (LOT AREA, FOOTPRINT, LOT COVERAGE %, F.A.R., NUMBER OF UNITS, " +
+        "PARKING); (3) elevation and section height callouts (TOP OF ROOF, T.O. RIDGE, ±19'-0\"). " +
+        "Emit ONLY the listed keys, at most one fact per key, and omit a key entirely if it is genuinely not shown. " +
+        "Cite the sheet and quote the raw dimension text. Set tile to the exact '--- … ---' label of the image you " +
+        "read the value from, and bbox to [x, y, w, h] normalized 0..1 within THAT image ([0,0,0,0] if you cannot " +
+        "localize it). Confidence 0..1, honest.",
+    },
+  ];
+  for (const t of tiles) {
+    content.push({ type: "text", text: `--- ${t.label} ---` });
+    content.push({ type: "image", source: { media_type: "image/png", data: t.data } });
+  }
+  try {
+    const { text } = await extractJson(content, schema, "extractMissingPlanFacts", 16000);
+    if (text == null) return null;
+    const parsed = JSON.parse(text) as { facts: any[] };
+    const byKey = new Map(parsed.facts.map((f) => [f.key, f]));
+    const facts: PlanFact[] = NUMERIC_KEYS.map(
+      (k) => sanitizeExtractedFact(k, byKey.get(k.key), { tileRegions }) ?? notReadFact(k)
+    );
+    return { facts, docTypes: [] };
+  } catch (e) {
+    console.error("[llm:extractMissingPlanFacts] could not parse model output:", (e as Error)?.message ?? e);
+    return null;
+  }
+}
+
 // Dual-pass PDF read: the document pass reads the PDF natively; when it leaves
 // core metrics unread or under-confident, a second pass re-reads high-resolution
 // content-cropped page renders with vision, and the two passes are merged

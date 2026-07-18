@@ -64,10 +64,29 @@ function msg(
 const RULE_LABELS: Record<string, string> = {
   maxSize: "Maximum unit size",
   height: "Height limit",
+  setbackFront: "Front setback",
   setbackRear: "Rear setback",
   setbackSide: "Side setback",
+  lotCoverage: "Lot coverage",
+  far: "Floor area ratio",
+  parking: "Off-street parking",
   requiredDocs: "Required documents",
 };
+
+// Metrics that CA state ADU law exempts when the scope of work converts
+// existing enclosed space (garage/laundry/basement) to an ADU: conversions
+// within the existing envelope cannot be denied for setback, lot-coverage,
+// FAR, or replacement-parking standards (Gov. Code §66323, former
+// §65852.2(e)(1)(A); replacement parking: §66314, former §65852.2(a)(1)(D)(xi)).
+const ADU_CONVERSION_EXEMPT_KEYS = new Set([
+  "setbackFront",
+  "setbackRear",
+  "setbackSide",
+  "lotCoverage",
+  "far",
+  "parking",
+]);
+const ADU_CONVERSION_CITE = "CA Gov. Code §66323 (former §65852.2(e)(1)(A)) — ADU conversion of existing space";
 
 export async function* runPipeline(
   project: Project,
@@ -150,6 +169,14 @@ export async function* runPipeline(
   // by the per-sheet reader — drives the required-documents checklist off sheet
   // CONTENT instead of keyword-matching layout names like "A1.0".
   let docTypes: string[] = [];
+  // Title-sheet identity (plan-stated address/city, zoning, scope of work,
+  // sheet index) — cross-checked against the user's jurisdiction and project
+  // type selections below, because a plan set evaluated under the wrong city's
+  // rules or the wrong project type produces confidently wrong findings.
+  let planMeta: import("./plan-read").SheetReadOutcome["meta"] = null;
+  // Sheets that plotted but are effectively empty (unresolved xref) — content
+  // the set claims to include but that was never actually checkable.
+  let nearBlankSheets: string[] = [];
   const urn = project.apsUrn;
   if (project.planMime) {
     // Accurate path: Claude reads the uploaded plan set (PDF/image) natively.
@@ -200,6 +227,8 @@ export async function* runPipeline(
         emit(msg("plan-reader", "info", note, { sponsor: "claude" }))
       );
       docTypes = outcome.docTypes;
+      planMeta = outcome.meta;
+      nearBlankSheets = outcome.sheetsNearBlank;
       facts = outcome.facts.length
         ? outcome.facts
         : await extractPlanFactsFromDocs(plotted, project.projectType);
@@ -309,10 +338,46 @@ export async function* runPipeline(
   // for the Arize demo set piece lives only in the demo pipeline now — the real
   // run never plants a bug. The review pass below remains as a genuine safety
   // net: it re-checks applicability and corrects if a wrong rule ever slips in.)
+  // The plans' own scope of work overrides a mis-selected project type for
+  // exemption purposes: a conversion of existing enclosed space to an ADU is
+  // ministerially approvable statewide and cannot be denied on setback, lot
+  // coverage, FAR, or replacement-parking standards. Without this, a garage
+  // conversion run as "single family" reports confident false violations
+  // (e.g. FAR of the EXISTING building "exceeding" a limit the project never
+  // touches).
+  const aduConversion = !!planMeta?.aduConversion && (planMeta?.confidence ?? 0) >= 0.6;
   for (const key of numericKeys) {
     const rule = selectRule(rules, key, project.projectType, true);
     const fact = factForRuleKey(key);
     if (!rule || !fact) continue;
+    if (aduConversion && ADU_CONVERSION_EXEMPT_KEYS.has(key)) {
+      const f: Finding = {
+        id: `f_${key}`,
+        ruleKey: key,
+        title: RULE_LABELS[key] ?? rule.label,
+        status: "PASS",
+        message:
+          `Exempt — the plans state the scope is a conversion of existing enclosed space to an ADU` +
+          `${planMeta?.scopeOfWork ? ` ("${planMeta.scopeOfWork.slice(0, 120)}")` : ""}. State ADU law bars ` +
+          `${RULE_LABELS[key]?.toLowerCase() ?? key} standards from being applied to such a conversion. ` +
+          `Verify the ADU stays within the existing building envelope.`,
+        factRef: fact.key,
+        ruleRef: rule.key,
+        sourceRef: rule.sourceId,
+        bbox: fact.bbox,
+        sheet: fact.sheet,
+        codeSection: ADU_CONVERSION_CITE,
+        codeText:
+          "An application for a permit to create an accessory dwelling unit within the space of an existing " +
+          "structure shall be approved ministerially; no setback, lot coverage, floor area ratio, or replacement " +
+          "off-street parking standard may be imposed on the converted space.",
+      };
+      state.findings.push(f);
+      emit(msg("compliance", "info", `${f.title}: PASS — ${f.message}`, { refs: [f.id] }));
+      await sleep(250);
+      yield snapshot();
+      continue;
+    }
     const res = compareNumeric(fact, rule);
     const chunk = await retrieveCodeHybrid(key, rule.appliesTo, citySlug); // RAG: RedisVL hybrid, lexical fallback
     // When the value is missing, distinguish a READER failure (truncation /
@@ -345,6 +410,94 @@ export async function* runPipeline(
       msg("compliance", res.status === "FAIL" ? "finding" : "info", `${f.title}: ${res.status} — ${detail}`, { refs: [f.id] })
     );
     await sleep(250);
+    yield snapshot();
+  }
+
+  // ---- Identity cross-checks: the plans vs the run's settings ----
+  // These catch the silent failure modes that make every other finding wrong:
+  // a plan set for another city graded under this city's limits, a fourplex
+  // ADU conversion graded as a single-family house, and sheets listed in the
+  // set's own index that never made it into the uploaded file.
+  if (planMeta?.projectCity) {
+    const selected = cityLabel(citySlug).split(",")[0]?.trim().toLowerCase();
+    const onPlans = planMeta.projectCity.trim().toLowerCase();
+    if (selected && onPlans && selected !== onPlans) {
+      const f: Finding = {
+        id: "f_jurisdiction",
+        ruleKey: "jurisdiction",
+        title: "Jurisdiction mismatch",
+        status: "FAIL",
+        message:
+          `The plans are for ${planMeta.projectAddress ?? planMeta.projectCity} (${planMeta.projectCity}), but this ` +
+          `run checked them against ${cityLabel(citySlug)} rules. Every setback, FAR, parking, and coverage limit ` +
+          `cited here is ${cityLabel(citySlug)}'s, not ${planMeta.projectCity}'s. Re-run with the correct jurisdiction.`,
+        sourceRef: "S4",
+      };
+      state.findings.push(f);
+      emit(msg("compliance", "finding", `${f.title}: ${f.message}`, { refs: [f.id] }));
+      yield snapshot();
+    }
+  }
+  const unitsFact = facts.find((f) => f.key === "dwellingUnits");
+  const unitsOnPlans =
+    planMeta?.dwellingUnits ?? (typeof unitsFact?.value === "number" ? unitsFact.value : null);
+  if (
+    (aduConversion && !/adu/.test(project.projectType)) ||
+    (unitsOnPlans != null && unitsOnPlans >= 2 && project.projectType === "single_family")
+  ) {
+    const f: Finding = {
+      id: "f_projectType",
+      ruleKey: "projectType",
+      title: "Project type mismatch",
+      status: "NEEDS_REVIEW",
+      message:
+        `The plans describe ${aduConversion ? "an ADU conversion of existing space" : "a different project type"}` +
+        `${unitsOnPlans != null && unitsOnPlans >= 2 ? ` on a ${unitsOnPlans}-unit property` : ""}` +
+        `${planMeta?.zoning ? ` zoned ${planMeta.zoning}` : ""}, but this run was configured as ` +
+        `"${projectTypeLabel(project.projectType)}". Checks and limits keyed to the configured type may not apply.`,
+      sourceRef: "S4",
+    };
+    state.findings.push(f);
+    emit(msg("compliance", "finding", `${f.title}: ${f.message}`, { refs: [f.id] }));
+    yield snapshot();
+  }
+  if (planMeta?.sheetIndex?.length && sheetNames.length) {
+    const captured = new Set(sheetNames.map((s) => s.toLowerCase().replace(/\s+/g, "")));
+    const missingSheets = planMeta.sheetIndex.filter(
+      (s) => !captured.has(s.toLowerCase().replace(/\s+/g, ""))
+    );
+    if (missingSheets.length) {
+      const f: Finding = {
+        id: "f_sheetIndex",
+        ruleKey: "sheetIndex",
+        title: "Sheets listed in the index but missing from the file",
+        status: "NEEDS_REVIEW",
+        message:
+          `The title sheet's index lists ${missingSheets.join(", ")}, but ${missingSheets.length === 1 ? "this sheet is" : "these sheets are"} ` +
+          `not in the uploaded file. Content on them (e.g. Title-24 energy forms on T24 sheets, structural details) ` +
+          `was NOT checked. Upload the full set or provide them separately.`,
+        sourceRef: "S4",
+      };
+      state.findings.push(f);
+      emit(msg("checklist", "finding", `${f.title}: ${f.message}`, { refs: [f.id] }));
+      yield snapshot();
+    }
+  }
+  if (nearBlankSheets.length) {
+    const f: Finding = {
+      id: "f_blankSheets",
+      ruleKey: "blankSheets",
+      title: "Sheets plotted almost empty",
+      status: "NEEDS_REVIEW",
+      message:
+        `${nearBlankSheets.join(", ")} plotted with almost no content — typically an unresolved external ` +
+        `reference (the sheet's body lives in a PDF/xref the drawing links to but does not embed). Whatever ` +
+        `${nearBlankSheets.length === 1 ? "this sheet" : "these sheets"} should show (e.g. CALGreen mandatory ` +
+        `measures) was NOT checked. Bind or embed the reference and re-upload.`,
+      sourceRef: "S4",
+    };
+    state.findings.push(f);
+    emit(msg("checklist", "finding", `${f.title}: ${f.message}`, { refs: [f.id] }));
     yield snapshot();
   }
 

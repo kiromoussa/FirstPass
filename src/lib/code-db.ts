@@ -252,18 +252,16 @@ export async function retrieveCode(
     return ranked.length ? ranked[0].c : null;
   }
 
-  const pool = tagged.length ? tagged : chunks;
-  let ranked = rank(pool);
-  // A large, loosely topic-tagged corpus can tag a chunk under a topic
-  // without that chunk actually containing any of the topic's lexical
-  // terms — scoring it 0. Returning "the first tagged chunk" in that case
-  // would hand back an unrelated citation with full-looking confidence,
-  // which is worse than no citation for a compliance tool. Widen to the
-  // full (untagged) corpus before giving up, and never return an unscored
-  // guess — null means "verify manually, no citation," which is honest.
-  if (!ranked.length && pool !== chunks) {
-    ranked = rank(chunks);
-  }
+  // Rank the WHOLE corpus, not just the tagged pool. Auto-tagging on scraped
+  // corpora is noisy both ways: the correct provision is often untagged while
+  // an unrelated section carries the tag (LA: the only setbackFront-tagged
+  // chunk is a no-parking-on-lawns ordinance, while the real §12.08 R1 yard
+  // standards are untagged). The +5 tag bonus in scoreChunk still breaks ties
+  // toward tagged chunks when they are genuinely relevant; the negative-term
+  // penalties push wrong-context tagged chunks below legitimate untagged ones.
+  // Never return an unscored guess — null means "verify manually, no
+  // citation," which is honest.
+  const ranked = rank(chunks);
   return ranked.length ? ranked[0].c : null;
 }
 
@@ -276,10 +274,21 @@ const RULE_TERMS: Record<string, string[]> = {
   height: ["height", "feet in height", "roof pitch", "stories", "story"],
   setbackSide: ["side setback", "side yard"],
   setbackRear: ["rear setback", "rear yard"],
-  setbackFront: ["front setback", "front yard", "prevailing setback"],
+  setbackFront: ["front setback", "front yard", "prevailing setback", "depth of the lot"],
   lotCoverage: ["lot coverage", "buildable area", "percent of the lot"],
   far: ["floor area ratio", "residential floor area", "floor area"],
-  parking: ["parking", "off-street", "covered parking", "spaces per unit"],
+  // Phrase-level terms only: the generic word "parking" matches hundreds of
+  // traffic/valet/meter provisions, but only a development standard says how
+  // many spaces must be PROVIDED per dwelling.
+  parking: [
+    "off-street parking space",
+    "parking spaces shall be provided",
+    "automobile parking space",
+    "spaces per dwelling",
+    "covered parking",
+    "parking space is required",
+    "parking spaces per",
+  ],
   requiredDocs: ["site plan", "plot plan", "floor plan", "elevation", "title-24", "submittal", "checklist", "application"],
   // Topics tagged by scripts/chunk_codes.py (broader code layers)
   waterEfficiency: ["water closet", "gallons per", "gpf", "gpm", "water conserving", "flow rate", "lavatory"],
@@ -314,13 +323,92 @@ function countOccurrences(hay: string, needle: string): number {
   return n;
 }
 
+// Disqualifying contexts per rule key. Large scraped corpora auto-tag chunks
+// whose text merely SHARES WORDS with a topic — LA's only "setbackFront"-tagged
+// chunk is §80.71.3 "PARKING IN FRONT YARDS" (a no-parking-on-lawns traffic
+// ordinance), "far" tags §19.11 (an inspection-fee section), and "parking" tags
+// §88.00 "PARKING METER ZONES AND RATES". A compliance citation must be the
+// development standard itself, so chunks matching these contexts are pushed
+// firmly below every legitimate candidate.
+const RULE_NEGATIVE_TERMS: Record<string, { title: string[]; body: string[] }> = {
+  setbackFront: { title: ["parking"], body: ["park any vehicle", "parking meter"] },
+  setbackSide: { title: ["parking"], body: ["park any vehicle", "parking meter"] },
+  setbackRear: { title: ["parking"], body: ["park any vehicle", "parking meter"] },
+  far: { title: ["annual inspection", "fee"], body: ["fee shall be charged", "fee shall be collected"] },
+  maxSize: { title: ["annual inspection", "fee"], body: ["fee shall be charged"] },
+  parking: {
+    title: ["parking meter", "meter zone", "loading zone", "lp-gas", "parking notice", "unauthorized", "stopping", "failure", "signs", "citation"],
+    body: ["parking meter", "hourly rates", "tank vehicle", "impound"],
+  },
+  lotCoverage: { title: ["parking"], body: ["park any vehicle", "parking meter"] },
+  height: { title: ["fee"], body: [] },
+};
+
+// Zoning development standards live in the municipal code ("city" layer). A
+// fire-code extinguisher table or a CEQA guideline can out-count a zoning
+// section on generic terms ("square feet", "maximum") — steer these keys to
+// the layer that actually governs them unless a caller scoped the category.
+const ZONING_KEYS = new Set([
+  "maxSize",
+  "unitSize",
+  "height",
+  "setbackFront",
+  "setbackRear",
+  "setbackSide",
+  "lotCoverage",
+  "far",
+  "parking",
+]);
+
 // Relevance of a chunk to a (ruleKey, applicability) query. Combines topic
-// membership, lexical term hits, and a detached/attached preference.
+// membership, lexical term hits (section titles weighted above body text, and
+// per-term body counts CAPPED so a 400KB catch-all section can't outscore the
+// short provision that actually governs), disqualifying-context penalties, a
+// mega-chunk length penalty, and a detached/attached preference.
 function scoreChunk(c: CodeChunk, ruleKey: string, appliesTo?: string): number {
   const hay = indexText(c).toLowerCase();
+  const title = (c.section ?? "").toLowerCase();
   const terms = RULE_TERMS[ruleKey] ?? [ruleKey.toLowerCase()];
-  let score = terms.reduce((s, t) => s + countOccurrences(hay, t), 0);
+  let score = terms.reduce(
+    // A term in the section TITLE is a far stronger signal than one buried in
+    // the body — "§12.08 R1 One-Family Zone" beats a section that merely
+    // mentions "front yard" once in passing. Body counts cap at 3 per term so
+    // sheer chunk size is not a relevance signal.
+    (s, t) =>
+      s +
+      Math.min(countOccurrences(hay, t), 3) +
+      Math.min(countOccurrences(title, t), 2) * 3,
+    0
+  );
   if (c.topics.includes(ruleKey)) score += 5; // strong signal: tagged for this rule
+  // Mega-chunk penalty: a 458KB "EXCEPTIONS" blob mentions every zoning term
+  // somewhere. It is a terrible citation (unreadable, unquotable) even when it
+  // technically contains the standard — prefer the focused section.
+  score -= Math.min(10, Math.floor(hay.length / 40_000));
+  // Layer preference: a zoning metric cited from the fire/electrical/CEQA
+  // layers is a wrong-context citation even when the terms match.
+  if (ZONING_KEYS.has(ruleKey) && c.category && c.category !== "city") score -= 5;
+  // Municipal-code chapter preference: LAMC-style numbering puts zoning in
+  // chapter 1 (§12.x, §13.x); §5x is public safety, §8x traffic, §9x building,
+  // §10x business regulation. A zoning standard cited from those chapters is
+  // wrong even when the words match ("§89.40 PARKING IN PARKING AREA").
+  if (ZONING_KEYS.has(ruleKey) && /§\s?(5\d|8\d|9\d|10\d)\./.test(c.section ?? "")) score -= 8;
+  // Zone-title alignment: when checking a single-family project, the section
+  // titled for the one-family zone IS the governing standard — prefer it over
+  // other residential zones (mobilehome parks, zero-side-yard) that share the
+  // same yard vocabulary.
+  if (ZONING_KEYS.has(ruleKey)) {
+    if (appliesTo === "single_family" && /one[- ]family/.test(title)) score += 6;
+    if (appliesTo === "multi_family" && /(multiple dwelling|“?r3|“?r4)/.test(title)) score += 6;
+    if (/mobilehome/.test(title)) score -= 6;
+  }
+  // Disqualify wrong-context chunks (traffic/fee/meter provisions) — the
+  // penalty outweighs both the tag bonus and typical term counts.
+  const negatives = RULE_NEGATIVE_TERMS[ruleKey];
+  if (negatives) {
+    for (const t of negatives.title) if (title.includes(t)) score -= 12;
+    for (const t of negatives.body) score -= Math.min(countOccurrences(hay, t), 3) * 3;
+  }
   // Applicability: reward the matching chunk and penalize the wrong one
   // symmetrically, so an attached query can't be won by a detached chunk that
   // merely mentions "height" more often (and vice-versa).
