@@ -134,7 +134,7 @@ export interface Source {
 // Units the compliance engine understands. Length in ft, area in sqft, lot
 // coverage as a percentage, floor-area ratio as a bare ratio, parking in spaces,
 // dwelling counts in units, and document presence in docs.
-export type Unit = "ft" | "sqft" | "pct" | "far" | "spaces" | "units" | "docs";
+export type Unit = "ft" | "in" | "sqft" | "pct" | "far" | "spaces" | "units" | "docs";
 
 export interface Rule {
   key: string; // maxSize | height | setbackFront/Rear/Side | lotCoverage | far | parking | requiredDocs
@@ -160,6 +160,11 @@ export interface PlanFact {
   // refusal, API/parse error) rather than the dimension simply not being shown.
   // Lets the UI say WHY a value is missing instead of a blanket "couldn't read".
   readError?: string;
+  /** Drawing review: how the value was read - the element's own dimension,
+   *  only a window/door unit size, or a general note on the sheet. */
+  basis?: "measured" | "nominal" | "note";
+  /** Drawing review: window operation type (sliding, casement ...). */
+  operation?: string;
 }
 
 export interface EvalResult {

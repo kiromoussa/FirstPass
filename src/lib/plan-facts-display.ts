@@ -7,7 +7,7 @@ export function factsForDisplay(facts: PlanFact[], projectType: string): PlanFac
   return facts.filter((f) => {
     if (f.key === "sheets" || f.key === "docTypes") return false;
     if (f.value == null) return false;
-    if (isAdu && !aduKeys.has(f.key)) return false;
+    if (isAdu && !aduKeys.has(f.key) && !f.key.startsWith("drawing:")) return false;
     return true;
   });
 }

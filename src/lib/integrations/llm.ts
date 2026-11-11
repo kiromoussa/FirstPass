@@ -12,11 +12,18 @@ import {
 import { mergePlanFactSets, needsVisionPass } from "../fact-merge";
 import type { PlanFact, Unit } from "../types";
 
-export const PLAN_READER_LIVE = !!process.env.OPENAI_API_KEY;
-const NOT_CONFIGURED = "the plan reader is not configured (no OPENAI_API_KEY)";
+// Azure OpenAI's /openai/v1 endpoint speaks the same chat-completions API, so
+// it is used whenever configured (model = deployment name); OpenAI otherwise.
+const AZURE = !!process.env.AZURE_OPENAI_API_KEY && !!process.env.AZURE_OPENAI_ENDPOINT;
+const API_KEY = AZURE ? process.env.AZURE_OPENAI_API_KEY : process.env.OPENAI_API_KEY;
+const CHAT_URL = AZURE
+  ? `${process.env.AZURE_OPENAI_ENDPOINT!.replace(/\/+$/, "")}/chat/completions`
+  : "https://api.openai.com/v1/chat/completions";
+export const PLAN_READER_LIVE = !!API_KEY;
+const NOT_CONFIGURED = "the plan reader is not configured (no OPENAI_API_KEY or AZURE_OPENAI_API_KEY)";
 
 // Cheapest capable model — no escalation (cost control for agent workloads).
-const MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
+const MODEL = process.env.OPENAI_MODEL || (AZURE ? "gpt-5.4-mini" : "gpt-5-mini");
 // Reasoning models (gpt-5*/o*) spend completion budget on reasoning tokens and
 // reject legacy params — gate the reasoning-specific request shape on this.
 const REASONING = /^(gpt-5|o\d)/.test(MODEL);
@@ -25,7 +32,7 @@ const REASONING = /^(gpt-5|o\d)/.test(MODEL);
 // single slow call can't starve the rest of the pipeline. Override via env.
 const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 90_000;
 
-type ContentBlock =
+export type ContentBlock =
   | { type: "text"; text: string }
   | { type: "image"; source: { media_type: string; data: string } }
   | { type: "document"; source: { media_type: string; data: string } };
@@ -87,10 +94,10 @@ async function generateText(
   // and return the graceful "service call failed" error, so the pipeline
   // continues (the finding becomes NEEDS_REVIEW) instead of dying.
   const call = () =>
-    fetch("https://api.openai.com/v1/chat/completions", {
+    fetch(CHAT_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
@@ -141,7 +148,7 @@ async function generateText(
 }
 
 // Structured-output extraction — same transport as generateText, schema required.
-async function extractJson(
+export async function extractJson(
   content: ContentBlock[],
   schema: object,
   label: string,

@@ -16,6 +16,7 @@ import {
   type SheetDocType,
 } from "./integrations/llm";
 import { mergePlanFactSets } from "./fact-merge";
+import { dedupeObservations, reviewDrawingTiles } from "./drawing-review";
 import type { PlanFact } from "./types";
 
 // Parallel per-sheet vision calls. Each call carries one sheet's tiles (~6 at
@@ -39,6 +40,9 @@ const TILES_PER_CALL = 12;
 const SITE_KEYS = ["setbackFront", "setbackRear", "setbackSide", "lotCoverage", "far", "parking", "dwellingUnits", "unitSize"];
 const ELEVATION_KEYS = ["height"];
 const CONFIDENT = 0.75;
+// Sheets the building-code drawing review reads (escape windows, ceilings,
+// rooms, stairs, alarms live here, not on the site plan).
+const DRAWING_TYPES: SheetDocType[] = ["floor_plan", "section", "elevation", "detail_or_schedule"];
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -77,6 +81,7 @@ export async function readFactsFromAllSheets(
     plotted.length
   ).fill(null);
   const nearBlank: boolean[] = new Array(plotted.length).fill(false);
+  const observations: PlanFact[] = [];
 
   let cursor = 0;
   const worker = async () => {
@@ -106,6 +111,16 @@ export async function readFactsFromAllSheets(
         }
         if (!result) continue;
         perSheet[i] = result;
+        if (result.docTypes.some((t) => DRAWING_TYPES.includes(t))) {
+          const found: PlanFact[] = [];
+          for (const group of chunk(tiles, TILES_PER_CALL)) {
+            found.push(...(await reviewDrawingTiles(group, projectType)));
+          }
+          observations.push(...found);
+          if (found.length) {
+            onNote?.(`Sheet ${sheet.name} drawing review: ${found.length} building-code item(s) read (${found.map((f) => f.label).slice(0, 4).join("; ")}${found.length > 4 ? "; ..." : ""})`);
+          }
+        }
         const read = result.facts.filter((f) => f.key !== "sheets" && f.value != null);
         onNote?.(
           `Sheet ${sheet.name}: ` +
@@ -243,5 +258,6 @@ export async function readFactsFromAllSheets(
       : f
   );
 
+  facts.push(...dedupeObservations(observations));
   return { facts, docTypes, sheetsRead: readSets.length, sheetsFailed, sheetsNearBlank, meta };
 }

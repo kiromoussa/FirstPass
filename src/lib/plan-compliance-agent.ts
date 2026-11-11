@@ -1,6 +1,7 @@
 // Plan Compliance Agent — partner's TypeScript pipeline (DWG/PDF → vision → compareNumeric)
 // Registered in Band as **Compare Codes** (@varbtw/compare-codes). The Python listener
 // calls POST /api/agents/compare-codes/run when @mentioned.
+import { coveredByDrawing, drawingFindings, reviewDrawingPdf } from "./drawing-review";
 import fs from "fs/promises";
 import path from "path";
 import type {
@@ -366,9 +367,12 @@ async function readPlanFacts(
     const stored = await kvGet<{ mediaType: string; data: string }>(`plan:${project.id}`);
     if (stored?.data) {
       // Dual-pass: native document read + high-res vision verification pass.
-      facts = await extractPlanFactsFromPdfDual(stored.data, stored.mediaType, project.projectType, (note) =>
+      facts = (await Promise.all([
+        extractPlanFactsFromPdfDual(stored.data, stored.mediaType, project.projectType, (note) =>
         push(agentMsg("plan-reader", "info", note))
-      );
+      ),
+        reviewDrawingPdf(stored.data, stored.mediaType, project.projectType),
+      ])).flat();
       const read = facts.filter((f) => f.key !== "sheets" && f.value != null);
       const sf = facts.find((f) => f.key === "sheets");
       if (Array.isArray(sf?.value)) sheetNames = sf.value as string[];
@@ -377,7 +381,7 @@ async function readPlanFacts(
         agentMsg(
           "plan-reader",
           "done",
-          `Read ${read.length}/4 dimensions from uploaded plans${sheetNames.length ? ` (${sheetNames.length} sheets)` : ""}.`
+          `Read ${read.length} dimensions from uploaded plans${sheetNames.length ? ` (${sheetNames.length} sheets)` : ""}.`
         )
       );
       return finalizePlanFacts(project, facts, extractedFacts, sheetNames, planReadError, push);
@@ -579,7 +583,9 @@ async function runComplianceChecks(
     )
   );
 
-  const corpusFindings = await runCorpusTopicChecks(project, facts, citySlug);
+  // A generic "verify egress / alarms" flag is noise once the drawing review
+  // measured those items on the sheets.
+  const corpusFindings = (await runCorpusTopicChecks(project, facts, citySlug)).filter((f) => !coveredByDrawing(facts, f.ruleKey));
   for (const f of corpusFindings) {
     findings.push(f);
     push(
@@ -608,6 +614,11 @@ async function runComplianceChecks(
       { refs: [energyFinding.id] }
     )
   );
+
+  for (const f of drawingFindings(facts, citySlug, project.projectType)) {
+    findings.push(f);
+    push(agentMsg("compliance", f.status === "FAIL" ? "finding" : "info", `${f.title}: ${f.status} - ${f.message}`, { refs: [f.id] }));
+  }
 
   push(
     agentMsg(

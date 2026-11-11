@@ -2,6 +2,7 @@
 // publishes Band messages, performs the deterministic checks, and executes the
 // scripted Reviewer/Arize correction. Yields a full ProjectState after each
 // step so the SSE route can stream progress to the dashboard.
+import { coveredByDrawing, drawingFindings, reviewDrawingPdf } from "./drawing-review";
 import type {
   Project,
   ProjectState,
@@ -35,7 +36,7 @@ import {
 import { saveState, kvGet, kvSet } from "./store";
 import { seedCodeChunks, retrieveCodeHybrid, cityLabel, rulesForAsync } from "./code-db";
 import { researchAndIngestCity, cityCorpusExists, citySlugFor } from "./city-research";
-import { buildEnergyComplianceFinding } from "./corpus-compliance";
+import { buildEnergyComplianceFinding, runCorpusTopicChecks } from "./corpus-compliance";
 
 // Artificial pacing that makes the SSE feel "live" in a local demo. In
 // production the real APS/LLM work provides the pacing and every second counts
@@ -188,14 +189,17 @@ export async function* runPipeline(
     if (stored?.data) {
       // Dual-pass: native document read, then a high-res vision pass when core
       // metrics come back unread/low-confidence; the passes merge deterministically.
-      facts = await extractPlanFactsFromPdfDual(stored.data, stored.mediaType, project.projectType, (note) =>
+      facts = (await Promise.all([
+        extractPlanFactsFromPdfDual(stored.data, stored.mediaType, project.projectType, (note) =>
         emit(msg("plan-reader", "info", note, { sponsor: "claude" }))
-      );
+      ),
+        reviewDrawingPdf(stored.data, stored.mediaType, project.projectType),
+      ])).flat();
       const read = facts.filter((f) => f.key !== "sheets" && f.value != null);
       const sf = facts.find((f) => f.key === "sheets");
       if (Array.isArray(sf?.value)) sheetNames = sf.value as string[];
       extractedFacts = read.length > 0;
-      emit(msg("plan-reader", "done", `Read ${read.length}/4 dimensions from the plans${sheetNames.length ? ` across ${sheetNames.length} sheets` : ""}. Unread values will be flagged for manual review.`, { sponsor: "claude" }));
+      emit(msg("plan-reader", "done", `Read ${read.length} dimensions from the plans${sheetNames.length ? ` across ${sheetNames.length} sheets` : ""}. Unread values will be flagged for manual review.`, { sponsor: "claude" }));
       yield snapshot();
     } else {
       emit(msg("plan-reader", "info", "Plan set could not be loaded — flagging checks for manual review.", { sponsor: "claude" }));
@@ -267,12 +271,26 @@ export async function* runPipeline(
       for (const v of sheets) lines.push(...(await extractSheetText(urn, v)));
       facts = lines.length > 0 ? ((extractedFacts = true), await interpretDwgText(lines)) : await extractPlanFacts([]);
     }
-  } else {
-    // No DWG uploaded — the curated reference set is the intended demo input.
-    emit(msg("plan-reader", "info", "Reading the reference plan set and extracting structured facts…", { sponsor: "claude" }));
+  } else if (pageImages.length > 0) {
+    // Explicit page images passed by the caller (scripts/tests) — read them.
+    emit(msg("plan-reader", "info", "Reading the provided plan pages and extracting structured facts…", { sponsor: "claude" }));
     yield snapshot();
     facts = await extractPlanFacts(pageImages);
     extractedFacts = true;
+  } else {
+    // No plan set is attached to this project AT ALL. Never substitute the
+    // curated demo reference facts for a real user project — grading numbers
+    // the user never uploaded produces confident false violations (the exact
+    // bug: "rear setback FAIL 4ft" reported for a file with no site plan).
+    // Every dimensional check must land in NEEDS_REVIEW with a clear reason.
+    emit(msg("plan-reader", "info", "No plan set is attached to this project — nothing was measured. Upload a plan set (PDF preferred) and re-run; all checks are flagged for manual review.", { sponsor: "claude" }));
+    yield snapshot();
+    planReadError = "no plan set is attached to this project; upload a PDF (or DWG) plan set and re-run";
+    facts = (await extractPlanFacts([])).map((f) =>
+      f.key === "sheets"
+        ? { ...f, value: [], bbox: null, confidence: 0, raw: "No plan set uploaded." }
+        : { ...f, value: null, bbox: null, confidence: 0, raw: "No plan set uploaded — nothing was measured." }
+    );
   }
 
   // Honesty gate: a DWG was uploaded but we couldn't measure it → don't fabricate
@@ -350,8 +368,22 @@ export async function* runPipeline(
   const aduConversion = !!planMeta?.aduConversion && (planMeta?.confidence ?? 0) >= 0.6;
   for (const key of numericKeys) {
     const rule = selectRule(rules, key, project.projectType, true);
-    const fact = factForRuleKey(key);
-    if (!rule || !fact) continue;
+    if (!rule) continue;
+    // A rule that applies to this project type must ALWAYS produce a finding.
+    // When the reader emitted no fact object for the key (e.g. it only reads a
+    // subset of metrics), grade a null fact — the engine routes it to
+    // NEEDS_REVIEW with the cited limit — instead of silently skipping the
+    // check, which read as "FirstPass only checks a couple of codes".
+    const fact: PlanFact = factForRuleKey(key) ?? {
+      key: key === "maxSize" ? "unitSize" : key,
+      label: RULE_LABELS[key] ?? rule.label,
+      value: null,
+      unit: rule.unit,
+      sheet: "—",
+      bbox: null,
+      confidence: 0,
+      raw: "Not extracted from the plan set.",
+    };
     if (aduConversion && ADU_CONVERSION_EXEMPT_KEYS.has(key)) {
       const f: Finding = {
         id: `f_${key}`,
@@ -560,6 +592,21 @@ export async function* runPipeline(
   const energyFinding = await buildEnergyComplianceFinding(project, facts, citySlug, docTypes);
   state.findings.push(energyFinding);
   emit(msg("compliance", "info", `${energyFinding.title}: ${energyFinding.status} — ${energyFinding.message}`, { refs: [energyFinding.id] }));
+  yield snapshot();
+
+  // Building-code checks read off the drawing itself (escape windows, ceilings,
+  // room sizes, hallways, stairs, alarms), graded against the 2025 CRC.
+  // Life-safety / CALGreen topics the plan touches (fire separation,
+  // ventilation, foundation ...), cited from the corpus. Topics the drawing
+  // review measured directly are skipped.
+  for (const f of (await runCorpusTopicChecks(project, facts, citySlug)).filter((x) => !coveredByDrawing(facts, x.ruleKey))) {
+    state.findings.push(f);
+    emit(msg("compliance", "info", `${f.title}: ${f.status} - ${f.message}`, { refs: [f.id] }));
+  }
+  for (const f of drawingFindings(facts, citySlug, project.projectType)) {
+    state.findings.push(f);
+    emit(msg("compliance", f.status === "FAIL" ? "finding" : "info", `${f.title}: ${f.status} - ${f.message}`, { refs: [f.id] }));
+  }
   yield snapshot();
   // Checkpoint: the expensive read + all findings are computed. Persist now so an
   // interruption during review/report doesn't discard the work.
