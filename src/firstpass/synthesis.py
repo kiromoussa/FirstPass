@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from firstpass.models import CodeRequirement, ComplianceReport, PropertyCheck
@@ -213,6 +214,32 @@ def format_compliance_text(report: ComplianceReport) -> str:
     return "\n".join(lines)
 
 
+def _merge_atlas_requirements(
+    municipal_reqs: list[CodeRequirement], address: str, project_type: str
+) -> list[CodeRequirement]:
+    """Prepend ADU Atlas requirements, dropping any existing req they supersede.
+
+    Atlas requirements are deterministic and officially cited, so on a same-topic
+    collision the Atlas value wins. Matching is by normalized requirement label.
+    Failures are swallowed (import error, network) - Atlas is a best-effort source.
+    """
+    try:
+        from firstpass.adu_atlas import code_requirements_from_atlas
+
+        atlas_reqs = code_requirements_from_atlas(address, project_type)
+    except Exception:
+        return municipal_reqs
+    if not atlas_reqs:
+        return municipal_reqs
+
+    def _norm(label: str) -> str:
+        return " ".join(label.lower().split())
+
+    atlas_labels = {_norm(r.requirement) for r in atlas_reqs}
+    kept = [r for r in municipal_reqs if _norm(r.requirement) not in atlas_labels]
+    return atlas_reqs + kept
+
+
 def synthesize_from_files(
     address: str,
     project_type: str,
@@ -246,6 +273,13 @@ def synthesize_from_files(
             "California",
             checklist_type="state",
         )
+
+    # Deterministic, source-cited baseline from ADU Atlas (opt-in). For a covered
+    # CA city this seeds the objective zoning/ADU standards with official citations
+    # so the band research agents only have to fill gaps. No coverage / disabled /
+    # unreachable -> [] and the pipeline behaves exactly as before.
+    if os.environ.get("ADU_ATLAS_ENABLED", "").lower() in ("1", "true", "yes"):
+        municipal_reqs = _merge_atlas_requirements(municipal_reqs, address, project_type)
 
     property_checks, zimas_session, _ = lookup_property_checks(address, profile, use_browserbase)
 
